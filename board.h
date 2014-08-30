@@ -96,6 +96,7 @@ private:
 	GrowableStack<UndoList> m_undoStack;
 };
 
-void DebugPerft(std::string fen, uint32_t depth);
+uint64_t DebugPerft(std::string fen, uint32_t depth);
+void DebugRunPerftTests();
 
 #endif // BOARD_H
