@@ -4,4 +4,5 @@
 
 #include "magic_moves.cpp"
 #include "board_consts.cpp"
+#include "board.cpp"
 #include "main.cpp"

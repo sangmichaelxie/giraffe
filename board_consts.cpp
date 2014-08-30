@@ -1,8 +1,7 @@
 #include "board_consts.h"
 
 #include <iostream>
-
-uint64_t BIT[64];
+#include <iomanip>
 
 uint64_t KING_ATK[64];
 uint64_t KNIGHT_ATK[64];
@@ -31,12 +30,6 @@ uint64_t SqOffset(int32_t sq, int32_t xOffset, int32_t yOffset)
 
 void BoardConstsInit()
 {
-	// BIT[64] must be initialized first because it's used in the rest of this function
-	for (int32_t i = 0; i < 64; ++i)
-	{
-		BIT[i] = 1ULL << i;
-	}
-
 	// generate all the attack tables
 	for (int32_t sq = 0; sq < 64; ++sq)
 	{
