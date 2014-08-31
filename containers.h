@@ -66,6 +66,18 @@ public:
 		return m_data[i];
 	}
 
+	// make sure there is enough space for another element
+	// increment size, and return reference to that element (the element needs to be constructed by the caller)
+	T &PrePush()
+	{
+		if (m_size == m_data.size())
+		{
+			m_data.resize(m_data.size() * 2);
+		}
+
+		return m_data[m_size++];
+	}
+
 private:
 	std::vector<T> m_data;
 	size_t m_size;

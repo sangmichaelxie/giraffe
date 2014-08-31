@@ -121,9 +121,14 @@ char PieceTypeToChar(PieceType pt)
 
 Board::Board(const std::string &fen)
 {
-	for (uint32_t i = 0; i < BOARD_DESC_SIZE; ++i)
+	for (uint32_t i = 0; i < BOARD_DESC_BB_SIZE; ++i)
 	{
-		m_boardDesc[i] = 0;
+		m_boardDescBB[i] = 0;
+	}
+
+	for (uint32_t i = 0; i < BOARD_DESC_U8_SIZE; ++i)
+	{
+		m_boardDescU8[i] = 0;
 	}
 
 	for (Square sq = 0; sq < 64; ++sq)
@@ -208,21 +213,21 @@ Board::Board(const std::string &fen)
 		exit(1);
 	}
 
-	m_boardDesc[SIDE_TO_MOVE] = sideToMove == 'w' ? WHITE : BLACK;
+	m_boardDescU8[SIDE_TO_MOVE] = sideToMove == 'w' ? WHITE : BLACK;
 
 	if (enPassantSq[0] != '-')
 	{
-		m_boardDesc[EN_PASS_SQUARE] = BIT[StringToSquare(std::string(enPassantSq))];
+		m_boardDescBB[EN_PASS_SQUARE] = BIT[StringToSquare(std::string(enPassantSq))];
 	}
 
 	std::string strCastlingRights(castlingRights);
 
-	m_boardDesc[W_SHORT_CASTLE] = strCastlingRights.find('K') != std::string::npos;
-	m_boardDesc[W_LONG_CASTLE] = strCastlingRights.find('Q') != std::string::npos;
-	m_boardDesc[B_SHORT_CASTLE] = strCastlingRights.find('k') != std::string::npos;
-	m_boardDesc[B_LONG_CASTLE] = strCastlingRights.find('q') != std::string::npos;
+	m_boardDescU8[W_SHORT_CASTLE] = strCastlingRights.find('K') != std::string::npos;
+	m_boardDescU8[W_LONG_CASTLE] = strCastlingRights.find('Q') != std::string::npos;
+	m_boardDescU8[B_SHORT_CASTLE] = strCastlingRights.find('k') != std::string::npos;
+	m_boardDescU8[B_LONG_CASTLE] = strCastlingRights.find('q') != std::string::npos;
 
-	m_boardDesc[HALF_MOVES_CLOCK] = halfMoves;
+	m_boardDescU8[HALF_MOVES_CLOCK] = halfMoves;
 
 	UpdateInCheck_();
 
@@ -233,39 +238,39 @@ Board::Board(const std::string &fen)
 
 void Board::RemovePiece(Square sq)
 {
-	m_boardDesc[m_boardDesc[MB_BASE + sq]] &= INVBIT[sq];
+	m_boardDescBB[m_boardDescU8[sq]] &= INVBIT[sq];
 
-	m_boardDesc[MB_BASE + sq] = EMPTY;
+	m_boardDescU8[sq] = EMPTY;
 
 	// faster to reset both than check
-	m_boardDesc[WHITE_OCCUPIED] &= INVBIT[sq];
-	m_boardDesc[BLACK_OCCUPIED] &= INVBIT[sq];
+	m_boardDescBB[WHITE_OCCUPIED] &= INVBIT[sq];
+	m_boardDescBB[BLACK_OCCUPIED] &= INVBIT[sq];
 }
 
 void Board::PlacePiece(Square sq, PieceType pt)
 {
 #ifdef DEBUG
 	assert(pt != EMPTY);
-	assert(m_boardDesc[MB_BASE + sq] == EMPTY);
+	assert(m_boardDescU8[sq] == EMPTY);
 #endif
 
-	m_boardDesc[MB_BASE + sq] = pt;
-	m_boardDesc[pt] |= BIT[sq];
+	m_boardDescU8[sq] = pt;
+	m_boardDescBB[pt] |= BIT[sq];
 
 	if (GetColor(pt) == WHITE)
 	{
-		m_boardDesc[WHITE_OCCUPIED] |= BIT[sq];
+		m_boardDescBB[WHITE_OCCUPIED] |= BIT[sq];
 	}
 	else
 	{
-		m_boardDesc[BLACK_OCCUPIED] |= BIT[sq];
+		m_boardDescBB[BLACK_OCCUPIED] |= BIT[sq];
 	}
 }
 
 template <Board::MOVE_TYPES MT>
 void Board::GenerateAllMoves(MoveList &moveList)
 {
-	Color sideToMove = m_boardDesc[SIDE_TO_MOVE];
+	Color sideToMove = m_boardDescU8[SIDE_TO_MOVE];
 
 	GenerateKingMoves_<MT>(sideToMove, moveList);
 	GenerateQueenMoves_<MT>(sideToMove, moveList);
@@ -291,64 +296,64 @@ void Board::CheckBoardConsistency()
 {
 	for (uint32_t sq = 0; sq < 64; ++sq)
 	{
-		PieceType pt = m_boardDesc[MB_BASE + sq];
+		PieceType pt = m_boardDescU8[sq];
 		if (pt == EMPTY)
 		{
 			for (uint32_t i = 0; i < NUM_PIECETYPES; ++i)
 			{
-				assert(!(m_boardDesc[PIECE_TYPE_INDICES[i]] & BIT[sq]));
+				assert(!(m_boardDescBB[PIECE_TYPE_INDICES[i]] & BIT[sq]));
 			}
 
-			assert(!(m_boardDesc[WHITE_OCCUPIED] & BIT[sq]));
-			assert(!(m_boardDesc[BLACK_OCCUPIED] & BIT[sq]));
+			assert(!(m_boardDescBB[WHITE_OCCUPIED] & BIT[sq]));
+			assert(!(m_boardDescBB[BLACK_OCCUPIED] & BIT[sq]));
 		}
 		else
 		{
 			if (GetColor(pt) == WHITE)
 			{
-				assert(m_boardDesc[WHITE_OCCUPIED] & BIT[sq]);
-				assert(!(m_boardDesc[BLACK_OCCUPIED] & BIT[sq]));
+				assert(m_boardDescBB[WHITE_OCCUPIED] & BIT[sq]);
+				assert(!(m_boardDescBB[BLACK_OCCUPIED] & BIT[sq]));
 			}
 			else
 			{
-				assert(m_boardDesc[BLACK_OCCUPIED] & BIT[sq]);
-				assert(!(m_boardDesc[WHITE_OCCUPIED] & BIT[sq]));
+				assert(m_boardDescBB[BLACK_OCCUPIED] & BIT[sq]);
+				assert(!(m_boardDescBB[WHITE_OCCUPIED] & BIT[sq]));
 			}
 
 			for (uint32_t i = 0; i < NUM_PIECETYPES; ++i)
 			{
 				if (PIECE_TYPE_INDICES[i] != pt)
 				{
-					assert(!(m_boardDesc[PIECE_TYPE_INDICES[i]] & BIT[sq]));
+					assert(!(m_boardDescBB[PIECE_TYPE_INDICES[i]] & BIT[sq]));
 				}
 			}
 
-			assert(m_boardDesc[pt] & BIT[sq]);
+			assert(m_boardDescBB[pt] & BIT[sq]);
 		}
 	}
 
-	if (m_boardDesc[MB_BASE + E1] != WK || m_boardDesc[MB_BASE + H1] != WR)
+	if (m_boardDescU8[E1] != WK || m_boardDescU8[H1] != WR)
 	{
-		assert(!m_boardDesc[W_SHORT_CASTLE]);
+		assert(!m_boardDescU8[W_SHORT_CASTLE]);
 	}
 
-	if (m_boardDesc[MB_BASE + E1] != WK || m_boardDesc[MB_BASE + A1] != WR)
+	if (m_boardDescU8[E1] != WK || m_boardDescU8[A1] != WR)
 	{
-		assert(!m_boardDesc[W_LONG_CASTLE]);
+		assert(!m_boardDescU8[W_LONG_CASTLE]);
 	}
 
-	if (m_boardDesc[MB_BASE + E8] != BK || m_boardDesc[MB_BASE + H8] != BR)
+	if (m_boardDescU8[E8] != BK || m_boardDescU8[H8] != BR)
 	{
-		if (m_boardDesc[B_SHORT_CASTLE])
+		if (m_boardDescU8[B_SHORT_CASTLE])
 		{
 			std::cout << PrintBoard() << std::endl;
 		}
-		assert(!m_boardDesc[B_SHORT_CASTLE]);
+		assert(!m_boardDescU8[B_SHORT_CASTLE]);
 	}
 
-	if (m_boardDesc[MB_BASE + E8] != BK || m_boardDesc[MB_BASE + A8] != BR)
+	if (m_boardDescU8[E8] != BK || m_boardDescU8[A8] != BR)
 	{
-		assert(!m_boardDesc[B_LONG_CASTLE]);
+		assert(!m_boardDescU8[B_LONG_CASTLE]);
 	}
 }
 #endif
@@ -361,15 +366,15 @@ std::string Board::GetFen(bool omitMoveNums) const
 	{
 		for (int x = 0; x < 8;)
 		{
-			if (m_boardDesc[MB_BASE + Sq(x, y)] != EMPTY)
+			if (m_boardDescU8[Sq(x, y)] != EMPTY)
 			{
-				ss << PieceTypeToChar(m_boardDesc[MB_BASE + Sq(x, y)]);
+				ss << PieceTypeToChar(m_boardDescU8[Sq(x, y)]);
 				++x;
 			}
 			else
 			{
 				int numOfSpaces = 0;
-				while (m_boardDesc[MB_BASE + Sq(x, y)] == EMPTY && x < 8)
+				while (m_boardDescU8[Sq(x, y)] == EMPTY && x < 8)
 				{
 					++numOfSpaces;
 					++x;
@@ -386,25 +391,25 @@ std::string Board::GetFen(bool omitMoveNums) const
 
 	ss << " ";
 
-	ss << (m_boardDesc[SIDE_TO_MOVE] == WHITE ? 'w' : 'b');
+	ss << (m_boardDescU8[SIDE_TO_MOVE] == WHITE ? 'w' : 'b');
 
 	ss << " ";
 
-	if (!m_boardDesc[W_SHORT_CASTLE] && !m_boardDesc[W_LONG_CASTLE] && !m_boardDesc[B_SHORT_CASTLE] && !m_boardDesc[B_LONG_CASTLE])
+	if (!m_boardDescU8[W_SHORT_CASTLE] && !m_boardDescU8[W_LONG_CASTLE] && !m_boardDescU8[B_SHORT_CASTLE] && !m_boardDescU8[B_LONG_CASTLE])
 	{
 		ss << "-";
 	}
 	else
 	{
-		ss << (m_boardDesc[W_SHORT_CASTLE] ? "K" : "") << (m_boardDesc[W_LONG_CASTLE] ? "Q" : "")
-			<< (m_boardDesc[B_SHORT_CASTLE] ? "k" : "") << (m_boardDesc[B_LONG_CASTLE] ? "q" : "");
+		ss << (m_boardDescU8[W_SHORT_CASTLE] ? "K" : "") << (m_boardDescU8[W_LONG_CASTLE] ? "Q" : "")
+			<< (m_boardDescU8[B_SHORT_CASTLE] ? "k" : "") << (m_boardDescU8[B_LONG_CASTLE] ? "q" : "");
 	}
 
 	ss << " ";
 
-	if (m_boardDesc[EN_PASS_SQUARE])
+	if (m_boardDescBB[EN_PASS_SQUARE])
 	{
-		ss << SquareToString(BitScanForward(m_boardDesc[EN_PASS_SQUARE]));
+		ss << SquareToString(BitScanForward(m_boardDescBB[EN_PASS_SQUARE]));
 	}
 	else
 	{
@@ -413,7 +418,7 @@ std::string Board::GetFen(bool omitMoveNums) const
 
 	if (!omitMoveNums)
 	{
-		ss << " " << m_boardDesc[HALF_MOVES_CLOCK] << " " << 1; // we don't actually keep track of full moves
+		ss << " " << m_boardDescU8[HALF_MOVES_CLOCK] << " " << 1; // we don't actually keep track of full moves
 	}
 
 	return ss.str();
@@ -430,7 +435,7 @@ std::string Board::PrintBoard() const
 
 		for (int x = 0; x <= 7; ++x)
 		{
-				ss << " " << PieceTypeToChar(m_boardDesc[MB_BASE + Sq(x, y)]) << " |";
+				ss << " " << PieceTypeToChar(m_boardDescU8[Sq(x, y)]) << " |";
 		}
 
 		ss << std::endl;
@@ -441,12 +446,12 @@ std::string Board::PrintBoard() const
 
 	ss << std::endl;
 
-	ss << "Side to move: " << (m_boardDesc[SIDE_TO_MOVE] == WHITE ? "white" : "black") << std::endl;
-	ss << "En passant: " << (m_boardDesc[EN_PASS_SQUARE] ? SquareToString(BitScanForward(m_boardDesc[EN_PASS_SQUARE])) : "-") << std::endl;
-	ss << "White castling rights: " << (m_boardDesc[W_SHORT_CASTLE] ? "O-O " : "") << (m_boardDesc[W_LONG_CASTLE] ? "O-O-O" : "") << std::endl;
-	ss << "Black castling rights: " << (m_boardDesc[B_SHORT_CASTLE] ? "O-O " : "") << (m_boardDesc[B_LONG_CASTLE] ? "O-O-O" : "") << std::endl;
+	ss << "Side to move: " << (m_boardDescU8[SIDE_TO_MOVE] == WHITE ? "white" : "black") << std::endl;
+	ss << "En passant: " << (m_boardDescBB[EN_PASS_SQUARE] ? SquareToString(BitScanForward(m_boardDescBB[EN_PASS_SQUARE])) : "-") << std::endl;
+	ss << "White castling rights: " << (m_boardDescU8[W_SHORT_CASTLE] ? "O-O " : "") << (m_boardDescU8[W_LONG_CASTLE] ? "O-O-O" : "") << std::endl;
+	ss << "Black castling rights: " << (m_boardDescU8[B_SHORT_CASTLE] ? "O-O " : "") << (m_boardDescU8[B_LONG_CASTLE] ? "O-O-O" : "") << std::endl;
 
-	ss << "Half moves since last pawn move or capture: " << m_boardDesc[HALF_MOVES_CLOCK] << std::endl;
+	ss << "Half moves since last pawn move or capture: " << m_boardDescU8[HALF_MOVES_CLOCK] << std::endl;
 	ss << "FEN: " << GetFen() << std::endl;
 
 	return ss.str();
@@ -455,21 +460,25 @@ std::string Board::PrintBoard() const
 bool Board::ApplyMove(Move mv)
 {
 #define MOVE_PIECE(pt, from, to) \
-	m_boardDesc[pt] ^= BIT[from] | BIT[to]; \
-	m_boardDesc[MB_BASE + from] = EMPTY; \
-	m_boardDesc[MB_BASE + to] = pt;
+	m_boardDescBB[pt] ^= BIT[from] | BIT[to]; \
+	m_boardDescU8[from] = EMPTY; \
+	m_boardDescU8[to] = pt;
 #define REMOVE_PIECE(pt, sq) \
-	m_boardDesc[pt] &= INVBIT[sq]; \
-	m_boardDesc[MB_BASE + sq] = EMPTY;
+	m_boardDescBB[pt] &= INVBIT[sq]; \
+	m_boardDescU8[sq] = EMPTY;
 #define PLACE_PIECE(pt, sq) \
-	m_boardDesc[pt] |= BIT[sq]; \
-	m_boardDesc[MB_BASE + sq] = pt;
+	m_boardDescBB[pt] |= BIT[sq]; \
+	m_boardDescU8[sq] = pt;
 #define REPLACE_PIECE(pt_old, pt_new, sq) \
-	m_boardDesc[pt_old] &= INVBIT[sq]; \
-	m_boardDesc[pt_new] |= BIT[sq]; \
-	m_boardDesc[MB_BASE + sq] = pt_new;
+	m_boardDescBB[pt_old] &= INVBIT[sq]; \
+	m_boardDescBB[pt_new] |= BIT[sq]; \
+	m_boardDescU8[sq] = pt_new;
 
-	UndoList ul;
+	UndoListBB &ulBB = m_undoStackBB.PrePush();
+	UndoListU8 &ulU8 = m_undoStackU8.PrePush();
+
+	ulBB.Clear();
+	ulU8.Clear();
 
 	PieceType pt = GetPieceType(mv);
 	Square from = GetFromSquare(mv);
@@ -477,230 +486,263 @@ bool Board::ApplyMove(Move mv)
 	Color color = pt & COLOR_MASK;
 	PieceType promoType = GetPromoType(mv);
 
-	ul.PushBack(std::make_pair(EN_PASS_SQUARE, m_boardDesc[EN_PASS_SQUARE]));
-	uint64_t currentEp = m_boardDesc[EN_PASS_SQUARE];
-	m_boardDesc[EN_PASS_SQUARE] = 0;
+	ulBB.PushBack(std::make_pair(EN_PASS_SQUARE, m_boardDescBB[EN_PASS_SQUARE]));
+	uint64_t currentEp = m_boardDescBB[EN_PASS_SQUARE];
+	m_boardDescBB[EN_PASS_SQUARE] = 0;
 
-	ul.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDesc[WHITE_OCCUPIED]));
-	ul.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDesc[BLACK_OCCUPIED]));
-
-	ul.PushBack(std::make_pair(IN_CHECK, m_boardDesc[IN_CHECK]));
+	ulU8.PushBack(std::make_pair(IN_CHECK, m_boardDescU8[IN_CHECK]));
 
 	if (IsCastling(mv))
 	{
 		if (GetCastlingType(mv) == MoveConstants::CASTLE_WHITE_SHORT)
 		{
-			ul.PushBack(std::make_pair(MB_BASE + E1, m_boardDesc[MB_BASE + E1]));
-			ul.PushBack(std::make_pair(MB_BASE + G1, m_boardDesc[MB_BASE + G1]));
-			ul.PushBack(std::make_pair(MB_BASE + H1, m_boardDesc[MB_BASE + H1]));
-			ul.PushBack(std::make_pair(MB_BASE + F1, m_boardDesc[MB_BASE + F1]));
-			ul.PushBack(std::make_pair(WK, m_boardDesc[WK]));
-			ul.PushBack(std::make_pair(WR, m_boardDesc[WR]));
+			ulU8.PushBack(std::make_pair(E1, m_boardDescU8[E1]));
+			ulU8.PushBack(std::make_pair(G1, m_boardDescU8[G1]));
+			ulU8.PushBack(std::make_pair(H1, m_boardDescU8[H1]));
+			ulU8.PushBack(std::make_pair(F1, m_boardDescU8[F1]));
+			ulBB.PushBack(std::make_pair(WK, m_boardDescBB[WK]));
+			ulBB.PushBack(std::make_pair(WR, m_boardDescBB[WR]));
+			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
 
 			MOVE_PIECE(WK, E1, G1);
 			MOVE_PIECE(WR, H1, F1);
-			ul.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDesc[W_SHORT_CASTLE]));
-			ul.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDesc[W_LONG_CASTLE]));
-			m_boardDesc[W_SHORT_CASTLE] = 0;
-			m_boardDesc[W_LONG_CASTLE] = 0;
-			m_boardDesc[WHITE_OCCUPIED] ^= BIT[E1] | BIT[G1] | BIT[H1] | BIT[F1];
+			ulU8.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDescU8[W_SHORT_CASTLE]));
+			ulU8.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDescU8[W_LONG_CASTLE]));
+			m_boardDescU8[W_SHORT_CASTLE] = 0;
+			m_boardDescU8[W_LONG_CASTLE] = 0;
+			m_boardDescBB[WHITE_OCCUPIED] ^= BIT[E1] | BIT[G1] | BIT[H1] | BIT[F1];
 		}
 		else if (GetCastlingType(mv) == MoveConstants::CASTLE_WHITE_LONG)
 		{
-			ul.PushBack(std::make_pair(MB_BASE + E1, m_boardDesc[MB_BASE + E1]));
-			ul.PushBack(std::make_pair(MB_BASE + C1, m_boardDesc[MB_BASE + C1]));
-			ul.PushBack(std::make_pair(MB_BASE + A1, m_boardDesc[MB_BASE + A1]));
-			ul.PushBack(std::make_pair(MB_BASE + D1, m_boardDesc[MB_BASE + D1]));
-			ul.PushBack(std::make_pair(WK, m_boardDesc[WK]));
-			ul.PushBack(std::make_pair(WR, m_boardDesc[WR]));
+			ulU8.PushBack(std::make_pair(E1, m_boardDescU8[E1]));
+			ulU8.PushBack(std::make_pair(C1, m_boardDescU8[C1]));
+			ulU8.PushBack(std::make_pair(A1, m_boardDescU8[A1]));
+			ulU8.PushBack(std::make_pair(D1, m_boardDescU8[D1]));
+			ulBB.PushBack(std::make_pair(WK, m_boardDescBB[WK]));
+			ulBB.PushBack(std::make_pair(WR, m_boardDescBB[WR]));
+			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
 
 			MOVE_PIECE(WK, E1, C1);
 			MOVE_PIECE(WR, A1, D1);
-			ul.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDesc[W_SHORT_CASTLE]));
-			ul.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDesc[W_LONG_CASTLE]));
-			m_boardDesc[W_SHORT_CASTLE] = 0;
-			m_boardDesc[W_LONG_CASTLE] = 0;
-			m_boardDesc[WHITE_OCCUPIED] ^= BIT[E1] | BIT[C1] | BIT[A1] | BIT[D1];
+			ulU8.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDescU8[W_SHORT_CASTLE]));
+			ulU8.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDescU8[W_LONG_CASTLE]));
+			m_boardDescU8[W_SHORT_CASTLE] = 0;
+			m_boardDescU8[W_LONG_CASTLE] = 0;
+			m_boardDescBB[WHITE_OCCUPIED] ^= BIT[E1] | BIT[C1] | BIT[A1] | BIT[D1];
 		}
 		else if (GetCastlingType(mv) == MoveConstants::CASTLE_BLACK_SHORT)
 		{
-			ul.PushBack(std::make_pair(MB_BASE + E8, m_boardDesc[MB_BASE + E8]));
-			ul.PushBack(std::make_pair(MB_BASE + G8, m_boardDesc[MB_BASE + G8]));
-			ul.PushBack(std::make_pair(MB_BASE + H8, m_boardDesc[MB_BASE + H8]));
-			ul.PushBack(std::make_pair(MB_BASE + F8, m_boardDesc[MB_BASE + F8]));
-			ul.PushBack(std::make_pair(BK, m_boardDesc[BK]));
-			ul.PushBack(std::make_pair(BR, m_boardDesc[BR]));
+			ulU8.PushBack(std::make_pair(E8, m_boardDescU8[E8]));
+			ulU8.PushBack(std::make_pair(G8, m_boardDescU8[G8]));
+			ulU8.PushBack(std::make_pair(H8, m_boardDescU8[H8]));
+			ulU8.PushBack(std::make_pair(F8, m_boardDescU8[F8]));
+			ulBB.PushBack(std::make_pair(BK, m_boardDescBB[BK]));
+			ulBB.PushBack(std::make_pair(BR, m_boardDescBB[BR]));
+			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
 			MOVE_PIECE(BK, E8, G8);
 			MOVE_PIECE(BR, H8, F8);
-			ul.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDesc[B_SHORT_CASTLE]));
-			ul.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDesc[B_LONG_CASTLE]));
-			m_boardDesc[B_SHORT_CASTLE] = 0;
-			m_boardDesc[B_LONG_CASTLE] = 0;
-			m_boardDesc[BLACK_OCCUPIED] ^= BIT[E8] | BIT[G8] | BIT[H8] | BIT[F8];
+			ulU8.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDescU8[B_SHORT_CASTLE]));
+			ulU8.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDescU8[B_LONG_CASTLE]));
+			m_boardDescU8[B_SHORT_CASTLE] = 0;
+			m_boardDescU8[B_LONG_CASTLE] = 0;
+			m_boardDescBB[BLACK_OCCUPIED] ^= BIT[E8] | BIT[G8] | BIT[H8] | BIT[F8];
 		}
 		else // (GetCastlingType(mv) == MoveConstants::CASTLE_BLACK_LONG)
 		{
-			ul.PushBack(std::make_pair(MB_BASE + E8, m_boardDesc[MB_BASE + E8]));
-			ul.PushBack(std::make_pair(MB_BASE + C8, m_boardDesc[MB_BASE + C8]));
-			ul.PushBack(std::make_pair(MB_BASE + A8, m_boardDesc[MB_BASE + A8]));
-			ul.PushBack(std::make_pair(MB_BASE + D8, m_boardDesc[MB_BASE + D8]));
-			ul.PushBack(std::make_pair(BK, m_boardDesc[BK]));
-			ul.PushBack(std::make_pair(BR, m_boardDesc[BR]));
+			ulU8.PushBack(std::make_pair(E8, m_boardDescU8[E8]));
+			ulU8.PushBack(std::make_pair(C8, m_boardDescU8[C8]));
+			ulU8.PushBack(std::make_pair(A8, m_boardDescU8[A8]));
+			ulU8.PushBack(std::make_pair(D8, m_boardDescU8[D8]));
+			ulBB.PushBack(std::make_pair(BK, m_boardDescBB[BK]));
+			ulBB.PushBack(std::make_pair(BR, m_boardDescBB[BR]));
+			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
 			MOVE_PIECE(BK, E8, C8);
 			MOVE_PIECE(BR, A8, D8);
-			ul.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDesc[B_SHORT_CASTLE]));
-			ul.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDesc[B_LONG_CASTLE]));
-			m_boardDesc[B_SHORT_CASTLE] = 0;
-			m_boardDesc[B_LONG_CASTLE] = 0;
-			m_boardDesc[BLACK_OCCUPIED] ^= BIT[E8] | BIT[C8] | BIT[A8] | BIT[D8];
+			ulU8.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDescU8[B_SHORT_CASTLE]));
+			ulU8.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDescU8[B_LONG_CASTLE]));
+			m_boardDescU8[B_SHORT_CASTLE] = 0;
+			m_boardDescU8[B_LONG_CASTLE] = 0;
+			m_boardDescBB[BLACK_OCCUPIED] ^= BIT[E8] | BIT[C8] | BIT[A8] | BIT[D8];
 		}
 	}
 	else if ((pt == WP || pt == BP) && BIT[to] == currentEp) // en passant
 	{
 		if (pt == WP)
 		{
-			ul.PushBack(std::make_pair(MB_BASE + from, m_boardDesc[MB_BASE + from]));
-			ul.PushBack(std::make_pair(MB_BASE + to, m_boardDesc[MB_BASE + to]));
-			ul.PushBack(std::make_pair(MB_BASE + to - 8, m_boardDesc[MB_BASE + to - 8]));
-			ul.PushBack(std::make_pair(WP, m_boardDesc[WP]));
-			ul.PushBack(std::make_pair(BP, m_boardDesc[BP]));
+			ulU8.PushBack(std::make_pair(from, m_boardDescU8[from]));
+			ulU8.PushBack(std::make_pair(to, m_boardDescU8[to]));
+			ulU8.PushBack(std::make_pair(to - 8, m_boardDescU8[to - 8]));
+			ulBB.PushBack(std::make_pair(WP, m_boardDescBB[WP]));
+			ulBB.PushBack(std::make_pair(BP, m_boardDescBB[BP]));
+
+			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
+			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
 			MOVE_PIECE(WP, from, to);
 			REMOVE_PIECE(BP, to - 8);
-			m_boardDesc[WHITE_OCCUPIED] ^= (BIT[from] | BIT[to]);
-			m_boardDesc[BLACK_OCCUPIED] ^= BIT[to - 8];
+			m_boardDescBB[WHITE_OCCUPIED] ^= (BIT[from] | BIT[to]);
+			m_boardDescBB[BLACK_OCCUPIED] ^= BIT[to - 8];
 		}
 		else
 		{
-			ul.PushBack(std::make_pair(MB_BASE + from, m_boardDesc[MB_BASE + from]));
-			ul.PushBack(std::make_pair(MB_BASE + to, m_boardDesc[MB_BASE + to]));
-			ul.PushBack(std::make_pair(MB_BASE + to + 8, m_boardDesc[MB_BASE + to + 8]));
-			ul.PushBack(std::make_pair(WP, m_boardDesc[WP]));
-			ul.PushBack(std::make_pair(BP, m_boardDesc[BP]));
+			ulU8.PushBack(std::make_pair(from, m_boardDescU8[from]));
+			ulU8.PushBack(std::make_pair(to, m_boardDescU8[to]));
+			ulU8.PushBack(std::make_pair(to + 8, m_boardDescU8[to + 8]));
+			ulBB.PushBack(std::make_pair(WP, m_boardDescBB[WP]));
+			ulBB.PushBack(std::make_pair(BP, m_boardDescBB[BP]));
+			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
+
+			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
+			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
 			MOVE_PIECE(BP, from, to);
 			REMOVE_PIECE(WP, to + 8);
-			m_boardDesc[BLACK_OCCUPIED] ^= (BIT[from] | BIT[to]);
-			m_boardDesc[WHITE_OCCUPIED] ^= BIT[to + 8];
+			m_boardDescBB[BLACK_OCCUPIED] ^= (BIT[from] | BIT[to]);
+			m_boardDescBB[WHITE_OCCUPIED] ^= BIT[to + 8];
 		}
 	}
 	else
 	{
 		int32_t dy = GetY(from) - GetY(to);
 
-		bool isCapture = m_boardDesc[MB_BASE + to] != EMPTY; // this is only for NON-EP captures
+		bool isCapture = m_boardDescU8[to] != EMPTY; // this is only for NON-EP captures
 		bool isPromotion = promoType != 0;
 		bool isPawnDoubleMove = (pt == WP || pt == BP) && (dy != 1 && dy != -1);
 
 		if (isCapture && !isPromotion)
 		{
-			ul.PushBack(std::make_pair(MB_BASE + from, m_boardDesc[MB_BASE + from]));
-			ul.PushBack(std::make_pair(MB_BASE + to, m_boardDesc[MB_BASE + to]));
-			ul.PushBack(std::make_pair(pt, m_boardDesc[pt]));
-			ul.PushBack(std::make_pair(m_boardDesc[MB_BASE + to], m_boardDesc[m_boardDesc[MB_BASE + to]]));
+			ulU8.PushBack(std::make_pair(from, m_boardDescU8[from]));
+			ulU8.PushBack(std::make_pair(to, m_boardDescU8[to]));
+			ulBB.PushBack(std::make_pair(pt, m_boardDescBB[pt]));
+			ulBB.PushBack(std::make_pair(m_boardDescU8[to], m_boardDescBB[m_boardDescU8[to]]));
+
+			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
+			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
 			REMOVE_PIECE(pt, from);
-			REPLACE_PIECE(m_boardDesc[MB_BASE + to], pt, to);
+			REPLACE_PIECE(m_boardDescU8[to], pt, to);
 
-			m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)] ^= BIT[to];
-			m_boardDesc[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
+			m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)] ^= BIT[to];
+			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
 		}
 		else if (!isPromotion && !isCapture)
 		{
-			ul.PushBack(std::make_pair(MB_BASE + from, m_boardDesc[MB_BASE + from]));
-			ul.PushBack(std::make_pair(MB_BASE + to, m_boardDesc[MB_BASE + to]));
-			ul.PushBack(std::make_pair(pt, m_boardDesc[pt]));
+			ulU8.PushBack(std::make_pair(from, m_boardDescU8[from]));
+			ulU8.PushBack(std::make_pair(to, m_boardDescU8[to]));
+			ulBB.PushBack(std::make_pair(pt, m_boardDescBB[pt]));
+
+			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED | color, m_boardDescBB[WHITE_OCCUPIED | color]));
 
 			MOVE_PIECE(pt, from, to);
-			m_boardDesc[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
+			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
 		}
 		else if (isPromotion && isCapture)
 		{
-			ul.PushBack(std::make_pair(MB_BASE + from, m_boardDesc[MB_BASE + from]));
-			ul.PushBack(std::make_pair(MB_BASE + to, m_boardDesc[MB_BASE + to]));
-			ul.PushBack(std::make_pair(pt, m_boardDesc[pt]));
-			ul.PushBack(std::make_pair(m_boardDesc[MB_BASE + to], m_boardDesc[m_boardDesc[MB_BASE + to]]));
-			ul.PushBack(std::make_pair(promoType, m_boardDesc[promoType]));
+			ulU8.PushBack(std::make_pair(from, m_boardDescU8[from]));
+			ulU8.PushBack(std::make_pair(to, m_boardDescU8[to]));
+			ulBB.PushBack(std::make_pair(pt, m_boardDescBB[pt]));
+			ulBB.PushBack(std::make_pair(m_boardDescU8[to], m_boardDescBB[m_boardDescU8[to]]));
+			ulBB.PushBack(std::make_pair(promoType, m_boardDescBB[promoType]));
+
+			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
+			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
 			REMOVE_PIECE(pt, from);
-			REPLACE_PIECE(m_boardDesc[MB_BASE + to], promoType, to);
+			REPLACE_PIECE(m_boardDescU8[to], promoType, to);
 
-			m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)] ^= BIT[to];
-			m_boardDesc[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
+			m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)] ^= BIT[to];
+			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
 		}
 		else // !isCapture && isPromotion
 		{
-			ul.PushBack(std::make_pair(MB_BASE + from, m_boardDesc[MB_BASE + from]));
-			ul.PushBack(std::make_pair(MB_BASE + to, m_boardDesc[MB_BASE + to]));
-			ul.PushBack(std::make_pair(pt, m_boardDesc[pt]));
-			ul.PushBack(std::make_pair(promoType, m_boardDesc[promoType]));
+			ulU8.PushBack(std::make_pair(from, m_boardDescU8[from]));
+			ulU8.PushBack(std::make_pair(to, m_boardDescU8[to]));
+			ulBB.PushBack(std::make_pair(pt, m_boardDescBB[pt]));
+			ulBB.PushBack(std::make_pair(promoType, m_boardDescBB[promoType]));
+
+			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED | color, m_boardDescBB[WHITE_OCCUPIED | color]));
 
 			REMOVE_PIECE(pt, from);
 			PLACE_PIECE(promoType, to);
-			m_boardDesc[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
+			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
 		}
 
 		// check for pawn move (update ep)
 		if (isPawnDoubleMove)
 		{
 			// this was saved to undo list earlier already
-			m_boardDesc[EN_PASS_SQUARE] = PAWN_MOVE_1[from][pt == WP ? 0 : 1];
+			m_boardDescBB[EN_PASS_SQUARE] = PAWN_MOVE_1[from][pt == WP ? 0 : 1];
 		}
 
 		// update castling rights
-		if (m_boardDesc[W_SHORT_CASTLE] && (pt == WK || (pt == WR && from == H1) || (to == H1)))
+		if (m_boardDescU8[W_SHORT_CASTLE] && (pt == WK || (pt == WR && from == H1) || (to == H1)))
 		{
-			ul.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDesc[W_SHORT_CASTLE]));
-			m_boardDesc[W_SHORT_CASTLE] = 0;
+			ulU8.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDescU8[W_SHORT_CASTLE]));
+			m_boardDescU8[W_SHORT_CASTLE] = 0;
 		}
 
-		if (m_boardDesc[W_LONG_CASTLE] && (pt == WK || (pt == WR && from == A1) || (to == A1)))
+		if (m_boardDescU8[W_LONG_CASTLE] && (pt == WK || (pt == WR && from == A1) || (to == A1)))
 		{
-			ul.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDesc[W_LONG_CASTLE]));
-			m_boardDesc[W_LONG_CASTLE] = 0;
+			ulU8.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDescU8[W_LONG_CASTLE]));
+			m_boardDescU8[W_LONG_CASTLE] = 0;
 		}
 
-		if (m_boardDesc[B_SHORT_CASTLE] && (pt == BK || (pt == BR && from == H8) || (to == H8)))
+		if (m_boardDescU8[B_SHORT_CASTLE] && (pt == BK || (pt == BR && from == H8) || (to == H8)))
 		{
-			ul.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDesc[B_SHORT_CASTLE]));
-			m_boardDesc[B_SHORT_CASTLE] = 0;
+			ulU8.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDescU8[B_SHORT_CASTLE]));
+			m_boardDescU8[B_SHORT_CASTLE] = 0;
 		}
 
-		if (m_boardDesc[B_LONG_CASTLE] && (pt == BK || (pt == BR && from == A8) || (to == A8)))
+		if (m_boardDescU8[B_LONG_CASTLE] && (pt == BK || (pt == BR && from == A8) || (to == A8)))
 		{
-			ul.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDesc[B_LONG_CASTLE]));
-			m_boardDesc[B_LONG_CASTLE] = 0;
+			ulU8.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDescU8[B_LONG_CASTLE]));
+			m_boardDescU8[B_LONG_CASTLE] = 0;
 		}
 
 		// update half move clock
 		// castling does not reset the clock
-		ul.PushBack(std::make_pair(HALF_MOVES_CLOCK, m_boardDesc[HALF_MOVES_CLOCK]));
+		ulU8.PushBack(std::make_pair(HALF_MOVES_CLOCK, m_boardDescU8[HALF_MOVES_CLOCK]));
 		if (isCapture || pt == WP || pt == BP)
 		{
-			m_boardDesc[HALF_MOVES_CLOCK] = 0;
+			m_boardDescU8[HALF_MOVES_CLOCK] = 0;
 		}
 		else
 		{
-			++m_boardDesc[HALF_MOVES_CLOCK];
+			if (m_boardDescU8[HALF_MOVES_CLOCK] != std::numeric_limits<uint8_t>::max())
+			{
+				++m_boardDescU8[HALF_MOVES_CLOCK];
+			}
 		}
 	}
 
 #ifdef DEBUG
 	CheckBoardConsistency();
 
-	// verify that we don't have duplicate entries in the undo list
+	// verify that we don't have duplicate entries in the undo lists
 	std::set<uint32_t> entries;
-	for (size_t i = 0; i < ul.GetSize(); ++i)
+	for (size_t i = 0; i < ulBB.GetSize(); ++i)
 	{
-		if (entries.find(ul[i].first) != entries.end())
+		if (entries.find(ulBB[i].first) != entries.end())
 		{
-			std::cout << "Duplicate undo entry found! - " << ul[i].first << std::endl;
+			std::cout << "Duplicate undo entry in BB undo list found! - " << ulBB[i].first << std::endl;
 			assert(false);
 		}
 
-		entries.insert(ul[i].first);
+		entries.insert(ulBB[i].first);
+	}
+
+	entries.clear();
+	for (size_t i = 0; i < ulU8.GetSize(); ++i)
+	{
+		if (entries.find(ulU8[i].first) != entries.end())
+		{
+			std::cout << "Duplicate undo entry in U8 undo list found! - " << ulU8[i].first << std::endl;
+			assert(false);
+		}
+
+		entries.insert(ulU8[i].first);
 	}
 #endif
 
@@ -709,18 +751,25 @@ bool Board::ApplyMove(Move mv)
 	if (InCheck())
 	{
 		// this position is illegal, undo the move
-		for (size_t i = 0; i < ul.GetSize(); ++i)
+		for (size_t i = 0; i < ulBB.GetSize(); ++i)
 		{
-			m_boardDesc[ul[i].first] = ul[i].second;
+			m_boardDescBB[ulBB[i].first] = ulBB[i].second;
 		}
+
+		// this position is illegal, undo the move
+		for (size_t i = 0; i < ulU8.GetSize(); ++i)
+		{
+			m_boardDescU8[ulU8[i].first] = ulU8[i].second;
+		}
+
+		m_undoStackBB.Pop();
+		m_undoStackU8.Pop();
 
 		return false;
 	}
 
-	m_undoStack.Push(ul);
-
 	// no need to store this
-	m_boardDesc[SIDE_TO_MOVE] = m_boardDesc[SIDE_TO_MOVE] ^ COLOR_MASK;
+	m_boardDescU8[SIDE_TO_MOVE] = m_boardDescU8[SIDE_TO_MOVE] ^ COLOR_MASK;
 
 	UpdateInCheck_(); // this is for the new side
 
@@ -732,17 +781,24 @@ bool Board::ApplyMove(Move mv)
 
 void Board::UndoMove()
 {
-	UndoList &ul = m_undoStack.Top();
+	UndoListBB &ulBB = m_undoStackBB.Top();
+	UndoListU8 &ulU8 = m_undoStackU8.Top();
 
 	// this is the only thing not stored in the undo list
-	m_boardDesc[SIDE_TO_MOVE] = m_boardDesc[SIDE_TO_MOVE] ^ COLOR_MASK;
+	m_boardDescU8[SIDE_TO_MOVE] = m_boardDescU8[SIDE_TO_MOVE] ^ COLOR_MASK;
 
-	for (size_t i = 0; i < ul.GetSize(); ++i)
+	for (size_t i = 0; i < ulBB.GetSize(); ++i)
 	{
-		m_boardDesc[ul[i].first] = ul[i].second;
+		m_boardDescBB[ulBB[i].first] = ulBB[i].second;
 	}
 
-	m_undoStack.Pop();
+	for (size_t i = 0; i < ulU8.GetSize(); ++i)
+	{
+		m_boardDescU8[ulU8[i].first] = ulU8[i].second;
+	}
+
+	m_undoStackBB.Pop();
+	m_undoStackU8.Pop();
 }
 
 std::string Board::MoveToAlg(Move mv)
@@ -766,13 +822,24 @@ std::string Board::MoveToAlg(Move mv)
 
 bool Board::operator==(const Board &other)
 {
-	for (size_t i = 0; i < BOARD_DESC_SIZE; ++i)
+	for (size_t i = 0; i < BOARD_DESC_BB_SIZE; ++i)
 	{
-		if (m_boardDesc[i] != other.m_boardDesc[i])
+		if (m_boardDescBB[i] != other.m_boardDescBB[i])
 		{
-			std::cout << i << std::endl;
-			DebugPrint(m_boardDesc[i]);
-			DebugPrint(other.m_boardDesc[i]);
+			//std::cout << i << std::endl;
+			//DebugPrint(m_boardDesc[i]);
+			//DebugPrint(other.m_boardDesc[i]);
+			return false;
+		}
+	}
+
+	for (size_t i = 0; i < BOARD_DESC_U8_SIZE; ++i)
+	{
+		if (m_boardDescU8[i] != other.m_boardDescU8[i])
+		{
+			//std::cout << i << std::endl;
+			//DebugPrint(m_boardDesc[i]);
+			//DebugPrint(other.m_boardDesc[i]);
 			return false;
 		}
 	}
@@ -785,26 +852,26 @@ void Board::GenerateKingMoves_(Color color, MoveList &moveList)
 {
 	// there can only be one king
 #ifdef DEBUG
-	assert(PopCount(m_boardDesc[WK | color]) == 1);
+	assert(PopCount(m_boardDescBB[WK | color]) == 1);
 #endif
 	PieceType pt = WK | color;
 
 	uint64_t dstMask = 0;
 	if (MT == ALL)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 	else if (MT == VIOLENT)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
 	}
 	else
 	{
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 
-	uint64_t kings = m_boardDesc[pt];
+	uint64_t kings = m_boardDescBB[pt];
 	uint32_t idx = BitScanForward(kings);
 	uint64_t dsts = KING_ATK[idx] & dstMask;
 
@@ -824,14 +891,14 @@ void Board::GenerateKingMoves_(Color color, MoveList &moveList)
 	}
 
 	// castling
-	if (MT != VIOLENT && !m_boardDesc[IN_CHECK])
+	if (MT != VIOLENT && !m_boardDescU8[IN_CHECK])
 	{
-		if (pt == WK && m_boardDesc[MB_BASE + E1] == WK)
+		if (pt == WK && m_boardDescU8[E1] == WK)
 		{
-			if (m_boardDesc[W_SHORT_CASTLE] &&
-				m_boardDesc[MB_BASE + H1] == WR &&
-				m_boardDesc[MB_BASE + F1] == EMPTY &&
-				m_boardDesc[MB_BASE + G1] == EMPTY &&
+			if (m_boardDescU8[W_SHORT_CASTLE] &&
+				m_boardDescU8[H1] == WR &&
+				m_boardDescU8[F1] == EMPTY &&
+				m_boardDescU8[G1] == EMPTY &&
 				!IsUnderAttack_(F1))
 			{
 				// we don't have to check current king pos for under attack because we checked that already
@@ -842,11 +909,11 @@ void Board::GenerateKingMoves_(Color color, MoveList &moveList)
 				moveList.PushBack(mv);
 			}
 
-			if (m_boardDesc[W_LONG_CASTLE] &&
-				m_boardDesc[MB_BASE + A1] == WR &&
-				m_boardDesc[MB_BASE + B1] == EMPTY &&
-				m_boardDesc[MB_BASE + C1] == EMPTY &&
-				m_boardDesc[MB_BASE + D1] == EMPTY &&
+			if (m_boardDescU8[W_LONG_CASTLE] &&
+				m_boardDescU8[A1] == WR &&
+				m_boardDescU8[B1] == EMPTY &&
+				m_boardDescU8[C1] == EMPTY &&
+				m_boardDescU8[D1] == EMPTY &&
 				!IsUnderAttack_(D1))
 			{
 				// we don't have to check current king pos for under attack because we checked that already
@@ -857,12 +924,12 @@ void Board::GenerateKingMoves_(Color color, MoveList &moveList)
 				moveList.PushBack(mv);
 			}
 		}
-		else if (pt == BK && m_boardDesc[MB_BASE + E8] == BK)
+		else if (pt == BK && m_boardDescU8[E8] == BK)
 		{
-			if (m_boardDesc[B_SHORT_CASTLE] &&
-				m_boardDesc[MB_BASE + H8] == BR &&
-				m_boardDesc[MB_BASE + F8] == EMPTY &&
-				m_boardDesc[MB_BASE + G8] == EMPTY &&
+			if (m_boardDescU8[B_SHORT_CASTLE] &&
+				m_boardDescU8[H8] == BR &&
+				m_boardDescU8[F8] == EMPTY &&
+				m_boardDescU8[G8] == EMPTY &&
 				!IsUnderAttack_(F8))
 			{
 				// we don't have to check current king pos for under attack because we checked that already
@@ -873,11 +940,11 @@ void Board::GenerateKingMoves_(Color color, MoveList &moveList)
 				moveList.PushBack(mv);
 			}
 
-			if (m_boardDesc[B_LONG_CASTLE] &&
-				m_boardDesc[MB_BASE + A8] == BR &&
-				m_boardDesc[MB_BASE + B8] == EMPTY &&
-				m_boardDesc[MB_BASE + C8] == EMPTY &&
-				m_boardDesc[MB_BASE + D8] == EMPTY &&
+			if (m_boardDescU8[B_LONG_CASTLE] &&
+				m_boardDescU8[A8] == BR &&
+				m_boardDescU8[B8] == EMPTY &&
+				m_boardDescU8[C8] == EMPTY &&
+				m_boardDescU8[D8] == EMPTY &&
 				!IsUnderAttack_(D8))
 			{
 				// we don't have to check current king pos for under attack because we checked that already
@@ -903,25 +970,25 @@ void Board::GenerateQueenMoves_(Color color, MoveList &moveList)
 	uint64_t dstMask = 0;
 	if (MT == ALL)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 	else if (MT == VIOLENT)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
 	}
 	else
 	{
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 
-	uint64_t queens = m_boardDesc[pt];
+	uint64_t queens = m_boardDescBB[pt];
 
 	while (queens)
 	{
 		uint32_t idx = Extract(queens);
 
-		uint64_t dsts = Qmagic(idx, m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]) & dstMask;
+		uint64_t dsts = Qmagic(idx, m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]) & dstMask;
 
 		Move mvTemplate = 0;
 		SetFromSquare(mvTemplate, idx);
@@ -952,25 +1019,25 @@ void Board::GenerateBishopMoves_(Color color, MoveList &moveList)
 	uint64_t dstMask = 0;
 	if (MT == ALL)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 	else if (MT == VIOLENT)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
 	}
 	else
 	{
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 
-	uint64_t bishops = m_boardDesc[pt];
+	uint64_t bishops = m_boardDescBB[pt];
 
 	while (bishops)
 	{
 		uint32_t idx = Extract(bishops);
 
-		uint64_t dsts = Bmagic(idx, m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]) & dstMask;
+		uint64_t dsts = Bmagic(idx, m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]) & dstMask;
 
 		Move mvTemplate = 0;
 		SetFromSquare(mvTemplate, idx);
@@ -1001,19 +1068,19 @@ void Board::GenerateKnightMoves_(Color color, MoveList &moveList)
 	uint64_t dstMask = 0;
 	if (MT == ALL)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 	else if (MT == VIOLENT)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
 	}
 	else
 	{
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 
-	uint64_t knights = m_boardDesc[pt];
+	uint64_t knights = m_boardDescBB[pt];
 
 	while (knights)
 	{
@@ -1050,25 +1117,25 @@ void Board::GenerateRookMoves_(Color color, MoveList &moveList)
 	uint64_t dstMask = 0;
 	if (MT == ALL)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 	else if (MT == VIOLENT)
 	{
-		dstMask |= m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+		dstMask |= m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
 	}
 	else
 	{
-		dstMask |= ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
+		dstMask |= ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
 	}
 
-	uint64_t rooks = m_boardDesc[pt];
+	uint64_t rooks = m_boardDescBB[pt];
 
 	while (rooks)
 	{
 		uint32_t idx = Extract(rooks);
 
-		uint64_t dsts = Rmagic(idx, m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]) & dstMask;
+		uint64_t dsts = Rmagic(idx, m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]) & dstMask;
 
 		Move mvTemplate = 0;
 		SetFromSquare(mvTemplate, idx);
@@ -1096,10 +1163,10 @@ void Board::GeneratePawnMoves_(Color color, MoveList &moveList)
 {
 	PieceType pt = WP | color;
 
-	uint64_t pawns = m_boardDesc[pt];
+	uint64_t pawns = m_boardDescBB[pt];
 
-	uint64_t empty = ~(m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED]);
-	uint64_t enemy = m_boardDesc[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
+	uint64_t empty = ~(m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]);
+	uint64_t enemy = m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)];
 
 	while (pawns)
 	{
@@ -1121,7 +1188,7 @@ void Board::GeneratePawnMoves_(Color color, MoveList &moveList)
 			dsts &= RANKS[RANK_1] | RANKS[RANK_8];
 		}
 
-		uint64_t captures = PAWN_ATK[idx][color == WHITE ? 0 : 1] & (enemy | m_boardDesc[EN_PASS_SQUARE]);
+		uint64_t captures = PAWN_ATK[idx][color == WHITE ? 0 : 1] & (enemy | m_boardDescBB[EN_PASS_SQUARE]);
 
 		// only add captures if they are promotions in quiet mode
 		if (MT == QUIET)
@@ -1184,31 +1251,31 @@ template void Board::GeneratePawnMoves_<Board::ALL>(Color color, MoveList &moveL
 
 bool Board::IsUnderAttack_(Square sq)
 {
-	Color stm = m_boardDesc[SIDE_TO_MOVE];
+	Color stm = m_boardDescU8[SIDE_TO_MOVE];
 	Color enemyColor = stm ^ COLOR_MASK;
-	uint64_t allOccupied = m_boardDesc[WHITE_OCCUPIED] | m_boardDesc[BLACK_OCCUPIED];
+	uint64_t allOccupied = m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED];
 
-	if (KING_ATK[sq] & m_boardDesc[WK | enemyColor])
+	if (KING_ATK[sq] & m_boardDescBB[WK | enemyColor])
 	{
 		return true;
 	}
 
-	if (KNIGHT_ATK[sq] & m_boardDesc[WN | enemyColor])
+	if (KNIGHT_ATK[sq] & m_boardDescBB[WN | enemyColor])
 	{
 		return true;
 	}
 
-	if (Rmagic(sq, allOccupied) & (m_boardDesc[WQ | enemyColor] | m_boardDesc[WR | enemyColor]))
+	if (Rmagic(sq, allOccupied) & (m_boardDescBB[WQ | enemyColor] | m_boardDescBB[WR | enemyColor]))
 	{
 		return true;
 	}
 
-	if (Bmagic(sq, allOccupied) & (m_boardDesc[WQ | enemyColor] | m_boardDesc[WB | enemyColor]))
+	if (Bmagic(sq, allOccupied) & (m_boardDescBB[WQ | enemyColor] | m_boardDescBB[WB | enemyColor]))
 	{
 		return true;
 	}
 
-	if (PAWN_ATK[sq][stm == WHITE ? 0 : 1] & m_boardDesc[WP | enemyColor])
+	if (PAWN_ATK[sq][stm == WHITE ? 0 : 1] & m_boardDescBB[WP | enemyColor])
 	{
 		return true;
 	}
@@ -1218,10 +1285,10 @@ bool Board::IsUnderAttack_(Square sq)
 
 void Board::UpdateInCheck_()
 {
-	Color stm = m_boardDesc[SIDE_TO_MOVE];
-	Square kingPos = BitScanForward(m_boardDesc[WK | stm]);
+	Color stm = m_boardDescU8[SIDE_TO_MOVE];
+	Square kingPos = BitScanForward(m_boardDescBB[WK | stm]);
 
-	m_boardDesc[IN_CHECK] = IsUnderAttack_(kingPos);
+	m_boardDescU8[IN_CHECK] = IsUnderAttack_(kingPos);
 }
 
 uint64_t Perft(Board &b, uint32_t depth)
