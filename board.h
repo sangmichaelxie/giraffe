@@ -105,6 +105,10 @@ private:
 	void UpdateInCheck_();
 
 	uint64_t m_boardDescBB[BOARD_DESC_BB_SIZE];
+
+	// yes, we are using uint64_t to store these u8 values
+	// testing shows that this is the fastest
+	// testing also shows that using uint8_t in the undo list is the fastest, despite the size mismatch
 	uint64_t m_boardDescU8[BOARD_DESC_U8_SIZE];
 
 	GrowableStack<UndoListBB> m_undoStackBB;
