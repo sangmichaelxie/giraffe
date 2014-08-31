@@ -64,6 +64,7 @@ public:
 
 	Board(const std::string &fen);
 	Board() : Board(DEFAULT_POSITION_FEN) {}
+	~Board() {}
 
 	void RemovePiece(Square sq);
 	void PlacePiece(Square sq, PieceType pt);
