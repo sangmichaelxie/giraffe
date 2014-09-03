@@ -4,6 +4,9 @@
 #include "board_consts.h"
 #include "move.h"
 #include "board.h"
+#include "eval/eval.h"
+#include "see.h"
+#include "search.h"
 
 void Initialize()
 {
@@ -22,44 +25,44 @@ int main(int argc, char **argv)
 	Initialize();
 
 #if 1
+	Board b;
+
+	Search::RootSearchContext searchContext;
+	searchContext.timeAlloc.normalTime = 10.0;
+	searchContext.timeAlloc.maxTime = 20.0;
+	searchContext.stopRequest = false;
+	searchContext.startBoard = b;
+	searchContext.nodeCount = 0;
+
+	Search::AsyncSearch search(searchContext);
+
+	search.Start();
+
+	search.Join();
+
+	return 0;
+#endif
+
+#if 0
 	DebugRunPerftTests();
 
 	return 0;
 #else
-	std::string fen;
-	std::getline(std::cin, fen);
-
-	Board b(fen);
 
 	while (true)
 	{
+		std::string fen;
+		std::getline(std::cin, fen);
 
-		std::cout << b.PrintBoard() << std::endl;
+		Board b(fen);
 
-		MoveList ml;
+		Move mv = b.ParseMove("e3e6");
 
-		/*
-		b.RemovePiece(E1);
-		b.PlacePiece(B6, WK);
-		b.PlacePiece(B5, WB);
-		b.RemovePiece(D1);
-		b.PlacePiece(D4, WQ);
-		b.PlacePiece(F5, WN);
-		*/
+		assert(mv != 0);
 
-		std::cout << "all:" << std::endl;
-		b.GenerateAllMoves<Board::ALL>(ml);
+		std::cout << StaticExchangeEvaluation(b, mv) << std::endl;
 
-		for (size_t i = 0; i < ml.GetSize(); ++i)
-		{
-			std::cout << i << ": " << b.MoveToAlg(ml[i]) << std::endl;
-		}
-
-		int moveChoice;
-		std::cin >> moveChoice;
-
-		b.ApplyMove(ml[moveChoice]);
-		std::cout << b.PrintBoard() << std::endl;
+		//b.CheckBoardConsistency();
 	}
 #endif
 }

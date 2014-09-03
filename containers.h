@@ -148,7 +148,7 @@ public:
 	T &operator[](size_t i)
 	{
 #ifdef DEBUG
-		assert(i < m_size);
+		assert(i < MAX_SIZE); // we do intentionally violate (i < m_size) in SEE
 #endif
 		return m_data[i];
 	}

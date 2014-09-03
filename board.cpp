@@ -3,6 +3,7 @@
 #include <string>
 #include <set>
 #include <sstream>
+#include <regex>
 
 #include <cassert>
 #include <cstdlib>
@@ -268,7 +269,7 @@ void Board::PlacePiece(Square sq, PieceType pt)
 }
 
 template <Board::MOVE_TYPES MT>
-void Board::GenerateAllMoves(MoveList &moveList)
+void Board::GenerateAllMoves(MoveList &moveList) const
 {
 	Color sideToMove = m_boardDescU8[SIDE_TO_MOVE];
 
@@ -801,7 +802,7 @@ void Board::UndoMove()
 	m_undoStackU8.Pop();
 }
 
-std::string Board::MoveToAlg(Move mv)
+std::string Board::MoveToAlg(Move mv) const
 {
 	Square from = GetFromSquare(mv);
 	Square to = GetToSquare(mv);
@@ -847,8 +848,190 @@ bool Board::operator==(const Board &other)
 	return true;
 }
 
+Move Board::ParseMove(std::string str)
+{
+	MoveList moveList;
+	GenerateAllMoves<ALL>(moveList);
+
+	if (PatternMatch(str, "[a-h][1-8][a-h][1-8]"))
+	{
+		char srcX;
+		int srcY;
+		char dstX;
+		int dstY;
+
+		if (sscanf(str.c_str(), "%c%d%c%d", &srcX, &srcY, &dstX, &dstY) == 4)
+		{
+			srcX -= 'a';
+			dstX -= 'a';
+			srcY -= 1;
+			dstY -= 1;
+
+			for (size_t i = 0; i < moveList.GetSize(); ++i)
+			{
+				Square from = GetFromSquare(moveList[i]);
+				Square to = GetToSquare(moveList[i]);
+
+				if (from == Sq(srcX, srcY) && to == Sq(dstX, dstY))
+				{
+					return moveList[i];
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+PieceType Board::ApplyMoveSee(PieceType pt, Square from, Square to)
+{
+	PieceType capturedPiece = m_boardDescU8[to];
+
+	UndoListBB &ulBB = m_undoStackBB.PrePush();
+	UndoListU8 &ulU8 = m_undoStackU8.PrePush();
+
+	// no need to clear them because we know exactly how many elements will be on the list
+
+	// we need to update the to-square MB because next ApplyMoveSee call will use it to determine captured piece
+	ulU8[0].first = to;
+	ulU8[0].second = m_boardDescU8[to];
+	m_boardDescU8[to] = pt;
+
+	// we need to update the PT BB because otherwise GenerateSmallestCapture will see it again
+	ulBB[0].first = pt;
+	ulBB[0].second = m_boardDescBB[pt];
+	m_boardDescBB[pt] &= INVBIT[from];
+
+	// we need to update occupancy for discovered attacks
+	// borrow a space on the undo list for our own occupancy BB
+	ulBB[1].second = m_boardDescBB[pt];
+	m_seeTotalOccupancy &= INVBIT[from];
+
+	m_boardDescU8[SIDE_TO_MOVE] ^= COLOR_MASK;
+
+	return capturedPiece;
+}
+
+bool Board::IsSeeEligible(Move mv)
+{
+	Square to = GetToSquare(mv);
+
+	return m_boardDescU8[to] != EMPTY;
+}
+
+void Board::UndoMoveSee()
+{
+	UndoListBB &ulBB = m_undoStackBB.Top();
+	UndoListU8 &ulU8 = m_undoStackU8.Top();
+
+	m_boardDescU8[ulU8[0].first] = ulU8[0].second;
+	m_boardDescBB[ulBB[0].first] = ulBB[0].second;
+	m_seeTotalOccupancy = ulBB[1].second;
+
+	m_boardDescU8[SIDE_TO_MOVE] ^= COLOR_MASK;
+
+	m_undoStackBB.Pop();
+	m_undoStackU8.Pop();
+}
+
+bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
+{
+	Color stm = m_boardDescU8[SIDE_TO_MOVE];
+	PieceType lastPT = stm == WHITE ? m_seeLastWhitePT : m_seeLastBlackPT;
+
+	uint64_t attackers = 0ULL;
+
+	switch (lastPT)
+	{
+	case WP:
+		attackers = PAWN_ATK[to][stm == WHITE ? 0 : 1] & m_boardDescBB[WP | stm];
+
+		if (attackers)
+		{
+			pt = WP | stm;
+			from = BitScanForward(attackers);
+			return true;
+		}
+		else
+		{
+			UpdateseeLastPT_(WN);
+		}
+		[[clang::fallthrough]];
+	case WN:
+		attackers = KNIGHT_ATK[to] & m_boardDescBB[WN | stm];
+
+		if (attackers)
+		{
+			pt = WN | stm;
+			from = BitScanForward(attackers);
+			return true;
+		}
+		else
+		{
+			UpdateseeLastPT_(WB);
+		}
+		[[clang::fallthrough]];
+	case WB:
+		attackers = Bmagic(to, m_seeTotalOccupancy) & m_boardDescBB[WB | stm];
+
+		if (attackers)
+		{
+			pt = WB | stm;
+			from = BitScanForward(attackers);
+			return true;
+		}
+		else
+		{
+			UpdateseeLastPT_(WR);
+		}
+		[[clang::fallthrough]];
+	case WR:
+		attackers = Rmagic(to, m_seeTotalOccupancy) & m_boardDescBB[WR | stm];
+
+		if (attackers)
+		{
+			pt = WR | stm;
+			from = BitScanForward(attackers);
+			return true;
+		}
+		else
+		{
+			UpdateseeLastPT_(WQ);
+		}
+		[[clang::fallthrough]];
+	case WQ:
+		attackers = Qmagic(to, m_seeTotalOccupancy) & m_boardDescBB[WQ | stm];
+
+		if (attackers)
+		{
+			pt = WQ | stm;
+			from = BitScanForward(attackers);
+			return true;
+		}
+		else
+		{
+			UpdateseeLastPT_(WK);
+		}
+		[[clang::fallthrough]];
+	case WK:
+		attackers = KING_ATK[to] & m_boardDescBB[WK | stm];
+
+		if (attackers)
+		{
+			pt = WK | stm;
+			from = BitScanForward(attackers);
+			return true;
+		}
+		break;
+	default:
+		assert(false);
+	}
+
+	return false;
+}
+
 template <Board::MOVE_TYPES MT>
-void Board::GenerateKingMoves_(Color color, MoveList &moveList)
+void Board::GenerateKingMoves_(Color color, MoveList &moveList) const
 {
 	// there can only be one king
 #ifdef DEBUG
@@ -958,12 +1141,12 @@ void Board::GenerateKingMoves_(Color color, MoveList &moveList)
 	}
 }
 
-template void Board::GenerateKingMoves_<Board::QUIET>(Color color, MoveList &moveList);
-template void Board::GenerateKingMoves_<Board::VIOLENT>(Color color, MoveList &moveList);
-template void Board::GenerateKingMoves_<Board::ALL>(Color color, MoveList &moveList);
+template void Board::GenerateKingMoves_<Board::QUIET>(Color color, MoveList &moveList) const;
+template void Board::GenerateKingMoves_<Board::VIOLENT>(Color color, MoveList &moveList) const;
+template void Board::GenerateKingMoves_<Board::ALL>(Color color, MoveList &moveList) const;
 
 template <Board::MOVE_TYPES MT>
-void Board::GenerateQueenMoves_(Color color, MoveList &moveList)
+void Board::GenerateQueenMoves_(Color color, MoveList &moveList) const
 {
 	PieceType pt = WQ | color;
 
@@ -1007,12 +1190,12 @@ void Board::GenerateQueenMoves_(Color color, MoveList &moveList)
 	}
 }
 
-template void Board::GenerateQueenMoves_<Board::QUIET>(Color color, MoveList &moveList);
-template void Board::GenerateQueenMoves_<Board::VIOLENT>(Color color, MoveList &moveList);
-template void Board::GenerateQueenMoves_<Board::ALL>(Color color, MoveList &moveList);
+template void Board::GenerateQueenMoves_<Board::QUIET>(Color color, MoveList &moveList) const;
+template void Board::GenerateQueenMoves_<Board::VIOLENT>(Color color, MoveList &moveList) const;
+template void Board::GenerateQueenMoves_<Board::ALL>(Color color, MoveList &moveList) const;
 
 template <Board::MOVE_TYPES MT>
-void Board::GenerateBishopMoves_(Color color, MoveList &moveList)
+void Board::GenerateBishopMoves_(Color color, MoveList &moveList) const
 {
 	PieceType pt = WB | color;
 
@@ -1056,12 +1239,12 @@ void Board::GenerateBishopMoves_(Color color, MoveList &moveList)
 	}
 }
 
-template void Board::GenerateBishopMoves_<Board::QUIET>(Color color, MoveList &moveList);
-template void Board::GenerateBishopMoves_<Board::VIOLENT>(Color color, MoveList &moveList);
-template void Board::GenerateBishopMoves_<Board::ALL>(Color color, MoveList &moveList);
+template void Board::GenerateBishopMoves_<Board::QUIET>(Color color, MoveList &moveList) const;
+template void Board::GenerateBishopMoves_<Board::VIOLENT>(Color color, MoveList &moveList) const;
+template void Board::GenerateBishopMoves_<Board::ALL>(Color color, MoveList &moveList) const;
 
 template <Board::MOVE_TYPES MT>
-void Board::GenerateKnightMoves_(Color color, MoveList &moveList)
+void Board::GenerateKnightMoves_(Color color, MoveList &moveList) const
 {
 	PieceType pt = WN | color;
 
@@ -1105,12 +1288,12 @@ void Board::GenerateKnightMoves_(Color color, MoveList &moveList)
 	}
 }
 
-template void Board::GenerateKnightMoves_<Board::QUIET>(Color color, MoveList &moveList);
-template void Board::GenerateKnightMoves_<Board::VIOLENT>(Color color, MoveList &moveList);
-template void Board::GenerateKnightMoves_<Board::ALL>(Color color, MoveList &moveList);
+template void Board::GenerateKnightMoves_<Board::QUIET>(Color color, MoveList &moveList) const;
+template void Board::GenerateKnightMoves_<Board::VIOLENT>(Color color, MoveList &moveList) const;
+template void Board::GenerateKnightMoves_<Board::ALL>(Color color, MoveList &moveList) const;
 
 template <Board::MOVE_TYPES MT>
-void Board::GenerateRookMoves_(Color color, MoveList &moveList)
+void Board::GenerateRookMoves_(Color color, MoveList &moveList) const
 {
 	PieceType pt = WR | color;
 
@@ -1154,12 +1337,12 @@ void Board::GenerateRookMoves_(Color color, MoveList &moveList)
 	}
 }
 
-template void Board::GenerateRookMoves_<Board::QUIET>(Color color, MoveList &moveList);
-template void Board::GenerateRookMoves_<Board::VIOLENT>(Color color, MoveList &moveList);
-template void Board::GenerateRookMoves_<Board::ALL>(Color color, MoveList &moveList);
+template void Board::GenerateRookMoves_<Board::QUIET>(Color color, MoveList &moveList) const;
+template void Board::GenerateRookMoves_<Board::VIOLENT>(Color color, MoveList &moveList) const;
+template void Board::GenerateRookMoves_<Board::ALL>(Color color, MoveList &moveList) const;
 
 template <Board::MOVE_TYPES MT>
-void Board::GeneratePawnMoves_(Color color, MoveList &moveList)
+void Board::GeneratePawnMoves_(Color color, MoveList &moveList) const
 {
 	PieceType pt = WP | color;
 
@@ -1245,11 +1428,11 @@ void Board::GeneratePawnMoves_(Color color, MoveList &moveList)
 	}
 }
 
-template void Board::GeneratePawnMoves_<Board::QUIET>(Color color, MoveList &moveList);
-template void Board::GeneratePawnMoves_<Board::VIOLENT>(Color color, MoveList &moveList);
-template void Board::GeneratePawnMoves_<Board::ALL>(Color color, MoveList &moveList);
+template void Board::GeneratePawnMoves_<Board::QUIET>(Color color, MoveList &moveList) const;
+template void Board::GeneratePawnMoves_<Board::VIOLENT>(Color color, MoveList &moveList) const;
+template void Board::GeneratePawnMoves_<Board::ALL>(Color color, MoveList &moveList) const;
 
-bool Board::IsUnderAttack_(Square sq)
+bool Board::IsUnderAttack_(Square sq) const
 {
 	Color stm = m_boardDescU8[SIDE_TO_MOVE];
 	Color enemyColor = stm ^ COLOR_MASK;
@@ -1338,7 +1521,7 @@ uint64_t DebugPerft(Board &b, uint32_t depth)
 	return result;
 }
 
-void CheckPerft(std::string fen, uint32_t depth, uint64_t expected)
+bool CheckPerft(std::string fen, uint32_t depth, uint64_t expected)
 {
 	std::cout << "Checking Perft for " << fen << ", Depth: " << depth << std::endl;
 	Board b(fen);
@@ -1347,16 +1530,19 @@ void CheckPerft(std::string fen, uint32_t depth, uint64_t expected)
 	{
 		std::cout << "Perft check failed for - " << fen << std::endl;
 		std::cout << "Expected: " << expected << ", Result: " << result << std::endl;
+		return false;
 	}
+
+	return true;
 }
 
 void DebugRunPerftTests()
 {
-	CheckPerft("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 6, 119060324ULL);
-	CheckPerft("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -", 5, 193690690ULL);
-	CheckPerft("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -", 7, 178633661ULL);
-	CheckPerft("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", 6, 706045033ULL);
-	CheckPerft("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1", 6, 706045033ULL);
-	CheckPerft("rnbqkb1r/pp1p1ppp/2p5/4P3/2B5/8/PPP1NnPP/RNBQK2R w KQkq - 0 6", 3, 53392ULL);
-	CheckPerft("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10", 5, 164075551ULL);
+	if (!CheckPerft("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 6, 119060324ULL)) { abort(); }
+	if (!CheckPerft("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -", 5, 193690690ULL)) { abort(); }
+	if (!CheckPerft("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -", 7, 178633661ULL)) { abort(); }
+	if (!CheckPerft("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", 6, 706045033ULL)) { abort(); }
+	if (!CheckPerft("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1", 6, 706045033ULL)) { abort(); }
+	if (!CheckPerft("rnbqkb1r/pp1p1ppp/2p5/4P3/2B5/8/PPP1NnPP/RNBQK2R w KQkq - 0 6", 3, 53392ULL)) { abort(); }
+	if (!CheckPerft("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10", 5, 164075551ULL)) { abort(); }
 }

@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS_COMMON=-Wall -g -Winline -std=gnu++11 -march=native -I.
+CXXFLAGS_COMMON=-Wall -Wimplicit-fallthrough -g -Winline -std=gnu++11 -march=native -I.
 CXXFLAGS_RELEASE=$(CXXFLAGS_COMMON) -O3 -flto
 #CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -Wno-inline -O3 -fno-inline -fno-inline-small-functions -fno-inline-functions
 CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -O3 

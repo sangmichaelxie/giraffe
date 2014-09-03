@@ -7,7 +7,10 @@ SOURCES += main.cpp \
     giraffe.cpp \
     magic_moves.cpp \
     board_consts.cpp \
-    board.cpp
+    board.cpp \
+    eval/eval.cpp \
+    search.cpp \
+    see.cpp
 
 HEADERS += \
     board_consts.h \
@@ -17,5 +20,8 @@ HEADERS += \
     move.h \
     bit_ops.h \
     containers.h \
-    util.h
+    util.h \
+    eval/eval.h \
+    search.h \
+    see.h
 

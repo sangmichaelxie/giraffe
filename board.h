@@ -69,7 +69,7 @@ public:
 	void RemovePiece(Square sq);
 	void PlacePiece(Square sq, PieceType pt);
 
-	template <MOVE_TYPES MT> void GenerateAllMoves(MoveList &moveList);
+	template <MOVE_TYPES MT> void GenerateAllMoves(MoveList &moveList) const;
 
 #ifdef DEBUG
 	// debug function to check consistency between occupied bitboards, piece bitboards, MB, and castling rights
@@ -80,29 +80,55 @@ public:
 
 	std::string PrintBoard() const;
 
-	bool InCheck() { return m_boardDescU8[IN_CHECK]; }
+	bool InCheck() const { return m_boardDescU8[IN_CHECK]; }
 
 	// returns whether the move is legal (if not, the move is reverted)
 	bool ApplyMove(Move mv);
 
 	void UndoMove();
 
-	std::string MoveToAlg(Move mv);
+	std::string MoveToAlg(Move mv) const;
 
 	bool operator==(const Board &other);
 
+	uint64_t GetPieceTypeBitboard(PieceType pt) const { return m_boardDescBB[pt]; }
+
+	Color GetSideToMove() const { return m_boardDescU8[SIDE_TO_MOVE]; }
+
+	PieceType GetPieceAtSquare(Square sq) { return m_boardDescU8[sq]; }
+
+	Move ParseMove(std::string str);
+
+	/*
+		SEE helpers
+		- Highly efficient limited ApplyMove/UndoMove for SEE only
+		- Move must be a legal regular capture
+		- No en passant, castling, or non-capture moves
+		- Move legality is not checked, and king is allowed to be captured
+		- Same number of UndoMoveSee() must be called before
+			any other function can be called (board is in an intentionally corrupted
+			state while in SEE mode)
+		- ApplyMoveSee returns the captured piecetype
+		- ResetSee resets SEE status
+	*/
+	void ResetSee() { m_seeLastWhitePT = WP; m_seeLastBlackPT = WP; m_seeTotalOccupancy = m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED]; }
+	PieceType ApplyMoveSee(PieceType pt, Square from, Square to);
+	bool IsSeeEligible(Move mv);
+	void UndoMoveSee();
+	bool GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to); // to doesn't need to be returned, because it's the target square
+
 private:
-	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList);
-	template <MOVE_TYPES MT> void GenerateQueenMoves_(Color color, MoveList &moveList);
-	template <MOVE_TYPES MT> void GenerateBishopMoves_(Color color, MoveList &moveList);
-	template <MOVE_TYPES MT> void GenerateKnightMoves_(Color color, MoveList &moveList);
-	template <MOVE_TYPES MT> void GenerateRookMoves_(Color color, MoveList &moveList);
+	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList) const;
+	template <MOVE_TYPES MT> void GenerateQueenMoves_(Color color, MoveList &moveList) const;
+	template <MOVE_TYPES MT> void GenerateBishopMoves_(Color color, MoveList &moveList) const;
+	template <MOVE_TYPES MT> void GenerateKnightMoves_(Color color, MoveList &moveList) const;
+	template <MOVE_TYPES MT> void GenerateRookMoves_(Color color, MoveList &moveList) const;
 
 	// non-quiet only generates captures and promotion to queen
 	// quiet only generates non-captures and under-promotions (including captures that result in under-promotion)
-	template <MOVE_TYPES MT> void GeneratePawnMoves_(Color color, MoveList &moveList);
+	template <MOVE_TYPES MT> void GeneratePawnMoves_(Color color, MoveList &moveList) const;
 
-	bool IsUnderAttack_(Square sq);
+	bool IsUnderAttack_(Square sq) const;
 	void UpdateInCheck_();
 
 	uint64_t m_boardDescBB[BOARD_DESC_BB_SIZE];
@@ -114,6 +140,12 @@ private:
 
 	GrowableStack<UndoListBB> m_undoStackBB;
 	GrowableStack<UndoListU8> m_undoStackU8;
+
+	// both these fields are stored as white piece types
+	void UpdateseeLastPT_(PieceType lastPT) { if (m_boardDescU8[SIDE_TO_MOVE] == WHITE) m_seeLastWhitePT = lastPT; else m_seeLastBlackPT = lastPT; }
+	PieceType m_seeLastWhitePT;
+	PieceType m_seeLastBlackPT;
+	uint64_t m_seeTotalOccupancy;
 };
 
 uint64_t DebugPerft(std::string fen, uint32_t depth);

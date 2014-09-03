@@ -22,7 +22,7 @@ inline uint32_t Extract(uint64_t &x)
 	return idx;
 }
 
-inline uint32_t PopCount(uint64_t &x)
+inline uint32_t PopCount(uint64_t x)
 {
 	return __builtin_popcountll(x);
 }

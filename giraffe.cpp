@@ -5,4 +5,7 @@
 #include "magic_moves.cpp"
 #include "board_consts.cpp"
 #include "board.cpp"
+#include "eval/eval.cpp"
+#include "see.cpp"
+#include "search.cpp"
 #include "main.cpp"
