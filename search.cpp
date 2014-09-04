@@ -86,10 +86,15 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 {
 	++context.nodeCount;
 
-	bool isQS = (depth <= 0);
+	bool isQS = (depth <= 0) && (!board.InCheck());
 	bool legalMoveFound = false;
 
 	Score staticEval = Eval::Evaluate(board, alpha, beta);
+
+	if (isQS && staticEval > beta)
+	{
+		return staticEval;
+	}
 
 	MoveList moves;
 
@@ -108,7 +113,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		{
 			Score see = StaticExchangeEvaluation(board, moves[i]);
 
-			if (see < 0)
+			if ((see + staticEval) < alpha || see < 0)
 			{
 				continue;
 			}
