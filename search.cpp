@@ -113,7 +113,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		{
 			Score see = StaticExchangeEvaluation(board, moves[i]);
 
-			if ((see + staticEval) < alpha || see < 0)
+			if (see < 0)
 			{
 				continue;
 			}
