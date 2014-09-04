@@ -1,0 +1,14 @@
+WAC:
+a collection of 300 chess positions first compiled and published by Fred Reinfeld in 1958 [1]. The tactical postions were taken from actual tournament play, contain scores of traps, sacrifices, mates, winning combinations, and subtle exchanges that will help sharpen players' eyes and test their skills against the masters, and were (or even are) a quite popular test set for chess engines as a sanity check [2]. In 2001, WAC was revised by Fred Wilson [3] and converted into algebraic chess notation. 
+
+BKTest:
+The Bratko-Kopec Test was designed by Dr. Ivan Bratko and Dr. Danny Kopec in 1982 to evaluate human or machine chess ability based on the presence or absence of certain knowledge (i.e. Master, Expert, Novice, etc). This test has been a standard for nearly 20 years in computer chess. Experience has shown it very reliable in corresponding to the chess rating of humans and machines.
+
+Zugzwang:
+Test-positions where Null Move may fail due to zugzwang,
+
+SilentButDeadly:
+This is an EPD test that is designed to help tune chess engines. All of the positions are fairly quiet, and the best move is not a capture.
+
+ECM:
+Not sure where this came from, but it's a famous test suite.
