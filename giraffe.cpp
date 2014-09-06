@@ -8,5 +8,7 @@
 #include "eval/eval.cpp"
 #include "see.cpp"
 #include "search.cpp"
+#include "chessclock.cpp"
+#include "timeallocator.cpp"
 #include "backend.cpp"
 #include "main.cpp"

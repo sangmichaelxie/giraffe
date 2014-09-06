@@ -12,6 +12,7 @@
 #include "see.h"
 #include "search.h"
 #include "backend.h"
+#include "chessclock.h"
 
 void Initialize()
 {
@@ -86,11 +87,43 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "level")
 		{
-			// TODO
+			int32_t movesPerPeriod;
+
+			double base;
+
+			// base is a little complicated, because it can either be minutes or minutes:seconds
+			// so we read into a string first before figuring out what to do with it
+			std::string baseStr;
+
+			double inc;
+
+			line >> movesPerPeriod;
+			line >> baseStr;
+			line >> inc;
+
+			if (baseStr.find(':') == std::string::npos)
+			{
+				sscanf(baseStr.c_str(), "%lf", &base);
+				base *= 60.0;
+			}
+			else
+			{
+				double minutes;
+				double seconds;
+
+				sscanf(baseStr.c_str(), "%lf:%lf", &minutes, &seconds);
+				base = minutes * 60.0 + seconds;
+			}
+
+			ChessClock cc(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, movesPerPeriod, base, inc);
+
+			backend.SetTimeControl(cc);
 		}
 		else if (cmd == "st")
 		{
-			// TODO
+			double t;
+			line >> t;
+			backend.SetTimeControl(ChessClock(ChessClock::EXACT_MODE, 0, 0.0, t));
 		}
 		else if (cmd == "sd")
 		{
@@ -100,11 +133,19 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "time")
 		{
-			// TODO
+			double t;
+			line >> t;
+			t /= 100.0;
+
+			backend.AdjustEngineTime(t);
 		}
 		else if (cmd == "otim")
 		{
-			// TODO
+			double t;
+			line >> t;
+			t /= 100.0;
+
+			backend.AdjustOpponentTime(t);
 		}
 		else if (cmd == "usermove")
 		{

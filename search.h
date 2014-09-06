@@ -7,6 +7,7 @@
 #include <memory>
 #include <future>
 #include <functional>
+#include <condition_variable>
 
 #include "types.h"
 #include "board.h"
@@ -73,7 +74,8 @@ public:
 	void Start();
 
 	// request an abort (must wait for search to be done)
-	void Abort() { m_context.stopRequest = true; }
+	void Abort()
+	{ std::lock_guard<std::mutex> lock(m_abortingMutex); m_context.stopRequest = true; m_cvAborting.notify_all(); }
 
 	// whether the search is done (or aborted)
 	bool Done() { return m_done; }
@@ -97,6 +99,9 @@ private:
 	std::atomic<bool> m_done;
 
 	SearchResult m_rootResult;
+
+	std::mutex m_abortingMutex;
+	std::condition_variable m_cvAborting;
 
 	std::thread m_searchTimerThread;
 };

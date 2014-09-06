@@ -11,7 +11,9 @@ SOURCES += main.cpp \
     eval/eval.cpp \
     search.cpp \
     see.cpp \
-    backend.cpp
+    backend.cpp \
+    chessclock.cpp \
+    timeallocator.cpp
 
 HEADERS += \
     board_consts.h \
@@ -25,5 +27,7 @@ HEADERS += \
     eval/eval.h \
     search.h \
     see.h \
-    backend.h
+    backend.h \
+    chessclock.h \
+    timeallocator.h
 

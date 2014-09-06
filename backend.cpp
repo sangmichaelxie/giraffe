@@ -1,24 +1,27 @@
 #include "backend.h"
 
 #include "board.h"
+#include "timeallocator.h"
 
 Backend::Backend()
-	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_maxDepth(0), m_showThinking(false)
+	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_maxDepth(0), m_showThinking(false),
+	  m_whiteClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
+	  m_blackClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0)
 {
 }
 
 Backend::~Backend()
 {
-	StopSearch_();
+	std::lock_guard<std::mutex> lock(m_mutex);
+
+	StopSearch_(lock);
 }
 
 void Backend::NewGame()
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
-	StopSearch_();
-
-	m_mode = EngineMode_force;
+	Force_(lock);
 
 	m_currentBoard = Board();
 }
@@ -27,16 +30,14 @@ void Backend::Force()
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
-	StopSearch_();
-
-	m_mode = EngineMode_force;
+	Force_(lock);
 }
 
 void Backend::Go()
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
-	StopSearch_();
+	StopSearch_(lock);
 
 	if (m_currentBoard.GetSideToMove() == WHITE)
 	{
@@ -47,7 +48,7 @@ void Backend::Go()
 		m_mode = EngineMode_playingBlack;
 	}
 
-	StartSearch_(10.0, 20.0, Search::SearchType_makeMove);
+	StartSearch_(Search::SearchType_makeMove);
 }
 
 void Backend::Usermove(std::string move)
@@ -73,13 +74,24 @@ void Backend::Usermove(std::string move)
 
 	if (m_mode == EngineMode_playingWhite || m_mode == EngineMode_playingBlack)
 	{
-		StopSearch_();
-		StartSearch_(10.0, 20.0, Search::SearchType_makeMove);
+		StopSearch_(lock);
+		StartSearch_(Search::SearchType_makeMove);
+
+		if (m_mode == EngineMode_playingWhite)
+		{
+			m_blackClock.Stop();
+			m_whiteClock.Start();
+		}
+		else
+		{
+			m_whiteClock.Stop();
+			m_blackClock.Start();
+		}
 	}
 	else if (m_mode == EngineMode_analyzing)
 	{
-		StopSearch_();
-		StartSearch_(0.0, 0.0, Search::SearchType_infinite);
+		StopSearch_(lock);
+		StartSearch_(Search::SearchType_infinite);
 	}
 }
 
@@ -87,9 +99,7 @@ void Backend::SetBoard(std::string fen)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
-	StopSearch_();
-
-	m_mode = EngineMode_force;
+	Force_(lock);
 
 	m_currentBoard = Board(fen);
 }
@@ -98,17 +108,13 @@ void Backend::SetAnalyzing(bool enabled)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
+	Force_(lock);
+
 	if (enabled)
 	{
 		m_mode = EngineMode_analyzing;
 
-		StartSearch_(0.0, 0.0, Search::SearchType_infinite);
-	}
-	else
-	{
-		StopSearch_();
-
-		m_mode = EngineMode_force;
+		StartSearch_(Search::SearchType_infinite);
 	}
 }
 
@@ -133,8 +139,40 @@ void Backend::Undo(int32_t moves)
 
 	if (m_mode == EngineMode_analyzing)
 	{
-		StopSearch_();
-		StartSearch_(0.0, 0.0, Search::SearchType_infinite);
+		StopSearch_(lock);
+		StartSearch_(Search::SearchType_infinite);
+	}
+}
+
+void Backend::AdjustEngineTime(double time)
+{
+	if (m_mode == EngineMode_playingWhite)
+	{
+		m_whiteClock.AdjustTime(time);
+	}
+	else if (m_mode == EngineMode_playingBlack)
+	{
+		m_blackClock.AdjustTime(time);
+	}
+	else
+	{
+		std::cout << "Error (not playing a game)" << std::endl;
+	}
+}
+
+void Backend::AdjustOpponentTime(double time)
+{
+	if (m_mode == EngineMode_playingWhite)
+	{
+		m_blackClock.AdjustTime(time);
+	}
+	else if (m_mode == EngineMode_playingBlack)
+	{
+		m_whiteClock.AdjustTime(time);
+	}
+	else
+	{
+		std::cout << "Error (not playing a game)" << std::endl;
 	}
 }
 
@@ -145,25 +183,53 @@ void Backend::DebugPrintBoard()
 	std::cout << m_currentBoard.PrintBoard() << std::endl;
 }
 
-void Backend::StopSearch_()
+void Backend::Force_(std::lock_guard<std::mutex> &lock)
+{
+	StopSearch_(lock);
+
+	m_whiteClock.Stop();
+	m_blackClock.Stop();
+
+	m_mode = EngineMode_force;
+}
+
+void Backend::StopSearch_(std::lock_guard<std::mutex> &lock)
 {
 	if (m_searchInProgress)
 	{
 		m_search->Abort();
-		m_search->Join();
+
+		m_mutex.unlock();
+		try
+		{
+			m_search->Join();
+		}
+		catch (...)
+		{}
+		m_mutex.lock();
 
 		m_searchInProgress = false;
 	}
 }
 
-void Backend::StartSearch_(double timeAllocated, double maxTimeAllocated, Search::SearchType searchType)
+void Backend::StartSearch_(Search::SearchType searchType)
 {
 	m_searchInProgress = true;
 
 	m_searchContext.reset(new Search::RootSearchContext());
 
-	m_searchContext->timeAlloc.normalTime = timeAllocated;
-	m_searchContext->timeAlloc.maxTime = maxTimeAllocated;
+	Search::TimeAllocation tAlloc;
+
+	if (m_mode == EngineMode_playingWhite)
+	{
+		tAlloc = AllocateTime(m_whiteClock);
+	}
+	else if (m_mode == EngineMode_playingBlack)
+	{
+		tAlloc = AllocateTime(m_blackClock);
+	}
+
+	m_searchContext->timeAlloc = tAlloc;
 	m_searchContext->stopRequest = false;
 	m_searchContext->startBoard = m_currentBoard;
 	m_searchContext->nodeCount = 0;
@@ -188,6 +254,17 @@ void Backend::StartSearch_(double timeAllocated, double maxTimeAllocated, Search
 		std::lock_guard<std::mutex> lock(m_mutex);
 		std::cout << "move " << mv << std::endl;
 		m_currentBoard.ApplyMove(m_currentBoard.ParseMove(mv));
+
+		if (m_mode == EngineMode_playingBlack)
+		{
+			m_blackClock.Stop();
+			m_whiteClock.Start();
+		}
+		else
+		{
+			m_whiteClock.Stop();
+			m_blackClock.Start();
+		}
 	};
 
 	m_search.reset(new Search::AsyncSearch(*m_searchContext));

@@ -119,10 +119,22 @@ void AsyncSearch::RootSearch_()
 
 void AsyncSearch::SearchTimer_(double time)
 {
-	// this check is required because of GCC (libstdc++) bug #58038: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=58038
-	if (time >= 0.0)
+	// we have to do all this math because of GCC (libstdc++) bug #58038: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=58038
+	double endTime = CurrentTime() + time;
+
+	std::unique_lock<std::mutex> lock(m_abortingMutex);
+
+	while (!m_context.stopRequest && CurrentTime() < endTime)
 	{
-		std::this_thread::sleep_for(std::chrono::microseconds(static_cast<uint64_t>(time * 1000000)));
+		// all this work for an interruptible sleep...
+		// don't use wait_until here, because of the libstdc++ bug
+		// we have to make sure wait time is positive
+		double timeTillEnd = endTime - CurrentTime();
+
+		if (timeTillEnd > 0.0)
+		{
+			m_cvAborting.wait_for(lock, std::chrono::microseconds(static_cast<uint64_t>(timeTillEnd * 1000000)));
+		}
 	}
 
 	m_context.stopRequest = true;

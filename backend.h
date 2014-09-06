@@ -6,6 +6,7 @@
 
 #include "board.h"
 #include "search.h"
+#include "chessclock.h"
 
 class Backend
 {
@@ -39,11 +40,22 @@ public:
 
 	void Undo(int32_t moves);
 
+	void SetTimeControl(const ChessClock &cc)
+	{ std::lock_guard<std::mutex> lock(m_mutex); m_whiteClock = cc; m_blackClock = cc; }
+
+	void AdjustEngineTime(double time);
+	void AdjustOpponentTime(double time);
+
 	void DebugPrintBoard();
 
 private:
-	void StopSearch_();
-	void StartSearch_(double timeAllocated, double maxTimeAllocated, Search::SearchType searchType);
+	// these 2 functions take a lock_guard to remind the caller that m_mutex should be locked when calling
+	// these functions, since these functions will temporarily unlock the mutex while waiting for search
+	// thread to join
+	void Force_(std::lock_guard<std::mutex> &lock);
+	void StopSearch_(std::lock_guard<std::mutex> &lock);
+
+	void StartSearch_(Search::SearchType searchType);
 
 	std::mutex m_mutex;
 
@@ -56,6 +68,9 @@ private:
 	Search::Depth m_maxDepth;
 
 	bool m_showThinking;
+
+	ChessClock m_whiteClock;
+	ChessClock m_blackClock;
 };
 
 #endif // BACKEND_H
