@@ -59,6 +59,8 @@ struct RootSearchContext
 
 	SearchType searchType;
 
+	Depth maxDepth;
+
 	std::function<void (std::string &mv)> finalMoveFunc;
 	std::function<void (ThinkingOutput &to)> thinkingOutputFunc;
 };

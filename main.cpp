@@ -63,6 +63,7 @@ int main(int argc, char **argv)
 		else if (cmd == "new")
 		{
 			backend.NewGame();
+			backend.SetMaxDepth(0);
 		}
 		else if (cmd == "setboard")
 		{
@@ -93,7 +94,9 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "sd")
 		{
-			// TODO
+			int32_t maxDepth;
+			line >> maxDepth;
+			backend.SetMaxDepth(maxDepth);
 		}
 		else if (cmd == "time")
 		{

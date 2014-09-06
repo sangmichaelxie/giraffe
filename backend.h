@@ -33,6 +33,8 @@ public:
 
 	void SetShowThinking(bool enabled) { std::lock_guard<std::mutex> lock(m_mutex); m_showThinking = enabled; }
 
+	void SetMaxDepth(Search::Depth depth) { std::lock_guard<std::mutex> lock(m_mutex); m_maxDepth = depth; }
+
 	void SetAnalyzing(bool enabled);
 
 	void Undo(int32_t moves);
@@ -50,6 +52,8 @@ private:
 	bool m_searchInProgress;
 	std::unique_ptr<Search::AsyncSearch> m_search;
 	std::unique_ptr<Search::RootSearchContext> m_searchContext;
+
+	Search::Depth m_maxDepth;
 
 	bool m_showThinking;
 };

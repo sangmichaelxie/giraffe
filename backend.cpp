@@ -3,7 +3,7 @@
 #include "board.h"
 
 Backend::Backend()
-	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_showThinking(false)
+	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_maxDepth(0), m_showThinking(false)
 {
 }
 
@@ -168,6 +168,7 @@ void Backend::StartSearch_(double timeAllocated, double maxTimeAllocated, Search
 	m_searchContext->startBoard = m_currentBoard;
 	m_searchContext->nodeCount = 0;
 	m_searchContext->searchType = searchType;
+	m_searchContext->maxDepth = m_maxDepth;
 
 	m_searchContext->thinkingOutputFunc =
 	[this](Search::ThinkingOutput &to)

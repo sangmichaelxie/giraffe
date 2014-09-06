@@ -74,8 +74,13 @@ void AsyncSearch::RootSearch_()
 		m_searchTimerThread = std::move(searchTimerThread);
 	}
 
+	if (m_context.maxDepth == 0 || m_context.maxDepth > ID_MAX_DEPTH)
+	{
+		m_context.maxDepth = ID_MAX_DEPTH;
+	}
+
 	for (Depth depth = 1;
-			(depth < ID_MAX_DEPTH) &&
+			(depth <= m_context.maxDepth) &&
 			((CurrentTime() < endTime) || (m_context.searchType == SearchType_infinite)) &&
 			!m_context.stopRequest;
 		 ++depth)
