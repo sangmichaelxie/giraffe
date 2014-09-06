@@ -6,6 +6,7 @@
 #include <atomic>
 #include <memory>
 #include <future>
+#include <functional>
 
 #include "types.h"
 #include "board.h"
@@ -15,6 +16,15 @@ namespace Search
 {
 
 typedef int32_t Depth;
+
+struct ThinkingOutput
+{
+	int32_t ply;
+	Score score;
+	double time;
+	uint64_t nodeCount;
+	std::string pv;
+};
 
 struct TimeAllocation
 {
@@ -26,6 +36,12 @@ struct SearchResult
 {
 	Move bestMove;
 	Score score;
+};
+
+enum SearchType
+{
+	SearchType_makeMove, // search using the time allocated, and make a move in the end
+	SearchType_infinite // search until told to stop (ponder, analyze)
 };
 
 // all searches starting from the same root will have the same context
@@ -40,6 +56,11 @@ struct RootSearchContext
 	Board startBoard;
 
 	std::atomic<uint64_t> nodeCount;
+
+	SearchType searchType;
+
+	std::function<void (std::string &mv)> finalMoveFunc;
+	std::function<void (ThinkingOutput &to)> thinkingOutputFunc;
 };
 
 class AsyncSearch
@@ -63,6 +84,9 @@ public:
 private:
 	void RootSearch_();
 
+	// entry point for a thread that automatically interrupts the search after the specified time
+	void SearchTimer_(double time);
+
 	Score Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply);
 	Score Search_(RootSearchContext &context, Board &board, Score alpha, Score beta, Depth depth, int32_t ply); // version without best move
 
@@ -71,6 +95,8 @@ private:
 	std::atomic<bool> m_done;
 
 	SearchResult m_rootResult;
+
+	std::thread m_searchTimerThread;
 };
 
 }

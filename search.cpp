@@ -3,6 +3,7 @@
 #include <utility>
 #include <memory>
 #include <atomic>
+#include <chrono>
 
 #include <cstdint>
 
@@ -43,7 +44,6 @@ static const Depth ID_MAX_DEPTH = 200;
 AsyncSearch::AsyncSearch(RootSearchContext &context)
 	: m_context(context), m_done(false)
 {
-
 }
 
 void AsyncSearch::Start()
@@ -68,23 +68,70 @@ void AsyncSearch::RootSearch_()
 
 	SearchResult latestResult;
 
-	for (Depth depth = 1; (depth < ID_MAX_DEPTH) && (CurrentTime() < endTime) && !m_context.stopRequest; ++depth)
+	if (m_context.searchType != SearchType_infinite)
+	{
+		std::thread searchTimerThread(&AsyncSearch::SearchTimer_, this, endTime - CurrentTime());
+		m_searchTimerThread = std::move(searchTimerThread);
+	}
+
+	for (Depth depth = 1;
+			(depth < ID_MAX_DEPTH) &&
+			((CurrentTime() < endTime) || (m_context.searchType == SearchType_infinite)) &&
+			!m_context.stopRequest;
+		 ++depth)
 	{
 		latestResult.score = Search_(m_context, latestResult.bestMove, m_context.startBoard, SCORE_MIN, SCORE_MAX, depth, 0);
 
-		std::cout << "Depth: " << depth << std::endl;
-		std::cout << "bm: " << m_context.startBoard.MoveToAlg(latestResult.bestMove) << std::endl;
-		std::cout << "Time: " << (endTime - CurrentTime()) << std::endl;
-		std::cout << "NPS: " << (static_cast<double>(m_context.nodeCount) / (CurrentTime() - startTime)) << std::endl;
+		if (!m_context.stopRequest)
+		{
+			m_rootResult = latestResult;
+
+			ThinkingOutput thinkingOutput;
+			thinkingOutput.nodeCount = m_context.nodeCount;
+			thinkingOutput.ply = depth;
+			thinkingOutput.pv = m_context.startBoard.MoveToAlg(latestResult.bestMove);
+			thinkingOutput.score = latestResult.score;
+			thinkingOutput.time = CurrentTime() - startTime;
+
+			m_context.thinkingOutputFunc(thinkingOutput);
+		}
 	}
 
-	m_rootResult = latestResult;
+	if (m_searchTimerThread.joinable())
+	{
+		// this thread is only started if we are in time limited search
+		m_searchTimerThread.join();
+	}
+
+	if (m_context.searchType == SearchType_makeMove)
+	{
+		std::string bestMove = m_context.startBoard.MoveToAlg(m_rootResult.bestMove);
+		m_context.finalMoveFunc(bestMove);
+	}
+
 	m_done = true;
+}
+
+void AsyncSearch::SearchTimer_(double time)
+{
+	// this check is required because of GCC (libstdc++) bug #58038: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=58038
+	if (time >= 0.0)
+	{
+		std::this_thread::sleep_for(std::chrono::microseconds(static_cast<uint64_t>(time * 1000000)));
+	}
+
+	m_context.stopRequest = true;
 }
 
 Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply)
 {
 	++context.nodeCount;
+
+	if (context.stopRequest)
+	{
+		// if global stop request is set, we just return any value since it won't be used anyways
+		return 0;
+	}
 
 	bool isQS = (depth <= 0) && (!board.InCheck());
 	bool legalMoveFound = false;
@@ -127,6 +174,11 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 			board.UndoMove();
 
+			if (context.stopRequest)
+			{
+				return 0;
+			}
+
 			AdjustIfMateScore(score);
 
 			if (score > alpha)
@@ -144,6 +196,11 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	if (legalMoveFound)
 	{
+		if (!context.stopRequest)
+		{
+			// store TT
+		}
+
 		return alpha;
 	}
 	else

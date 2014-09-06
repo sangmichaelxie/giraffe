@@ -70,6 +70,7 @@ public:
 	void PlacePiece(Square sq, PieceType pt);
 
 	template <MOVE_TYPES MT> void GenerateAllMoves(MoveList &moveList) const;
+	template <MOVE_TYPES MT> void GenerateAllLegalMovesSlow(MoveList &moveList) const;
 
 #ifdef DEBUG
 	// debug function to check consistency between occupied bitboards, piece bitboards, MB, and castling rights
@@ -98,6 +99,9 @@ public:
 	PieceType GetPieceAtSquare(Square sq) { return m_boardDescU8[sq]; }
 
 	Move ParseMove(std::string str);
+
+	// how many moves can be undone from the current position
+	int32_t PossibleUndo() { return m_undoStackBB.GetSize(); }
 
 	/*
 		SEE helpers

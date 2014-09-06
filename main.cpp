@@ -11,6 +11,7 @@
 #include "eval/eval.h"
 #include "see.h"
 #include "search.h"
+#include "backend.h"
 
 void Initialize()
 {
@@ -30,17 +31,8 @@ int main(int argc, char **argv)
 #endif
 
 	Initialize();
-#if 0
-	enum EngineMode
-	{
-		EngineMode_force,
-		EngineMode_playingWhite,
-		EngineMode_playingBlack,
-		EngineMode_analyzing
-	};
 
-	EngineMode mode;
-	Board currentBoard;
+	Backend backend;
 
 	while (true)
 	{
@@ -70,7 +62,13 @@ int main(int argc, char **argv)
 		else if (cmd == "rejected") {}
 		else if (cmd == "new")
 		{
-			// TODO
+			backend.NewGame();
+		}
+		else if (cmd == "setboard")
+		{
+			std::string fen;
+			std::getline(line, fen);
+			backend.SetBoard(fen);
 		}
 		else if (cmd == "quit")
 		{
@@ -79,11 +77,11 @@ int main(int argc, char **argv)
 		else if (cmd == "random") {}
 		else if (cmd == "force")
 		{
-			// TODO
+			backend.Force();
 		}
 		else if (cmd == "go")
 		{
-			// TODO
+			backend.Go();
 		}
 		else if (cmd == "level")
 		{
@@ -107,12 +105,14 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "usermove")
 		{
-			// TODO
+			std::string mv;
+			line >> mv;
+			backend.Usermove(mv);
 		}
 		else if (cmd == "?") {}
 		else if (cmd == "result")
 		{
-			// TODO
+			backend.NewGame();
 		}
 		else if (cmd == "ping")
 		{
@@ -123,11 +123,11 @@ int main(int argc, char **argv)
 		else if (cmd == "hint") {}
 		else if (cmd == "undo")
 		{
-			// TODO
+			backend.Undo(1);
 		}
 		else if (cmd == "remove")
 		{
-			// TODO
+			backend.Undo(2);
 		}
 		else if (cmd == "hard")
 		{
@@ -139,58 +139,29 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "post")
 		{
-			// TODO
+			backend.SetShowThinking(true);
 		}
 		else if (cmd == "nopost")
 		{
-			// TODO
+			backend.SetShowThinking(false);
 		}
 		else if (cmd == "analyze")
 		{
-			// TODO
+			backend.SetAnalyzing(true);
+		}
+		else if (cmd == "exit")
+		{
+			backend.SetAnalyzing(false);
 		}
 		else if (cmd == "computer") {}
+		else if (cmd == "printboard")
+		{
+			// for debugging, not in xboard protocol
+			backend.DebugPrintBoard();
+		}
 		else
 		{
 			std::cout << "Error (unknown command): " << cmd << std::endl;
 		}
 	}
-#endif
-
-#if 1
-	Board b;
-
-	Search::RootSearchContext searchContext;
-	searchContext.timeAlloc.normalTime = 10.0;
-	searchContext.timeAlloc.maxTime = 20.0;
-	searchContext.stopRequest = false;
-	searchContext.startBoard = b;
-	searchContext.nodeCount = 0;
-
-	Search::AsyncSearch search(searchContext);
-
-	search.Start();
-
-	search.Join();
-
-	return 0;
-#endif
-
-#if 0
-	while (true)
-	{
-		std::string fen;
-		std::getline(std::cin, fen);
-
-		Board b(fen);
-
-		Move mv = b.ParseMove("e3e6");
-
-		assert(mv != 0);
-
-		std::cout << StaticExchangeEvaluation(b, mv) << std::endl;
-
-		//b.CheckBoardConsistency();
-	}
-#endif
 }

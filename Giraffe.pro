@@ -10,7 +10,8 @@ SOURCES += main.cpp \
     board.cpp \
     eval/eval.cpp \
     search.cpp \
-    see.cpp
+    see.cpp \
+    backend.cpp
 
 HEADERS += \
     board_consts.h \
@@ -23,5 +24,6 @@ HEADERS += \
     util.h \
     eval/eval.h \
     search.h \
-    see.h
+    see.h \
+    backend.h
 

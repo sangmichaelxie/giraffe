@@ -292,6 +292,25 @@ void Board::GenerateAllMoves(MoveList &moveList) const
 #endif
 }
 
+template <Board::MOVE_TYPES MT>
+void Board::GenerateAllLegalMovesSlow(MoveList &moveList) const
+{
+	MoveList pseudoLegalMoves;
+	GenerateAllMoves<MT>(pseudoLegalMoves);
+
+	// we have to make a copy here because this function is const
+	Board boardCopy = *this;
+
+	for (size_t i = 0; i < pseudoLegalMoves.GetSize(); ++i)
+	{
+		if (boardCopy.ApplyMove(pseudoLegalMoves[i]))
+		{
+			moveList.PushBack(pseudoLegalMoves[i]);
+			boardCopy.UndoMove();
+		}
+	}
+}
+
 #ifdef DEBUG
 void Board::CheckBoardConsistency()
 {
@@ -851,7 +870,7 @@ bool Board::operator==(const Board &other)
 Move Board::ParseMove(std::string str)
 {
 	MoveList moveList;
-	GenerateAllMoves<ALL>(moveList);
+	GenerateAllLegalMovesSlow<ALL>(moveList);
 
 	if (PatternMatch(str, "[a-h][1-8][a-h][1-8]"))
 	{

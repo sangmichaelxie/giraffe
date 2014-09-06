@@ -8,4 +8,5 @@
 #include "eval/eval.cpp"
 #include "see.cpp"
 #include "search.cpp"
+#include "backend.cpp"
 #include "main.cpp"
