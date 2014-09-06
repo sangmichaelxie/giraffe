@@ -899,6 +899,58 @@ Move Board::ParseMove(std::string str)
 		}
 	}
 
+	// algebraic promotion
+	if (PatternMatch(str, "[a-h][1-8][a-h][1-8][QBRNqbrn]"))
+	{
+		char srcX;
+		int srcY;
+		char dstX;
+		int dstY;
+		char promo;
+
+		if (sscanf(str.c_str(), "%c%d%c%d%c", &srcX, &srcY, &dstX, &dstY, &promo) == 5)
+		{
+			PieceType promoType = WQ;
+			switch (promo)
+			{
+			case 'Q':
+			case 'q':
+				promoType = WQ;
+				break;
+			case 'B':
+			case 'b':
+				promoType = WB;
+				break;
+			case 'N':
+			case 'n':
+				promoType = WN;
+				break;
+			case 'R':
+			case 'r':
+				promoType = WR;
+				break;
+			}
+
+			promoType = static_cast<PieceType>(promoType | m_boardDescU8[SIDE_TO_MOVE]);
+
+			srcX -= 'a';
+			dstX -= 'a';
+			srcY -= 1;
+			dstY -= 1;
+
+			for (size_t i = 0; i < moveList.GetSize(); ++i)
+			{
+				Square from = GetFromSquare(moveList[i]);
+				Square to = GetToSquare(moveList[i]);
+
+				if (from == Sq(srcX, srcY) && to == Sq(dstX, dstY) && promoType == GetPromoType(moveList[i]))
+				{
+					return moveList[i];
+				}
+			}
+		}
+	}
+
 	return 0;
 }
 
