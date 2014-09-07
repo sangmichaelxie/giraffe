@@ -116,7 +116,6 @@ void AsyncSearch::RootSearch_()
 
 		if (estimatedNextIterationTime > (totalAllocatedTime - elapsedTime))
 		{
-			std::cout << "# not starting next iteration" << std::endl;
 			break;
 		}
 	}
