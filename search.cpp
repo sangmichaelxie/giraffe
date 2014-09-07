@@ -178,7 +178,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	if (isQS && staticEval > beta)
 	{
-		//return staticEval;
+		return staticEval;
 	}
 
 	MoveList moves;
