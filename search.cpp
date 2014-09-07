@@ -22,6 +22,11 @@ namespace
 	const static Score MATE_MOVING_SIDE_THRESHOLD = 20000;
 	const static Score MATE_OPPONENT_SIDE_THRESHOLD = -20000;
 
+	// estimated minimum branching factor for time allocation
+	// if more than 1/x of the allocated time has been used at the end of an iteration,
+	// a new iteration won't be started
+	const static double ESTIMATED_MIN_BRANCHING_FACTOR = 5.0;
+
 	// when these mating scores are propagated up, they are adjusted by distance to mate
 	inline void AdjustIfMateScore(Score &score)
 	{
@@ -104,7 +109,19 @@ void AsyncSearch::RootSearch_()
 		}
 
 		m_context.onePlyDone = true;
+
+		double elapsedTime = CurrentTime() - startTime;
+		double totalAllocatedTime = endTime - startTime;
+		double estimatedNextIterationTime = elapsedTime * ESTIMATED_MIN_BRANCHING_FACTOR;
+
+		if (estimatedNextIterationTime > (totalAllocatedTime - elapsedTime))
+		{
+			std::cout << "# not starting next iteration" << std::endl;
+			break;
+		}
 	}
+
+	Abort(); // interrupt timing thread
 
 	if (m_searchTimerThread.joinable())
 	{
@@ -161,7 +178,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	if (isQS && staticEval > beta)
 	{
-		return staticEval;
+		//return staticEval;
 	}
 
 	MoveList moves;

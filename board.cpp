@@ -473,6 +473,7 @@ std::string Board::PrintBoard() const
 
 	ss << "Half moves since last pawn move or capture: " << m_boardDescU8[HALF_MOVES_CLOCK] << std::endl;
 	ss << "FEN: " << GetFen() << std::endl;
+	ss << "In check: " << m_boardDescU8[IN_CHECK] << std::endl;
 
 	return ss.str();
 }

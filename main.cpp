@@ -203,6 +203,12 @@ int main(int argc, char **argv)
 			// for debugging, not in xboard protocol
 			backend.DebugPrintBoard();
 		}
+		else if (cmd == "perft")
+		{
+			int32_t depth;
+			line >> depth;
+			backend.DebugRunPerft(depth);
+		}
 		else
 		{
 			std::cout << "Error (unknown command): " << cmd << std::endl;

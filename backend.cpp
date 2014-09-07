@@ -183,6 +183,13 @@ void Backend::DebugPrintBoard()
 	std::cout << m_currentBoard.PrintBoard() << std::endl;
 }
 
+void Backend::DebugRunPerft(int32_t depth)
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+
+	DebugPerft(m_currentBoard, depth);
+}
+
 void Backend::Force_(std::lock_guard<std::mutex> &lock)
 {
 	StopSearch_(lock);
