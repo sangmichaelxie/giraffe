@@ -79,15 +79,17 @@ void AsyncSearch::RootSearch_()
 		m_context.maxDepth = ID_MAX_DEPTH;
 	}
 
+	m_context.onePlyDone = false;
+
 	for (Depth depth = 1;
 			(depth <= m_context.maxDepth) &&
-			((CurrentTime() < endTime) || (m_context.searchType == SearchType_infinite)) &&
-			!m_context.stopRequest;
+			((CurrentTime() < endTime) || (m_context.searchType == SearchType_infinite) || !m_context.onePlyDone) &&
+			(!m_context.Stopping());
 		 ++depth)
 	{
 		latestResult.score = Search_(m_context, latestResult.bestMove, m_context.startBoard, SCORE_MIN, SCORE_MAX, depth, 0);
 
-		if (!m_context.stopRequest)
+		if (!m_context.stopRequest || !m_context.onePlyDone)
 		{
 			m_rootResult = latestResult;
 
@@ -100,6 +102,8 @@ void AsyncSearch::RootSearch_()
 
 			m_context.thinkingOutputFunc(thinkingOutput);
 		}
+
+		m_context.onePlyDone = true;
 	}
 
 	if (m_searchTimerThread.joinable())
@@ -144,7 +148,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 {
 	++context.nodeCount;
 
-	if (context.stopRequest)
+	if (context.Stopping())
 	{
 		// if global stop request is set, we just return any value since it won't be used anyways
 		return 0;
@@ -191,7 +195,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 			board.UndoMove();
 
-			if (context.stopRequest)
+			if (context.Stopping())
 			{
 				return 0;
 			}
@@ -213,7 +217,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	if (legalMoveFound)
 	{
-		if (!context.stopRequest)
+		if (!context.Stopping())
 		{
 			// store TT
 		}

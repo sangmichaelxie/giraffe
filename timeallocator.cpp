@@ -9,7 +9,7 @@ namespace
 
 static const int32_t SUDDEN_DEATH_DIVISOR = 50;
 static const double DIVISOR_MAX_RATIO = 2.0;
-static const double MIN_TIME_PER_MOVE = 0.005;
+static const double MIN_TIME_PER_MOVE = 0.0;
 
 }
 

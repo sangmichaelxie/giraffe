@@ -52,6 +52,7 @@ struct RootSearchContext
 	// time allocated for this root search
 	TimeAllocation timeAlloc;
 
+	std::atomic<bool> onePlyDone;
 	std::atomic<bool> stopRequest;
 
 	Board startBoard;
@@ -64,6 +65,8 @@ struct RootSearchContext
 
 	std::function<void (std::string &mv)> finalMoveFunc;
 	std::function<void (ThinkingOutput &to)> thinkingOutputFunc;
+
+	bool Stopping() { return onePlyDone && stopRequest; }
 };
 
 class AsyncSearch
