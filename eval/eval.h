@@ -16,6 +16,8 @@ const static Score SCORE_MIN = std::numeric_limits<Score>::lowest() + 1000;
 namespace Eval
 {
 
+Score EvaluatePawn(uint64_t bb, PieceType pt);
+
 // returns score for side to move
 Score Evaluate(const Board &b, Score lowerBound, Score upperBound);
 
