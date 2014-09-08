@@ -10,7 +10,7 @@
 // 216 seems to be a popular number
 static const size_t MAX_LEGAL_MOVES = 256;
 
-typedef uint32_t Move;
+typedef uint64_t Move;
 
 // fields
 // [3:0] = PieceType
@@ -30,8 +30,8 @@ namespace MoveConstants
 	const static uint32_t TO_MASK = 0x3F;
 	const static uint32_t PROMO_SHIFT = 20;
 	const static uint32_t PROMO_MASK = 0xF;
-	const static uint32_t SCORE_SHIFT = 24;
-	const static uint32_t SCORE_MASK = 0xFF;
+	const static uint32_t SCORE_SHIFT = 32;
+	const static uint32_t SCORE_MASK = 0xFFFFFFFF;
 
 	// castling flags are NOT shifted!
 	const static uint32_t CASTLE_WHITE_LONG = 1 << 19;

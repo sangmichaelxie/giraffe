@@ -214,6 +214,10 @@ int main(int argc, char **argv)
 		{
 			std::cout << backend.DebugEval() << std::endl;
 		}
+		else if (cmd == "perfttest")
+		{
+			backend.DebugPerftTests();
+		}
 		else
 		{
 			std::cout << "Error (unknown command): " << cmd << std::endl;
