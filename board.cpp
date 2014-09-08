@@ -544,6 +544,11 @@ bool Board::ApplyMove(Move mv)
 				m_boardDescBB[HASH] ^= W_LONG_CASTLE_ZOBRIST;
 			}
 
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[E1][WK];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[G1][WK];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[H1][WR];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[F1][WR];
+
 			MOVE_PIECE(WK, E1, G1);
 			MOVE_PIECE(WR, H1, F1);
 			ulU8.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDescU8[W_SHORT_CASTLE]));
@@ -571,6 +576,11 @@ bool Board::ApplyMove(Move mv)
 			{
 				m_boardDescBB[HASH] ^= W_LONG_CASTLE_ZOBRIST;
 			}
+
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[E1][WK];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[C1][WK];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[A1][WR];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[D1][WR];
 
 			MOVE_PIECE(WK, E1, C1);
 			MOVE_PIECE(WR, A1, D1);
@@ -600,6 +610,11 @@ bool Board::ApplyMove(Move mv)
 				m_boardDescBB[HASH] ^= B_LONG_CASTLE_ZOBRIST;
 			}
 
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[E8][BK];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[G8][BK];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[H8][BR];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[F8][BR];
+
 			MOVE_PIECE(BK, E8, G8);
 			MOVE_PIECE(BR, H8, F8);
 			ulU8.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDescU8[B_SHORT_CASTLE]));
@@ -627,6 +642,11 @@ bool Board::ApplyMove(Move mv)
 			{
 				m_boardDescBB[HASH] ^= B_LONG_CASTLE_ZOBRIST;
 			}
+
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[E8][BK];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[C8][BK];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[A8][BR];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[D8][BR];
 
 			MOVE_PIECE(BK, E8, C8);
 			MOVE_PIECE(BR, A8, D8);
@@ -848,6 +868,11 @@ bool Board::ApplyMove(Move mv)
 	// verify that we have updated the hash correctly
 	uint64_t oldHash = GetHash();
 	UpdateHashFull_();
+
+	if (oldHash != GetHash())
+	{
+		std::cout << MoveToAlg(mv) << std::endl;
+	}
 	assert(oldHash == GetHash());
 #endif
 
