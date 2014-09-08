@@ -666,7 +666,6 @@ bool Board::ApplyMove(Move mv)
 			ulU8.PushBack(std::make_pair(to + 8, m_boardDescU8[to + 8]));
 			ulBB.PushBack(std::make_pair(WP, m_boardDescBB[WP]));
 			ulBB.PushBack(std::make_pair(BP, m_boardDescBB[BP]));
-			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
 			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
