@@ -2,6 +2,7 @@
 
 #include "board.h"
 #include "timeallocator.h"
+#include "eval/eval.h"
 
 Backend::Backend()
 	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_maxDepth(0), m_showThinking(false),
@@ -188,6 +189,11 @@ void Backend::DebugRunPerft(int32_t depth)
 	std::lock_guard<std::mutex> lock(m_mutex);
 
 	DebugPerft(m_currentBoard, depth);
+}
+
+Score Backend::DebugEval()
+{
+	return Eval::Evaluate(m_currentBoard, SCORE_MIN, SCORE_MAX);
 }
 
 void Backend::Force_(std::lock_guard<std::mutex> &lock)

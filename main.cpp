@@ -209,6 +209,10 @@ int main(int argc, char **argv)
 			line >> depth;
 			backend.DebugRunPerft(depth);
 		}
+		else if (cmd == "eval")
+		{
+			std::cout << backend.DebugEval() << std::endl;
+		}
 		else
 		{
 			std::cout << "Error (unknown command): " << cmd << std::endl;

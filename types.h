@@ -8,6 +8,9 @@
 typedef uint32_t Square;
 typedef uint32_t Color;
 
+typedef int32_t Score;
+typedef int32_t Phase;
+
 const static Color WHITE = 0x0;
 const static Color BLACK = 0x8;
 const static uint32_t COLOR_MASK = 0x8;

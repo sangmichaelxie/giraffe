@@ -29,5 +29,6 @@ HEADERS += \
     see.h \
     backend.h \
     chessclock.h \
-    timeallocator.h
+    timeallocator.h \
+    eval/eval_params.h
 

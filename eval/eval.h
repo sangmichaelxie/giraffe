@@ -6,8 +6,7 @@
 #include <cstdint>
 
 #include "board.h"
-
-typedef int32_t Score;
+#include "eval_params.h"
 
 // add small offsets to prevent overflow/underflow on adding/subtracting 1 (eg. for PV search)
 const static Score SCORE_MAX = std::numeric_limits<Score>::max() - 1000;
@@ -15,8 +14,6 @@ const static Score SCORE_MIN = std::numeric_limits<Score>::lowest() + 1000;
 
 namespace Eval
 {
-
-Score EvaluatePawn(uint64_t bb, PieceType pt);
 
 // returns score for side to move
 Score Evaluate(const Board &b, Score lowerBound, Score upperBound);

@@ -48,6 +48,7 @@ public:
 
 	void DebugPrintBoard();
 	void DebugRunPerft(int32_t depth);
+	Score DebugEval();
 
 private:
 	// these 2 functions take a lock_guard to remind the caller that m_mutex should be locked when calling

@@ -94,6 +94,10 @@ public:
 
 	uint64_t GetPieceTypeBitboard(PieceType pt) const { return m_boardDescBB[pt]; }
 
+	template <Color COLOR>
+	uint64_t GetOccupiedBitboard() const
+	{ return (COLOR == WHITE) ? m_boardDescBB[WHITE_OCCUPIED] : m_boardDescBB[BLACK_OCCUPIED]; }
+
 	Color GetSideToMove() const { return m_boardDescU8[SIDE_TO_MOVE]; }
 
 	PieceType GetPieceAtSquare(Square sq) { return m_boardDescU8[sq]; }
