@@ -13,6 +13,7 @@
 #include "containers.h"
 #include "magic_moves.h"
 #include "util.h"
+#include "zobrist.h"
 
 namespace
 {
@@ -231,6 +232,7 @@ Board::Board(const std::string &fen)
 	m_boardDescU8[HALF_MOVES_CLOCK] = halfMoves;
 
 	UpdateInCheck_();
+	UpdateHashFull_();
 
 #ifdef DEBUG
 	CheckBoardConsistency();
@@ -507,6 +509,13 @@ bool Board::ApplyMove(Move mv)
 	Color color = pt & COLOR_MASK;
 	PieceType promoType = GetPromoType(mv);
 
+	ulBB.PushBack(std::make_pair(HASH, m_boardDescBB[HASH]));
+
+	if (m_boardDescBB[EN_PASS_SQUARE])
+	{
+		m_boardDescBB[HASH] ^= EN_PASS_ZOBRIST[BitScanForward(m_boardDescBB[EN_PASS_SQUARE])];
+	}
+
 	ulBB.PushBack(std::make_pair(EN_PASS_SQUARE, m_boardDescBB[EN_PASS_SQUARE]));
 	uint64_t currentEp = m_boardDescBB[EN_PASS_SQUARE];
 	m_boardDescBB[EN_PASS_SQUARE] = 0;
@@ -524,6 +533,16 @@ bool Board::ApplyMove(Move mv)
 			ulBB.PushBack(std::make_pair(WK, m_boardDescBB[WK]));
 			ulBB.PushBack(std::make_pair(WR, m_boardDescBB[WR]));
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
+
+			if (m_boardDescU8[W_SHORT_CASTLE])
+			{
+				m_boardDescBB[HASH] ^= W_SHORT_CASTLE_ZOBRIST;
+			}
+
+			if (m_boardDescU8[W_LONG_CASTLE])
+			{
+				m_boardDescBB[HASH] ^= W_LONG_CASTLE_ZOBRIST;
+			}
 
 			MOVE_PIECE(WK, E1, G1);
 			MOVE_PIECE(WR, H1, F1);
@@ -543,6 +562,16 @@ bool Board::ApplyMove(Move mv)
 			ulBB.PushBack(std::make_pair(WR, m_boardDescBB[WR]));
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
 
+			if (m_boardDescU8[W_SHORT_CASTLE])
+			{
+				m_boardDescBB[HASH] ^= W_SHORT_CASTLE_ZOBRIST;
+			}
+
+			if (m_boardDescU8[W_LONG_CASTLE])
+			{
+				m_boardDescBB[HASH] ^= W_LONG_CASTLE_ZOBRIST;
+			}
+
 			MOVE_PIECE(WK, E1, C1);
 			MOVE_PIECE(WR, A1, D1);
 			ulU8.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDescU8[W_SHORT_CASTLE]));
@@ -561,6 +590,16 @@ bool Board::ApplyMove(Move mv)
 			ulBB.PushBack(std::make_pair(BR, m_boardDescBB[BR]));
 			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
+			if (m_boardDescU8[B_SHORT_CASTLE])
+			{
+				m_boardDescBB[HASH] ^= B_SHORT_CASTLE_ZOBRIST;
+			}
+
+			if (m_boardDescU8[B_LONG_CASTLE])
+			{
+				m_boardDescBB[HASH] ^= B_LONG_CASTLE_ZOBRIST;
+			}
+
 			MOVE_PIECE(BK, E8, G8);
 			MOVE_PIECE(BR, H8, F8);
 			ulU8.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDescU8[B_SHORT_CASTLE]));
@@ -578,6 +617,16 @@ bool Board::ApplyMove(Move mv)
 			ulBB.PushBack(std::make_pair(BK, m_boardDescBB[BK]));
 			ulBB.PushBack(std::make_pair(BR, m_boardDescBB[BR]));
 			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
+
+			if (m_boardDescU8[B_SHORT_CASTLE])
+			{
+				m_boardDescBB[HASH] ^= B_SHORT_CASTLE_ZOBRIST;
+			}
+
+			if (m_boardDescU8[B_LONG_CASTLE])
+			{
+				m_boardDescBB[HASH] ^= B_LONG_CASTLE_ZOBRIST;
+			}
 
 			MOVE_PIECE(BK, E8, C8);
 			MOVE_PIECE(BR, A8, D8);
@@ -601,6 +650,10 @@ bool Board::ApplyMove(Move mv)
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
 			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[from][WP];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][WP];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to - 8][BP];
+
 			MOVE_PIECE(WP, from, to);
 			REMOVE_PIECE(BP, to - 8);
 			m_boardDescBB[WHITE_OCCUPIED] ^= (BIT[from] | BIT[to]);
@@ -617,6 +670,10 @@ bool Board::ApplyMove(Move mv)
 
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
 			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
+
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[from][BP];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][BP];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to + 8][WP];
 
 			MOVE_PIECE(BP, from, to);
 			REMOVE_PIECE(WP, to + 8);
@@ -642,6 +699,10 @@ bool Board::ApplyMove(Move mv)
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
 			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
 
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[from][pt];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][pt];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][m_boardDescU8[to]];
+
 			REMOVE_PIECE(pt, from);
 			REPLACE_PIECE(m_boardDescU8[to], pt, to);
 
@@ -656,6 +717,9 @@ bool Board::ApplyMove(Move mv)
 
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED | color, m_boardDescBB[WHITE_OCCUPIED | color]));
 
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[from][pt];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][pt];
+
 			MOVE_PIECE(pt, from, to);
 			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
 		}
@@ -669,6 +733,10 @@ bool Board::ApplyMove(Move mv)
 
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED, m_boardDescBB[WHITE_OCCUPIED]));
 			ulBB.PushBack(std::make_pair(BLACK_OCCUPIED, m_boardDescBB[BLACK_OCCUPIED]));
+
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[from][pt];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][promoType];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][m_boardDescU8[to]];
 
 			REMOVE_PIECE(pt, from);
 			REPLACE_PIECE(m_boardDescU8[to], promoType, to);
@@ -685,6 +753,9 @@ bool Board::ApplyMove(Move mv)
 
 			ulBB.PushBack(std::make_pair(WHITE_OCCUPIED | color, m_boardDescBB[WHITE_OCCUPIED | color]));
 
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[from][pt];
+			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][promoType];
+
 			REMOVE_PIECE(pt, from);
 			PLACE_PIECE(promoType, to);
 			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
@@ -695,6 +766,7 @@ bool Board::ApplyMove(Move mv)
 		{
 			// this was saved to undo list earlier already
 			m_boardDescBB[EN_PASS_SQUARE] = PAWN_MOVE_1[from][pt == WP ? 0 : 1];
+			m_boardDescBB[HASH] ^= EN_PASS_ZOBRIST[BitScanForward(PAWN_MOVE_1[from][pt == WP ? 0 : 1])];
 		}
 
 		// update castling rights
@@ -702,24 +774,32 @@ bool Board::ApplyMove(Move mv)
 		{
 			ulU8.PushBack(std::make_pair(W_SHORT_CASTLE, m_boardDescU8[W_SHORT_CASTLE]));
 			m_boardDescU8[W_SHORT_CASTLE] = 0;
+
+			m_boardDescBB[HASH] ^= W_SHORT_CASTLE_ZOBRIST;
 		}
 
 		if (m_boardDescU8[W_LONG_CASTLE] && (pt == WK || (pt == WR && from == A1) || (to == A1)))
 		{
 			ulU8.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDescU8[W_LONG_CASTLE]));
 			m_boardDescU8[W_LONG_CASTLE] = 0;
+
+			m_boardDescBB[HASH] ^= W_LONG_CASTLE_ZOBRIST;
 		}
 
 		if (m_boardDescU8[B_SHORT_CASTLE] && (pt == BK || (pt == BR && from == H8) || (to == H8)))
 		{
 			ulU8.PushBack(std::make_pair(B_SHORT_CASTLE, m_boardDescU8[B_SHORT_CASTLE]));
 			m_boardDescU8[B_SHORT_CASTLE] = 0;
+
+			m_boardDescBB[HASH] ^= B_SHORT_CASTLE_ZOBRIST;
 		}
 
 		if (m_boardDescU8[B_LONG_CASTLE] && (pt == BK || (pt == BR && from == A8) || (to == A8)))
 		{
 			ulU8.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDescU8[B_LONG_CASTLE]));
 			m_boardDescU8[B_LONG_CASTLE] = 0;
+
+			m_boardDescBB[HASH] ^= B_LONG_CASTLE_ZOBRIST;
 		}
 
 		// update half move clock
@@ -747,7 +827,7 @@ bool Board::ApplyMove(Move mv)
 	{
 		if (entries.find(ulBB[i].first) != entries.end())
 		{
-			std::cout << "Duplicate undo entry in BB undo list found! - " << ulBB[i].first << std::endl;
+			std::cout << "Duplicate undo entry in BB undo list found! - " << static_cast<int>(ulBB[i].first) << std::endl;
 			assert(false);
 		}
 
@@ -765,6 +845,11 @@ bool Board::ApplyMove(Move mv)
 
 		entries.insert(ulU8[i].first);
 	}
+
+	// verify that we have updated the hash correctly
+	uint64_t oldHash = GetHash();
+	UpdateHashFull_();
+	assert(oldHash == GetHash());
 #endif
 
 	UpdateInCheck_();
@@ -791,6 +876,7 @@ bool Board::ApplyMove(Move mv)
 
 	// no need to store this
 	m_boardDescU8[SIDE_TO_MOVE] = m_boardDescU8[SIDE_TO_MOVE] ^ COLOR_MASK;
+	m_boardDescBB[HASH] ^= SIDE_TO_MOVE_ZOBRIST;
 
 	UpdateInCheck_(); // this is for the new side
 
@@ -1544,6 +1630,52 @@ void Board::UpdateInCheck_()
 	Square kingPos = BitScanForward(m_boardDescBB[WK | stm]);
 
 	m_boardDescU8[IN_CHECK] = IsUnderAttack_(kingPos);
+}
+
+void Board::UpdateHashFull_()
+{
+	uint64_t newHash = 0;
+
+	// first add all pieces
+	for (int32_t i = 0; i < 64; ++i)
+	{
+		if (m_boardDescU8[i] != EMPTY)
+		{
+			newHash ^= PIECES_ZOBRIST[i][m_boardDescU8[i]];
+		}
+	}
+
+	if (m_boardDescBB[EN_PASS_SQUARE])
+	{
+		newHash ^= EN_PASS_ZOBRIST[BitScanForward(m_boardDescBB[EN_PASS_SQUARE])];
+	}
+
+	if (m_boardDescU8[W_SHORT_CASTLE])
+	{
+		newHash ^= W_SHORT_CASTLE_ZOBRIST;
+	}
+
+	if (m_boardDescU8[W_LONG_CASTLE])
+	{
+		newHash ^= W_LONG_CASTLE_ZOBRIST;
+	}
+
+	if (m_boardDescU8[B_SHORT_CASTLE])
+	{
+		newHash ^= B_SHORT_CASTLE_ZOBRIST;
+	}
+
+	if (m_boardDescU8[B_LONG_CASTLE])
+	{
+		newHash ^= B_LONG_CASTLE_ZOBRIST;
+	}
+
+	if (m_boardDescU8[SIDE_TO_MOVE] == BLACK)
+	{
+		newHash ^= SIDE_TO_MOVE_ZOBRIST;
+	}
+
+	m_boardDescBB[HASH] = newHash;
 }
 
 uint64_t Perft(Board &b, uint32_t depth)

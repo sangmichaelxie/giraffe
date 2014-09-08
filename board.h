@@ -18,7 +18,9 @@ const static uint32_t BLACK_OCCUPIED = 0xe;
 const static uint32_t EN_PASS_SQUARE = 0x10; // stored as a bitboard since we have 64 bits anyways
 const static uint32_t BOARD_HASH = 0x11;
 
-const static uint32_t BOARD_DESC_BB_SIZE = 0x12;
+const static uint32_t HASH = 0x12;
+
+const static uint32_t BOARD_DESC_BB_SIZE = 0x13;
 
 // we also keep a mailbox representation of the board, from 0x0 to 0x3F (64 squares)
 
@@ -48,8 +50,8 @@ public:
 		ALL
 	};
 
-	typedef FixedVector<std::pair<uint8_t, uint64_t>, 6> UndoListBB; // list of bitboards to revert on undo
-	// 6 maximum bitboards (black occupied, white occupied, source piece type, captured piece type, promotion/castling piece type, en passant)
+	typedef FixedVector<std::pair<uint8_t, uint64_t>, 7> UndoListBB; // list of bitboards to revert on undo
+	// 6 maximum bitboards (black occupied, white occupied, source piece type, captured piece type, promotion/castling piece type, en passant, hash)
 
 	typedef FixedVector<std::pair<uint8_t, uint8_t>, 8> UndoListU8;
 	// For en passant (en passants cannot result in promotion, or reducing castling rights):
@@ -107,6 +109,8 @@ public:
 	// how many moves can be undone from the current position
 	int32_t PossibleUndo() { return m_undoStackBB.GetSize(); }
 
+	uint64_t GetHash() { return m_boardDescBB[HASH]; }
+
 	/*
 		SEE helpers
 		- Highly efficient limited ApplyMove/UndoMove for SEE only
@@ -138,6 +142,8 @@ private:
 
 	bool IsUnderAttack_(Square sq) const;
 	void UpdateInCheck_();
+
+	void UpdateHashFull_();
 
 	uint64_t m_boardDescBB[BOARD_DESC_BB_SIZE];
 

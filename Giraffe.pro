@@ -13,7 +13,8 @@ SOURCES += main.cpp \
     see.cpp \
     backend.cpp \
     chessclock.cpp \
-    timeallocator.cpp
+    timeallocator.cpp \
+    zobrist.cpp
 
 HEADERS += \
     board_consts.h \
@@ -30,5 +31,6 @@ HEADERS += \
     backend.h \
     chessclock.h \
     timeallocator.h \
-    eval/eval_params.h
+    eval/eval_params.h \
+    zobrist.h
 

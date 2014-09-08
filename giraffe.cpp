@@ -11,4 +11,5 @@
 #include "chessclock.cpp"
 #include "timeallocator.cpp"
 #include "backend.cpp"
+#include "zobrist.cpp"
 #include "main.cpp"

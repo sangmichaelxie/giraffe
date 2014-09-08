@@ -21,6 +21,7 @@ void Initialize()
 
 	initmagicmoves();
 	BoardConstsInit();
+	InitializeZobrist();
 }
 
 int main(int argc, char **argv)
