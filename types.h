@@ -8,7 +8,7 @@
 typedef uint32_t Square;
 typedef uint32_t Color;
 
-typedef int32_t Score;
+typedef int16_t Score;
 typedef int32_t Phase;
 
 const static Color WHITE = 0x0;

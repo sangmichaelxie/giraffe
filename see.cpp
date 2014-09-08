@@ -3,7 +3,7 @@
 #include <cstdint>
 
 static const Score SEE_VALUES[] = {
-	100000, // WK
+	10000, // WK
 	900, // WQ
 	500, // WR
 	300, // WN
@@ -13,7 +13,7 @@ static const Score SEE_VALUES[] = {
 	0,
 	0,
 
-	100000, // BK
+	10000, // BK
 	900, // BQ
 	500, // BR
 	300, // BN
