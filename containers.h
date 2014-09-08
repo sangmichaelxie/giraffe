@@ -160,6 +160,9 @@ public:
 
 	size_t GetSize() { return m_size; }
 
+	T *Begin() { return m_data; }
+	T *End() { return m_data + m_size; }
+
 private:
 	T m_data[MAX_SIZE];
 	size_t m_size;

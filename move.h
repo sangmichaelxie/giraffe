@@ -110,7 +110,7 @@ inline void SetScore(Move &mv, uint32_t score)
 	assert((score & ~MoveConstants::SCORE_MASK) == 0);
 	assert(GetScore(mv) == 0);
 #endif
-	mv |= score << MoveConstants::SCORE_SHIFT;
+	mv |= static_cast<uint64_t>(score) << MoveConstants::SCORE_SHIFT;
 }
 
 inline bool IsCastling(Move mv)

@@ -191,6 +191,56 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		board.GenerateAllMoves<Board::ALL>(moves);
 	}
 
+	// assign scores to all the moves
+	for (size_t i = 0; i < moves.GetSize(); ++i)
+	{
+		// lower 16 bits are used for SEE value, biased by 0x8000
+		uint32_t score = 0;
+
+		bool seeEligible = board.IsSeeEligible(moves[i]);
+
+		Score seeScore = 0;
+		uint16_t biasedSeeScore = 0;
+
+		if (seeEligible)
+		{
+			seeScore = StaticExchangeEvaluation(board, moves[i]);
+			biasedSeeScore = seeScore + 0x8000;
+		}
+
+		uint32_t scoreType = 0;
+		// upper [23:16] is move type
+		// 255 = hash move
+		// 254 = queen promotions
+		// 253 = winning and equal captures
+		// 252 = killer moves
+		// 251 = all others (history heuristics?)
+		// 250 = losing captures
+
+		if (GetPromoType(moves[i]) == WQ)
+		{
+			scoreType = 254;
+		}
+		else if (seeEligible && seeScore >= 0)
+		{
+			scoreType = 253;
+		}
+		else if (!seeEligible)
+		{
+			scoreType = 251;
+		}
+		else
+		{
+			scoreType = 250;
+		}
+
+		score = biasedSeeScore + (scoreType << 16);
+
+		SetScore(moves[i], score);
+	}
+
+	std::sort(moves.Begin(), moves.End(), [](const Move &a, const Move &b) { return a < b; });
+
 	for (size_t i = 0; i < moves.GetSize(); ++i)
 	{
 		if (isQS && board.IsSeeEligible(moves[i]))
