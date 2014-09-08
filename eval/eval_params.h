@@ -73,6 +73,8 @@ const Score BISHOP_PCSQ[64] =
 const float BISHOP_MOBILITY_MULTIPLIERS[2] = { 2.0f, 1.0f };
 const Score BISHOP_MOBILITY[13] = { -4, -2, 0, 1, 2, 3, 4,  5,  6, 7, 8, 9, 10 };
 
+const Score BISHOP_PAIR_BONUS[2] = { 50, 75 };
+
 const Score ROOK_PCSQ[2][64] =
 {
 	{
@@ -136,6 +138,9 @@ const Score KING_PCSQ[2][64] =
 		0,  10,  20,  30,  30,  20,  10,   0
 	}
 };
+
+// give the side to move a small bonus to minimize odd and even effect
+Score SIDE_TO_MOVE_BONUS = 14;
 
 }
 

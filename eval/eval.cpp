@@ -72,6 +72,11 @@ Score EvaluateBishops(uint64_t bb, Phase phase, uint64_t attackedByEnemyPawns, u
 {
 	Score ret = 0;
 
+	if (PopCount(bb) >= 2)
+	{
+		ret += ScalePhase(BISHOP_PAIR_BONUS[0], BISHOP_PAIR_BONUS[1], phase);
+	}
+
 	while (bb)
 	{
 		uint32_t idx = Extract(bb);
@@ -163,7 +168,7 @@ Score Evaluate(const Board &b, Score lowerBound, Score upperBound)
 
 	ret += EvaluateMaterial(b);
 
-	return b.GetSideToMove() == WHITE ? ret : (-ret);
+	return (b.GetSideToMove() == WHITE ? ret : (-ret)) + SIDE_TO_MOVE_BONUS;
 }
 
 Score EvaluateMaterial(const Board &b)
