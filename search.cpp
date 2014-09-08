@@ -239,7 +239,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		SetScore(moves[i], score);
 	}
 
-	std::sort(moves.Begin(), moves.End(), [](const Move &a, const Move &b) { return a < b; });
+	std::sort(moves.Begin(), moves.End(), [](const Move &a, const Move &b) { return a > b; });
 
 	for (size_t i = 0; i < moves.GetSize(); ++i)
 	{
