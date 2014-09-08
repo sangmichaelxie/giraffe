@@ -7,7 +7,8 @@
 Backend::Backend()
 	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_maxDepth(0), m_showThinking(false),
 	  m_whiteClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
-	  m_blackClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0)
+	  m_blackClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
+	  m_tTable(DEFAULT_TTABLE_SIZE)
 {
 }
 
@@ -25,6 +26,8 @@ void Backend::NewGame()
 	Force_(lock);
 
 	m_currentBoard = Board();
+
+	m_tTable.ClearTable();
 }
 
 void Backend::Force()
@@ -94,6 +97,8 @@ void Backend::Usermove(std::string move)
 		StopSearch_(lock);
 		StartSearch_(Search::SearchType_infinite);
 	}
+
+	m_tTable.AgeTable();
 }
 
 void Backend::SetBoard(std::string fen)
@@ -103,6 +108,8 @@ void Backend::SetBoard(std::string fen)
 	Force_(lock);
 
 	m_currentBoard = Board(fen);
+
+	m_tTable.ClearTable();
 }
 
 void Backend::SetAnalyzing(bool enabled)
@@ -248,6 +255,7 @@ void Backend::StartSearch_(Search::SearchType searchType)
 	m_searchContext->nodeCount = 0;
 	m_searchContext->searchType = searchType;
 	m_searchContext->maxDepth = m_maxDepth;
+	m_searchContext->transpositionTable = &m_tTable;
 
 	m_searchContext->thinkingOutputFunc =
 	[this](Search::ThinkingOutput &to)
@@ -267,6 +275,8 @@ void Backend::StartSearch_(Search::SearchType searchType)
 		std::lock_guard<std::mutex> lock(m_mutex);
 		std::cout << "move " << mv << std::endl;
 		m_currentBoard.ApplyMove(m_currentBoard.ParseMove(mv));
+
+		m_tTable.AgeTable();
 
 		if (m_mode == EngineMode_playingBlack)
 		{

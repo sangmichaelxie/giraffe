@@ -13,6 +13,7 @@
 #include "search.h"
 #include "backend.h"
 #include "chessclock.h"
+#include "util.h"
 
 void Initialize()
 {

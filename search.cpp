@@ -170,6 +170,40 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		return 0;
 	}
 
+	TTEntry *tEntry = context.transpositionTable->Probe(board.GetHash());
+
+	if (tEntry)
+	{
+		// try to get a cutoff from ttable
+		if (tEntry->depth >= depth)
+		{
+			if (tEntry->entryType == EXACT)
+			{
+				// if we have an exact score, we can always return it
+				bestMove = tEntry->bestMove;
+				return tEntry->score;
+			}
+			else if (tEntry->entryType == UPPERBOUND)
+			{
+				// if we have an upper bound, we can only return if this score fails low (no best move)
+				if (tEntry->score <= alpha)
+				{
+					bestMove = 0;
+					return tEntry->score;
+				}
+			}
+			else if (tEntry->entryType == LOWERBOUND)
+			{
+				// if we have an upper bound, we can only return if this score fails high
+				if (tEntry->score >= beta)
+				{
+					bestMove = tEntry->bestMove;
+					return tEntry->score;
+				}
+			}
+		}
+	}
+
 	bool isQS = (depth <= 0) && (!board.InCheck());
 	bool legalMoveFound = false;
 
@@ -190,6 +224,8 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	{
 		board.GenerateAllMoves<Board::ALL>(moves);
 	}
+
+	bestMove = 0;
 
 	// assign scores to all the moves
 	for (size_t i = 0; i < moves.GetSize(); ++i)
@@ -217,7 +253,11 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		// 251 = all others (history heuristics?)
 		// 250 = losing captures
 
-		if (GetPromoType(moves[i]) == WQ)
+		if (tEntry && moves[i] == tEntry->bestMove)
+		{
+			scoreType = 255;
+		}
+		else if (GetPromoType(moves[i]) == WQ)
 		{
 			scoreType = 254;
 		}
@@ -276,6 +316,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 			if (score >= beta)
 			{
+				context.transpositionTable->Store(board.GetHash(), ClearScore(moves[i]), score, depth, LOWERBOUND);
 				return score;
 			}
 		}
@@ -285,7 +326,16 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	{
 		if (!context.Stopping())
 		{
-			// store TT
+			if (bestMove)
+			{
+				// if we have a bestMove, that means we have a PV node
+				context.transpositionTable->Store(board.GetHash(), ClearScore(bestMove), alpha, depth, EXACT);
+			}
+			else
+			{
+				// otherwise we failed low
+				context.transpositionTable->Store(board.GetHash(), 0, alpha, depth, UPPERBOUND);
+			}
 		}
 
 		return alpha;

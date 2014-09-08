@@ -12,6 +12,9 @@ static const size_t MAX_LEGAL_MOVES = 256;
 
 typedef uint64_t Move;
 
+// alternate move type with no score (used to store in ttable)
+typedef uint32_t MoveNoScore;
+
 // fields
 // [3:0] = PieceType
 // [9:4] = From
@@ -135,6 +138,11 @@ inline void SetCastlingType(Move &mv, uint32_t type)
 	assert(!IsCastling(mv));
 #endif
 	mv |= type;
+}
+
+inline MoveNoScore ClearScore(Move mv)
+{
+	return static_cast<MoveNoScore>(mv & 0xFFFFFFFF);
 }
 
 typedef FixedVector<Move, MAX_LEGAL_MOVES> MoveList;

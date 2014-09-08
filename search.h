@@ -11,6 +11,7 @@
 
 #include "types.h"
 #include "board.h"
+#include "ttable.h"
 #include "eval/eval.h"
 
 namespace Search
@@ -62,6 +63,8 @@ struct RootSearchContext
 	SearchType searchType;
 
 	Depth maxDepth;
+
+	TTable *transpositionTable;
 
 	std::function<void (std::string &mv)> finalMoveFunc;
 	std::function<void (ThinkingOutput &to)> thinkingOutputFunc;

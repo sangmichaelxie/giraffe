@@ -7,10 +7,13 @@
 #include "board.h"
 #include "search.h"
 #include "chessclock.h"
+#include "ttable.h"
 
 class Backend
 {
 public:
+	const static size_t DEFAULT_TTABLE_SIZE = 256*1024*1024; // 256MB
+
 	enum EngineMode
 	{
 		EngineMode_force,
@@ -74,6 +77,8 @@ private:
 
 	ChessClock m_whiteClock;
 	ChessClock m_blackClock;
+
+	TTable m_tTable;
 };
 
 #endif // BACKEND_H
