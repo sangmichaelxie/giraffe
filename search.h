@@ -97,8 +97,8 @@ private:
 	// entry point for a thread that automatically interrupts the search after the specified time
 	void SearchTimer_(double time);
 
-	Score Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply);
-	Score Search_(RootSearchContext &context, Board &board, Score alpha, Score beta, Depth depth, int32_t ply); // version without best move
+	Score Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true);
+	Score Search_(RootSearchContext &context, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true); // version without best move
 
 	RootSearchContext &m_context;
 	std::thread m_thread;

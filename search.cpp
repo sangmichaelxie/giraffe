@@ -160,7 +160,7 @@ void AsyncSearch::SearchTimer_(double time)
 	m_context.stopRequest = true;
 }
 
-Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply)
+Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
 {
 	++context.nodeCount;
 
@@ -206,6 +206,22 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	bool isQS = (depth <= 0) && (!board.InCheck());
 	bool legalMoveFound = false;
+
+	// try null move
+	if (depth > 3 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed)
+	{
+		board.MakeNullMove();
+
+		Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - 3, ply, false);
+
+		board.UndoMove();
+
+		if (nmScore >= beta)
+		{
+			// don't bother storing to TT here because the Search_ call would have stored it already
+			return beta;
+		}
+	}
 
 	Score staticEval = Eval::Evaluate(board, alpha, beta);
 
@@ -364,10 +380,10 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	}
 }
 
-Score AsyncSearch::Search_(RootSearchContext &context, Board &board, Score alpha, Score beta, Depth depth, int32_t ply)
+Score AsyncSearch::Search_(RootSearchContext &context, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
 {
 	Move dummy;
-	return Search_(context, dummy, board, alpha, beta, depth, ply);
+	return Search_(context, dummy, board, alpha, beta, depth, ply, nullMoveAllowed);
 }
 
 }
