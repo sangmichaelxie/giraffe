@@ -253,8 +253,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		avoidNullTT = true;
 	}
 
-	bool legalMoveFound = false;
-
 	// try null move
 	if (depth > 1 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed && !avoidNullTT)
 	{
@@ -275,6 +273,8 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	board.GenerateAllMoves<Board::ALL>(moves);
 
 	bestMove = 0;
+
+	bool legalMoveFound = false;
 
 	// assign scores to all the moves
 	for (size_t i = 0; i < moves.GetSize(); ++i)
@@ -347,7 +347,25 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		{
 			legalMoveFound = true;
 
-			Score score = -Search_(context, board, -beta, -alpha, depth - 1, ply + 1);
+			Score score = 0;
+
+			// only search the first move with full window, since everything else is expected to fail low
+			// if this is a null window search anyways, don't bother
+			if (i == 0 || ((beta - alpha) == 1))
+			{
+				score = -Search_(context, board, -beta, -alpha, depth - 1, ply + 1);
+			}
+			else
+			{
+				score = -Search_(context, board, -alpha - 1, -alpha, depth - 1, ply + 1);
+
+				if (score > alpha && score < beta)
+				{
+					// if the move didn't actually fail low, this is now the PV, and we have to search with
+					// full window
+					score = -Search_(context, board, -beta, -alpha, depth - 1, ply + 1);
+				}
+			}
 
 			board.UndoMove();
 
