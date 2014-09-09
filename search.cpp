@@ -217,7 +217,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	{
 		board.MakeNullMove();
 
-		Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - 3, ply, false);
+		Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - 3 - 1, ply, false);
 
 		board.UndoMove();
 
