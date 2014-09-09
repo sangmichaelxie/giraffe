@@ -162,6 +162,12 @@ void AsyncSearch::SearchTimer_(double time)
 
 Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
 {
+	// switch to QSearch is we are at depth 0
+	if (depth <= 0)
+	{
+		return QSearch_(context, board, alpha, beta, ply);
+	}
+
 	++context.nodeCount;
 
 	if (context.Stopping())
@@ -204,7 +210,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		}
 	}
 
-	bool isQS = (depth <= 0) && (!board.InCheck());
 	bool legalMoveFound = false;
 
 	// try null move
@@ -223,23 +228,9 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		}
 	}
 
-	Score staticEval = Eval::Evaluate(board, alpha, beta);
-
-	if (isQS && staticEval > beta)
-	{
-		return staticEval;
-	}
-
 	MoveList moves;
 
-	if (isQS)
-	{
-		board.GenerateAllMoves<Board::VIOLENT>(moves);
-	}
-	else
-	{
-		board.GenerateAllMoves<Board::ALL>(moves);
-	}
+	board.GenerateAllMoves<Board::ALL>(moves);
 
 	bestMove = 0;
 
@@ -299,16 +290,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	for (size_t i = 0; i < moves.GetSize(); ++i)
 	{
-		if (isQS && board.IsSeeEligible(moves[i]))
-		{
-			Score see = StaticExchangeEvaluation(board, moves[i]);
-
-			if (see < 0)
-			{
-				continue;
-			}
-		}
-
 		if (board.ApplyMove(moves[i]))
 		{
 			legalMoveFound = true;
@@ -358,24 +339,16 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	}
 	else
 	{
-		if (isQS)
+		// the game has ended
+		if (board.InCheck())
 		{
-			// if we are in qsearch, and there is no legal move, we are at a quiet position, and can return eval
-			return staticEval;
+			// if we are in check and have no move to make, we are mated
+			return MATE_OPPONENT_SIDE;
 		}
 		else
 		{
-			// if we are not in qsearch, and there is no legal move, the game has ended
-			if (board.InCheck())
-			{
-				// if we are in check and have no move to make, we are mated
-				return MATE_OPPONENT_SIDE;
-			}
-			else
-			{
-				// otherwise this is a stalemate
-				return 0;
-			}
+			// otherwise this is a stalemate
+			return 0;
 		}
 	}
 }
@@ -384,6 +357,128 @@ Score AsyncSearch::Search_(RootSearchContext &context, Board &board, Score alpha
 {
 	Move dummy;
 	return Search_(context, dummy, board, alpha, beta, depth, ply, nullMoveAllowed);
+}
+
+Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alpha, Score beta, int32_t ply)
+{
+	++context.nodeCount;
+
+	if (context.Stopping())
+	{
+		// if global stop request is set, we just return any value since it won't be used anyways
+		return 0;
+	}
+
+	// if we are in check, search all nodes using regular Search_
+	if (board.InCheck())
+	{
+		return Search_(context, board, alpha, beta, 1, ply, true);
+	}
+
+	// if we are not in check, we first see if we can stand-pat
+	Score staticEval = Eval::Evaluate(board, alpha, beta);
+
+	if (staticEval >= beta)
+	{
+		return staticEval;
+	}
+
+	// if we cannot get a cutoff, we may still be able to raise alpha to save some work
+	if (staticEval > alpha)
+	{
+		alpha = staticEval;
+	}
+
+	// now we start searching
+	MoveList moves;
+
+	board.GenerateAllMoves<Board::VIOLENT>(moves);
+
+	// assign scores to all the moves for sorting
+	for (size_t i = 0; i < moves.GetSize(); ++i)
+	{
+		// lower 16 bits are used for SEE value, biased by 0x8000
+		uint32_t score = 0;
+
+		bool seeEligible = board.IsSeeEligible(moves[i]);
+
+		Score seeScore = 0;
+		uint16_t biasedSeeScore = 0;
+
+		if (seeEligible)
+		{
+			seeScore = StaticExchangeEvaluation(board, moves[i]);
+			biasedSeeScore = seeScore + 0x8000;
+		}
+
+		uint32_t scoreType = 0;
+		// upper [23:16] is move type
+		// 254 = queen promotions
+		// 253 = winning and equal captures
+		// 250 = losing captures
+
+		// since we are generating silent moves only, we should only get queen promotions
+		if (GetPromoType(moves[i]) != 0)
+		{
+			scoreType = 254;
+		}
+		else if (seeEligible && seeScore >= 0)
+		{
+			scoreType = 253;
+		}
+		else
+		{
+			scoreType = 250;
+		}
+
+		score = biasedSeeScore + (scoreType << 16);
+
+		SetScore(moves[i], score);
+	}
+
+	std::sort(moves.Begin(), moves.End(), [](const Move &a, const Move &b) { return a > b; });
+
+	for (size_t i = 0; i < moves.GetSize(); ++i)
+	{
+		if (board.IsSeeEligible(moves[i]))
+		{
+			// extract the SEE score
+			Score seeScore = 0;
+			seeScore = GetScore(moves[i]);
+			seeScore -= 0x8000; // unbias the score
+
+			// only search the capture if it can potentially improve alpha
+			if ((staticEval + seeScore) < alpha)
+			{
+				// we don't have to search any more moves, because moves were sorted by SEE
+				break;
+			}
+		}
+
+		if (board.ApplyMove(moves[i]))
+		{
+			Score score = -QSearch_(context, board, -beta, -alpha, ply + 1);
+
+			board.UndoMove();
+
+			if (context.Stopping())
+			{
+				return 0;
+			}
+
+			if (score > alpha)
+			{
+				alpha = score;
+			}
+
+			if (score >= beta)
+			{
+				return score;
+			}
+		}
+	}
+
+	return alpha;
 }
 
 }

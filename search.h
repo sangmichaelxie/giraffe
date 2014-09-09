@@ -100,6 +100,8 @@ private:
 	Score Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true);
 	Score Search_(RootSearchContext &context, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true); // version without best move
 
+	Score QSearch_(RootSearchContext &context, Board &board, Score alpha, Score beta, int32_t ply);
+
 	RootSearchContext &m_context;
 	std::thread m_thread;
 	std::atomic<bool> m_done;
