@@ -86,13 +86,49 @@ void AsyncSearch::RootSearch_()
 
 	m_context.onePlyDone = false;
 
+	latestResult.score = 0;
+
 	for (Depth depth = 1;
 			(depth <= m_context.maxDepth) &&
 			((CurrentTime() < endTime) || (m_context.searchType == SearchType_infinite) || !m_context.onePlyDone) &&
 			(!m_context.Stopping());
 		 ++depth)
 	{
-		latestResult.score = Search_(m_context, latestResult.bestMove, m_context.startBoard, SCORE_MIN, SCORE_MAX, depth, 0);
+		// aspiration search
+		Score lastIterationScore = latestResult.score;
+		Score highBoundOffset = ASPIRATION_WINDOW_HALF_SIZE;
+		Score lowBoundOffset = ASPIRATION_WINDOW_HALF_SIZE;
+
+		// we are not adding an exception for the first iteration here because
+		// it's very fast anyways
+
+		while (!m_context.stopRequest)
+		{
+			latestResult.score = Search_(
+				m_context,
+				latestResult.bestMove,
+				m_context.startBoard,
+				lastIterationScore - lowBoundOffset,
+				lastIterationScore + highBoundOffset,
+				depth,
+				0);
+
+			if (latestResult.score >= (lastIterationScore + highBoundOffset))
+			{
+				// if we failed high, relax the upper bound
+				highBoundOffset *= ASPIRATION_WINDOW_WIDEN_MULTIPLIER;
+			}
+			else if (latestResult.score <= (lastIterationScore - lowBoundOffset))
+			{
+				// if we failed low, relax the lower bound
+				lowBoundOffset *= ASPIRATION_WINDOW_WIDEN_MULTIPLIER;
+			}
+			else
+			{
+				// we are in window, so we are done!
+				break;
+			}
+		}
 
 		if (!m_context.stopRequest || !m_context.onePlyDone)
 		{

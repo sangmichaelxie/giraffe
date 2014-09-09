@@ -21,6 +21,8 @@ namespace Search
 typedef int32_t Depth;
 
 static const Depth NULL_MOVE_REDUCTION = 3;
+static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;
+static const Score ASPIRATION_WINDOW_WIDEN_MULTIPLIER = 4; // how much to widen the window every time we fail high/low
 
 struct ThinkingOutput
 {
