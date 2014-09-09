@@ -210,20 +210,26 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		}
 	}
 
+	// if we have a hit with insufficient depth, but enough to indicate that null move will be fruitless, skip it
+	bool avoidNullTT = false;
+	if (tEntry && (tEntry->entryType == UPPERBOUND || tEntry->entryType == EXACT) && tEntry->score < beta)
+	{
+		avoidNullTT = true;
+	}
+
 	bool legalMoveFound = false;
 
 	// try null move
-	if (depth > 3 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed)
+	if (depth > 1 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed && !avoidNullTT)
 	{
 		board.MakeNullMove();
 
-		Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - 3 - 1, ply, false);
+		Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - NULL_MOVE_REDUCTION - 1, ply + 1, false);
 
 		board.UndoMove();
 
 		if (nmScore >= beta)
 		{
-			// don't bother storing to TT here because the Search_ call would have stored it already
 			return beta;
 		}
 	}
@@ -251,14 +257,17 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			biasedSeeScore = seeScore + 0x8000;
 		}
 
+		int32_t killerNum = context.killer->GetKillerNum(ply, moves[i]);
+
 		uint32_t scoreType = 0;
 		// upper [23:16] is move type
 		// 255 = hash move
 		// 254 = queen promotions
-		// 253 = winning and equal captures
-		// 252 = killer moves
-		// 251 = all others (history heuristics?)
-		// 250 = losing captures
+		// 253 = winning captures
+		// 220-252 = killer moves
+		// 211 = equal captures
+		// 210 = all others (history heuristics?)
+		// 200 = losing captures
 
 		if (tEntry && moves[i] == tEntry->bestMove)
 		{
@@ -268,17 +277,25 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		{
 			scoreType = 254;
 		}
-		else if (seeEligible && seeScore >= 0)
+		else if (seeEligible && seeScore > 0)
+		{
+			scoreType = 253;
+		}
+		else if (killerNum != -1)
+		{
+			scoreType = 220 + killerNum;
+		}
+		else if (seeEligible && seeScore == 0)
 		{
 			scoreType = 253;
 		}
 		else if (!seeEligible)
 		{
-			scoreType = 251;
+			scoreType = 210;
 		}
 		else
 		{
-			scoreType = 250;
+			scoreType = 200;
 		}
 
 		score = biasedSeeScore + (scoreType << 16);
@@ -314,6 +331,12 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			if (score >= beta)
 			{
 				context.transpositionTable->Store(board.GetHash(), ClearScore(moves[i]), score, depth, LOWERBOUND);
+
+				// we don't want to store captures because those are searched before killers anyways
+				if (!board.IsSeeEligible(moves[i]))
+				{
+					context.killer->Notify(ply, ClearScore(moves[i]));
+				}
 				return score;
 			}
 		}
