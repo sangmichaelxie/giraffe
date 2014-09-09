@@ -82,6 +82,54 @@ int32_t Killer::GetKillerNum(int32_t ply, Move mv)
 		}
 	}
 
+	// returns (10 - slot # - NUM_KILLER_MOVES) if mv is a killer from -2 plies
+	if (ply >= 2)
+	{
+		for (int32_t i = 0; i < NUM_KILLER_MOVES; ++i)
+		{
+			if (m_killerMoves[ply - 2].moves[i].first == mv)
+			{
+				return (10 - i - NUM_KILLER_MOVES);
+			}
+		}
+	}
+
+	// returns (10 - slot # - 2xNUM_KILLER_MOVES) if mv is a killer from +2 plies
+	if ((ply + 2) < m_killerMoves.size())
+	{
+		for (int32_t i = 0; i < NUM_KILLER_MOVES; ++i)
+		{
+			if (m_killerMoves[ply + 2].moves[i].first == mv)
+			{
+				return (10 - i - 2*NUM_KILLER_MOVES);
+			}
+		}
+	}
+
+	// returns (10 - slot # - 3xNUM_KILLER_MOVES) if mv is a killer from -4 plies
+	if (ply >= 4)
+	{
+		for (int32_t i = 0; i < NUM_KILLER_MOVES; ++i)
+		{
+			if (m_killerMoves[ply - 4].moves[i].first == mv)
+			{
+				return (10 - i - 3*NUM_KILLER_MOVES);
+			}
+		}
+	}
+
+	// returns (10 - slot # - 4xNUM_KILLER_MOVES) if mv is a killer from +4 plies
+	if ((ply + 4) < m_killerMoves.size())
+	{
+		for (int32_t i = 0; i < NUM_KILLER_MOVES; ++i)
+		{
+			if (m_killerMoves[ply + 4].moves[i].first == mv)
+			{
+				return (10 - i - 4*NUM_KILLER_MOVES);
+			}
+		}
+	}
+
 	return -1;
 }
 
