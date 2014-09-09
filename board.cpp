@@ -1067,32 +1067,21 @@ Move Board::ParseMove(std::string str)
 
 bool Board::IsZugzwangProbable()
 {
-	uint32_t piecesCount = 0;
-
 	if (m_boardDescU8[SIDE_TO_MOVE] == WHITE)
 	{
-		piecesCount =
-			PopCount(m_boardDescBB[WR]) +
-			PopCount(m_boardDescBB[WQ]) +
-			PopCount(m_boardDescBB[WB]) +
-			PopCount(m_boardDescBB[WN]);
+		return !(
+			m_boardDescBB[WR] ||
+			m_boardDescBB[WQ] ||
+			m_boardDescBB[WB] ||
+			m_boardDescBB[WN]);
 	}
 	else
 	{
-		piecesCount =
-			PopCount(m_boardDescBB[BR]) +
-			PopCount(m_boardDescBB[BQ]) +
-			PopCount(m_boardDescBB[BB]) +
-			PopCount(m_boardDescBB[BN]);
-	}
-
-	if (piecesCount >= 2)
-	{
-		return false;
-	}
-	else
-	{
-		return true;
+		return !(
+			m_boardDescBB[BR] ||
+			m_boardDescBB[BQ] ||
+			m_boardDescBB[BB] ||
+			m_boardDescBB[BN]);
 	}
 }
 
