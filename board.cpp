@@ -1065,6 +1065,64 @@ Move Board::ParseMove(std::string str)
 	return 0;
 }
 
+bool Board::IsZugzwangProbable()
+{
+	uint32_t piecesCount = 0;
+
+	if (m_boardDescU8[SIDE_TO_MOVE] == WHITE)
+	{
+		piecesCount =
+			PopCount(m_boardDescBB[WR]) +
+			PopCount(m_boardDescBB[WQ]) +
+			PopCount(m_boardDescBB[WB]) +
+			PopCount(m_boardDescBB[WN]);
+	}
+	else
+	{
+		piecesCount =
+			PopCount(m_boardDescBB[BR]) +
+			PopCount(m_boardDescBB[BQ]) +
+			PopCount(m_boardDescBB[BB]) +
+			PopCount(m_boardDescBB[BN]);
+	}
+
+	if (piecesCount >= 2)
+	{
+		return false;
+	}
+	else
+	{
+		return true;
+	}
+}
+
+void Board::MakeNullMove()
+{
+	UndoListBB &undoListBB = m_undoStackBB.PrePush();
+	UndoListU8 &undoListU8 = m_undoStackU8.PrePush(); // this is empty, but we still need to push
+
+	undoListBB.Clear();
+	undoListU8.Clear();
+
+	// this doesn't need to be stored in the undo stack
+	m_boardDescU8[SIDE_TO_MOVE] ^= COLOR_MASK;
+
+	if (m_boardDescBB[EN_PASS_SQUARE])
+	{
+		undoListBB.PushBack(std::make_pair(EN_PASS_SQUARE, m_boardDescBB[EN_PASS_SQUARE]));
+		m_boardDescBB[EN_PASS_SQUARE] = 0;
+	}
+
+	undoListBB.PushBack(std::make_pair(HASH, m_boardDescBB[HASH]));
+	m_boardDescBB[HASH] ^= SIDE_TO_MOVE_ZOBRIST;
+
+	UpdateInCheck_();
+
+#ifdef DEBUG
+	CheckBoardConsistency();
+#endif
+}
+
 PieceType Board::ApplyMoveSee(PieceType pt, Square from, Square to)
 {
 	PieceType capturedPiece = m_boardDescU8[to];

@@ -111,6 +111,13 @@ public:
 
 	uint64_t GetHash() { return m_boardDescBB[HASH]; }
 
+	// is it probable that this position is zugzwang (used in null move)
+	bool IsZugzwangProbable();
+
+	// position must not be in check, otherwise behaviour is undefined
+	// null moves are recorded in the undo stacks, and can be undone using undo
+	void MakeNullMove();
+
 	/*
 		SEE helpers
 		- Highly efficient limited ApplyMove/UndoMove for SEE only
