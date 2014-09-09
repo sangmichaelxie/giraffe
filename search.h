@@ -13,11 +13,14 @@
 #include "board.h"
 #include "ttable.h"
 #include "eval/eval.h"
+#include "killer.h"
 
 namespace Search
 {
 
 typedef int32_t Depth;
+
+static const Depth NULL_MOVE_REDUCTION = 3;
 
 struct ThinkingOutput
 {
@@ -65,6 +68,7 @@ struct RootSearchContext
 	Depth maxDepth;
 
 	TTable *transpositionTable;
+	Killer *killer;
 
 	std::function<void (std::string &mv)> finalMoveFunc;
 	std::function<void (ThinkingOutput &to)> thinkingOutputFunc;

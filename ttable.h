@@ -30,7 +30,6 @@ struct TTEntry
 	Score score;
 	int16_t depth;
 	TTEntryType entryType;
-
 };
 
 class TTable

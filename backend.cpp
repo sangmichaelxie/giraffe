@@ -99,6 +99,7 @@ void Backend::Usermove(std::string move)
 	}
 
 	m_tTable.AgeTable();
+	m_killer.MoveMade();
 }
 
 void Backend::SetBoard(std::string fen)
@@ -256,6 +257,7 @@ void Backend::StartSearch_(Search::SearchType searchType)
 	m_searchContext->searchType = searchType;
 	m_searchContext->maxDepth = m_maxDepth;
 	m_searchContext->transpositionTable = &m_tTable;
+	m_searchContext->killer = &m_killer;
 
 	m_searchContext->thinkingOutputFunc =
 	[this](Search::ThinkingOutput &to)
@@ -277,6 +279,7 @@ void Backend::StartSearch_(Search::SearchType searchType)
 		m_currentBoard.ApplyMove(m_currentBoard.ParseMove(mv));
 
 		m_tTable.AgeTable();
+		m_killer.MoveMade();
 
 		if (m_mode == EngineMode_playingBlack)
 		{

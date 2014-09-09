@@ -8,6 +8,7 @@
 #include "search.h"
 #include "chessclock.h"
 #include "ttable.h"
+#include "killer.h"
 
 class Backend
 {
@@ -79,6 +80,7 @@ private:
 	ChessClock m_blackClock;
 
 	TTable m_tTable;
+	Killer m_killer;
 };
 
 #endif // BACKEND_H

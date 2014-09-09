@@ -8,6 +8,7 @@
 #include "ttable.cpp"
 #include "eval/eval.cpp"
 #include "see.cpp"
+#include "killer.cpp"
 #include "search.cpp"
 #include "chessclock.cpp"
 #include "timeallocator.cpp"
