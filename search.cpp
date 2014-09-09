@@ -212,7 +212,21 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		return 0;
 	}
 
+	bool isPV = (beta - alpha) != 1;
+
 	TTEntry *tEntry = context.transpositionTable->Probe(board.GetHash());
+
+	// if we are at a PV node and don't have a best move (either because we don't have an entry,
+	// or the entry doesn't have a best move)
+	// internal iterative deepening
+	if (ENABLE_IID)
+	{
+		if (isPV && (!tEntry || tEntry->bestMove == 0) && depth > 4)
+		{
+			Search_(context, board, alpha, beta, depth - 2, ply);
+			tEntry = context.transpositionTable->Probe(board.GetHash());
+		}
+	}
 
 	if (tEntry)
 	{
@@ -254,17 +268,20 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	}
 
 	// try null move
-	if (depth > 1 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed && !avoidNullTT)
+	if (ENABLE_NULL_MOVE_HEURISTICS)
 	{
-		board.MakeNullMove();
-
-		Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - NULL_MOVE_REDUCTION - 1, ply + 1, false);
-
-		board.UndoMove();
-
-		if (nmScore >= beta)
+		if (depth > 1 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed && !avoidNullTT)
 		{
-			return beta;
+			board.MakeNullMove();
+
+			Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - NULL_MOVE_REDUCTION - 1, ply + 1, false);
+
+			board.UndoMove();
+
+			if (nmScore >= beta)
+			{
+				return beta;
+			}
 		}
 	}
 
@@ -275,6 +292,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	bestMove = 0;
 
 	bool legalMoveFound = false;
+	bool hasHashMove = false;
 
 	// assign scores to all the moves
 	for (size_t i = 0; i < moves.GetSize(); ++i)
@@ -295,6 +313,11 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 		int32_t killerNum = context.killer->GetKillerNum(ply, moves[i]);
 
+		if (!ENABLE_KILLERS)
+		{
+			killerNum = -1;
+		}
+
 		uint32_t scoreType = 0;
 		// upper [23:16] is move type
 		// 255 = hash move
@@ -308,6 +331,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		if (tEntry && moves[i] == tEntry->bestMove)
 		{
 			scoreType = 255;
+			hasHashMove = true;
 		}
 		else if (GetPromoType(moves[i]) == WQ)
 		{
@@ -351,11 +375,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 			// only search the first move with full window, since everything else is expected to fail low
 			// if this is a null window search anyways, don't bother
-			if (i == 0 || ((beta - alpha) == 1))
-			{
-				score = -Search_(context, board, -beta, -alpha, depth - 1, ply + 1);
-			}
-			else
+			if (ENABLE_PVS && i != 0 && ((beta - alpha) != 1) && hasHashMove && depth > 2)
 			{
 				score = -Search_(context, board, -alpha - 1, -alpha, depth - 1, ply + 1);
 
@@ -365,6 +385,10 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 					// full window
 					score = -Search_(context, board, -beta, -alpha, depth - 1, ply + 1);
 				}
+			}
+			else
+			{
+				score = -Search_(context, board, -beta, -alpha, depth - 1, ply + 1);
 			}
 
 			board.UndoMove();
