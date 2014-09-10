@@ -22,7 +22,7 @@ typedef int32_t Depth;
 
 static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
 static const bool ENABLE_IID = true;
-static const bool ENABLE_PVS = true;
+static const bool ENABLE_PVS = false;
 static const bool ENABLE_KILLERS = true;
 
 static const Depth NULL_MOVE_REDUCTION = 3;
