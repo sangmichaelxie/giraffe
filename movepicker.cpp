@@ -55,8 +55,7 @@ Move MovePicker::GetNextMove()
 				if (GetPromoType(m_moveListViolent[m_i]) != 0) // we will only get queen promotions in violent moves
 				{
 					// don't promote and get captured right away, with no compensation
-					Score seeScore = GetScore(m_moveListViolent[m_i]);
-					seeScore -= 0x8000;
+					Score seeScore = StaticExchangeEvaluation(m_board, m_moveListViolent[m_i]);
 
 					if (seeScore >= 0)
 					{
@@ -83,8 +82,7 @@ Move MovePicker::GetNextMove()
 					continue;
 				}
 
-				Score seeScore = GetScore(m_moveListViolent[m_i]);
-				seeScore -= 0x8000;
+				Score seeScore = StaticExchangeEvaluation(m_board, m_moveListViolent[m_i]);
 
 				if (seeScore >= 0)
 				{
@@ -169,8 +167,7 @@ Move MovePicker::GetNextMove()
 				// if the move is losing according to SEE, put it in losing captures list
 				// here we have to guarantee that this move is not a killer, because
 				// in the next stage we don't check that (since captures can't be killers)
-				Score seeScore = GetScore(m_moveListQuiet[m_i]);
-				seeScore -= 0x8000;
+				Score seeScore = StaticExchangeEvaluation(m_board, m_moveListQuiet[m_i]);
 
 				if (seeScore < 0)
 				{
@@ -218,13 +215,6 @@ void MovePicker::EnterStage_(Stage stage)
 		// on entering this stage, we have to generate all violent moves, and sort them by SEE
 		m_board.GenerateAllMoves<Board::VIOLENT>(m_moveListViolent);
 
-		AssignSeeScores_(m_moveListViolent);
-
-		std::sort(m_moveListViolent.Begin(), m_moveListViolent.End(), [this](const Move &a, const Move &b)
-		{
-			return a > b;
-		});
-
 		m_i = 0;
 		break;
 	case WINNING_EQUAL_CAPTURES:
@@ -237,13 +227,6 @@ void MovePicker::EnterStage_(Stage stage)
 	case OTHER_NON_CAPTURES:
 		// at this point we have to generate quiet moves
 		m_board.GenerateAllMoves<Board::QUIET>(m_moveListQuiet);
-
-		AssignSeeScores_(m_moveListQuiet);
-
-		std::sort(m_moveListQuiet.Begin(), m_moveListQuiet.End(), [this](const Move &a, const Move &b)
-		{
-			return a > b;
-		});
 
 		m_i = 0;
 		break;

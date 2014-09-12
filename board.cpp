@@ -275,12 +275,12 @@ void Board::GenerateAllMoves(MoveList &moveList) const
 {
 	Color sideToMove = m_boardDescU8[SIDE_TO_MOVE];
 
+	GeneratePawnMoves_<MT>(sideToMove, moveList);
 	GenerateKnightMoves_<MT>(sideToMove, moveList);
 	GenerateBishopMoves_<MT>(sideToMove, moveList);
 	GenerateRookMoves_<MT>(sideToMove, moveList);
-	GeneratePawnMoves_<MT>(sideToMove, moveList);
-	GenerateKingMoves_<MT>(sideToMove, moveList);
 	GenerateQueenMoves_<MT>(sideToMove, moveList);
+	GenerateKingMoves_<MT>(sideToMove, moveList);
 
 #ifdef DEBUG
 	if (MT == ALL)
