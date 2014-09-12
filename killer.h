@@ -6,12 +6,16 @@
 
 #include "move.h"
 
-static const size_t NUM_KILLER_MOVES = 2;
+static const size_t NUM_KILLER_MOVES_PER_PLY = 2;
+
+static const size_t NUM_KILLER_MOVES = 6; // 2 from current ply, 2 from ply-2, 2 from ply+2
+
+typedef FixedVector<Move, NUM_KILLER_MOVES> KillerMoveList;
 
 struct KillerSlot
 {
 	// these are always sorted by count
-	std::pair<MoveNoScore, int32_t> moves[2];
+	std::pair<MoveNoScore, int32_t> moves[NUM_KILLER_MOVES_PER_PLY];
 };
 
 class Killer
@@ -21,10 +25,7 @@ public:
 
 	void Notify(int32_t ply, MoveNoScore move);
 
-	Move GetKiller(int32_t ply, int32_t n);
-
-	// returns (10 - slot #) if mv is a killer, otherwise -1
-	int32_t GetKillerNum(int32_t ply, Move mv);
+	void GetKillers(KillerMoveList &moveList, int32_t ply);
 
 	void MoveMade();
 

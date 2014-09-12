@@ -24,12 +24,6 @@ static const Score SEE_VALUES[] = {
 // best tactical result for the moving side
 Score StaticExchangeEvaluation(Board &board, Move mv)
 {
-	if (!board.IsSeeEligible(mv))
-	{
-		// if this position is not a legal capture, return 0 so that it doesn't get searched in Qsearch
-		return 0;
-	}
-
 	board.ResetSee();
 
 	// convert the move to SEE format
@@ -44,7 +38,16 @@ Score StaticExchangeEvaluation(Board &board, Move mv)
 	PieceType capturedPT = board.ApplyMoveSee(pt, from, to);
 
 	// the first move is forced
-	Score ret = SEE_VALUES[capturedPT] - StaticExchangeEvaluationImpl(board, to);
+	Score ret = 0;
+
+	if (capturedPT != EMPTY)
+	{
+		ret = SEE_VALUES[capturedPT] - StaticExchangeEvaluationImpl(board, to);
+	}
+	else
+	{
+		ret = -StaticExchangeEvaluationImpl(board, to);
+	}
 
 	board.UndoMoveSee();
 
@@ -91,6 +94,8 @@ bool RunSeeTest(std::string fen, std::string move, Score expectedScore)
 		return false;
 	}
 
+	b.CheckBoardConsistency();
+
 	std::cout << "Passed" << std::endl;
 
 	return true;
@@ -105,7 +110,7 @@ void DebugRunSeeTests()
 	if (!RunSeeTest("7k/8/8/4p3/5R2/8/8/K7 b - - 0 1", "e5f4", 500)) { abort(); }
 
 	// simple exchange, exf4 Rxf4
-	if (!RunSeeTest("7k/8/8/4p3/5R1R/8/8/K7 b - - 0 1", "e5f4", 400)) { abort(); }
+	if (!RunSeeTest("6k1/8/8/4p3/5R1R/8/8/K7 b - - 0 1", "e5f4", 400)) { abort(); }
 
 	// decide to not capture, exf4
 	if (!RunSeeTest("7k/8/8/4p3/5R2/8/8/K7 b - - 0 1", "e5f4", 500)) { abort(); }
@@ -130,4 +135,10 @@ void DebugRunSeeTests()
 
 	// bad capture by white, Rxd4 Nxd4
 	if (!RunSeeTest("7k/q7/2n5/8/3p4/8/3R4/3R2K1 w - - 0 1", "d2d4", -400)) { abort(); }
+
+	// white non-capture, losing
+	if (!RunSeeTest("2r4k/1P6/8/4q1nr/7p/5N2/K7/8 w - - 0 1", "f3e1", -300)) { abort(); }
+
+	// white non-capture, non-losing
+	if (!RunSeeTest("2r4k/1P6/8/4q1nr/7p/5N2/K7/8 w - - 0 1", "f3d2", 0)) { abort(); }
 }

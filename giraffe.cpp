@@ -9,6 +9,7 @@
 #include "eval/eval.cpp"
 #include "see.cpp"
 #include "killer.cpp"
+#include "movepicker.cpp"
 #include "search.cpp"
 #include "chessclock.cpp"
 #include "timeallocator.cpp"

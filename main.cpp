@@ -14,6 +14,7 @@
 #include "backend.h"
 #include "chessclock.h"
 #include "util.h"
+#include "movepicker.h"
 
 void Initialize()
 {
@@ -218,6 +219,11 @@ int main(int argc, char **argv)
 		else if (cmd == "perfttest")
 		{
 			backend.DebugPerftTests();
+		}
+		else if (cmd == "runtests")
+		{
+			DebugRunSeeTests();
+			DebugRunMovePickerTests();
 		}
 		else
 		{

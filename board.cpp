@@ -275,12 +275,12 @@ void Board::GenerateAllMoves(MoveList &moveList) const
 {
 	Color sideToMove = m_boardDescU8[SIDE_TO_MOVE];
 
-	GenerateKingMoves_<MT>(sideToMove, moveList);
-	GenerateQueenMoves_<MT>(sideToMove, moveList);
+	GenerateKnightMoves_<MT>(sideToMove, moveList);
 	GenerateBishopMoves_<MT>(sideToMove, moveList);
 	GenerateRookMoves_<MT>(sideToMove, moveList);
-	GenerateKnightMoves_<MT>(sideToMove, moveList);
 	GeneratePawnMoves_<MT>(sideToMove, moveList);
+	GenerateKingMoves_<MT>(sideToMove, moveList);
+	GenerateQueenMoves_<MT>(sideToMove, moveList);
 
 #ifdef DEBUG
 	if (MT == ALL)
@@ -313,7 +313,6 @@ void Board::GenerateAllLegalMovesSlow(MoveList &moveList) const
 	}
 }
 
-#ifdef DEBUG
 void Board::CheckBoardConsistency()
 {
 	for (uint32_t sq = 0; sq < 64; ++sq)
@@ -378,7 +377,6 @@ void Board::CheckBoardConsistency()
 		assert(!m_boardDescU8[B_LONG_CASTLE]);
 	}
 }
-#endif
 
 std::string Board::GetFen(bool omitMoveNums) const
 {
@@ -1112,6 +1110,133 @@ void Board::MakeNullMove()
 #endif
 }
 
+bool Board::CheckPseudoLegal(Move mv)
+{
+	PieceType pt = GetPieceType(mv);
+	PieceType ptNoColor = StripColor(pt);
+
+	Square from = GetFromSquare(mv);
+	Square to = GetToSquare(mv);
+	Color color = pt & COLOR_MASK;
+
+	PieceType toPt = m_boardDescU8[to];
+	Color toColor = m_boardDescU8[to] & COLOR_MASK;
+
+	uint64_t totalOccupancy = m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED];
+
+	// there is no legal move where the destination is occupied by a friendly piece
+	if (toPt != EMPTY && toColor == color)
+	{
+		return false;
+	}
+
+	// if the from piece doesn't exist...
+	if (pt != m_boardDescU8[from])
+	{
+		return false;
+	}
+
+	// wrong side to move
+	if (color != m_boardDescU8[SIDE_TO_MOVE])
+	{
+		return false;
+	}
+
+	if (ptNoColor == WN)
+	{
+		// for knights, the only requirement is the destination square must be enemy or empty
+		// we checked that already
+		return true;
+	}
+	else if (ptNoColor == WR)
+	{
+		// for rooks, we actually have to do move generation, because there may be an additional blocker
+		return Rmagic(from, totalOccupancy) & BIT[to];
+	}
+	else if (ptNoColor == WB)
+	{
+		// for bishops, we actually have to do move generation, because there may be an additional blocker
+		return Bmagic(from, totalOccupancy) & BIT[to];
+	}
+	else if (ptNoColor == WQ)
+	{
+		// for queens, we actually have to do move generation, because there may be an additional blocker
+		return Qmagic(from, totalOccupancy) & BIT[to];
+	}
+	else if (ptNoColor == WP)
+	{
+		if (GetX(from) != GetX(to))
+		{
+			// if from and to are on different files, this must be a capture or en passant
+			return toPt != EMPTY || to == BitScanForward(m_boardDescBB[EN_PASS_SQUARE]); // we have already checked for friendly
+		}
+		else if ((GetY(from) - GetY(to)) == 1 || (GetY(from) - GetY(to)) == -1)
+		{
+			// regular move
+			return toPt == EMPTY;
+		}
+		else
+		{
+			// only other move type is a 2 square push, in which case both the destination and square jumped over
+			// must be empty
+			Square midSquare = (from + to) / 2;
+			return toPt == EMPTY && m_boardDescU8[midSquare] == EMPTY;
+		}
+	}
+	else
+	{
+		// for kings
+		// castling is the only special case here
+		if (from == E1 && to == G1)
+		{
+			return	m_boardDescU8[W_SHORT_CASTLE] &&
+					m_boardDescU8[H1] == WR &&
+					m_boardDescU8[F1] == EMPTY &&
+					m_boardDescU8[G1] == EMPTY &&
+					!IsUnderAttack_(F1);
+		}
+		else if (from == E1 && to == C1)
+		{
+			return	m_boardDescU8[W_LONG_CASTLE] &&
+					m_boardDescU8[A1] == WR &&
+					m_boardDescU8[B1] == EMPTY &&
+					m_boardDescU8[C1] == EMPTY &&
+					m_boardDescU8[D1] == EMPTY &&
+					!IsUnderAttack_(D1);
+		}
+		else if (from == E8 && to == G8)
+		{
+			return	m_boardDescU8[B_SHORT_CASTLE] &&
+					m_boardDescU8[H8] == BR &&
+					m_boardDescU8[F8] == EMPTY &&
+					m_boardDescU8[G8] == EMPTY &&
+					!IsUnderAttack_(F8);
+		}
+		else if (from == E8 && to == C8)
+		{
+			return	m_boardDescU8[B_LONG_CASTLE] &&
+					m_boardDescU8[A8] == BR &&
+					m_boardDescU8[B8] == EMPTY &&
+					m_boardDescU8[C8] == EMPTY &&
+					m_boardDescU8[D8] == EMPTY &&
+					!IsUnderAttack_(D8);
+		}
+		else
+		{
+			// for normal moves, destination needs to be enemy or empty, and we checked that already
+			return true;
+		}
+	}
+}
+
+bool Board::IsViolent(Move mv)
+{
+	bool isQPromo = GetPromoType(mv) == WQ || GetPromoType(mv) == BQ;
+	bool isCapture = m_boardDescU8[GetToSquare(mv)] != EMPTY || BIT[GetToSquare(mv)] == m_boardDescBB[EN_PASS_SQUARE];
+
+	return isQPromo || isCapture;
+}
+
 PieceType Board::ApplyMoveSee(PieceType pt, Square from, Square to)
 {
 	PieceType capturedPiece = m_boardDescU8[to];
@@ -1762,6 +1887,12 @@ uint64_t Perft(Board &b, uint32_t depth)
 
 	for (size_t i = 0; i < ml.GetSize(); ++i)
 	{
+		if (!b.CheckPseudoLegal(ml[i]))
+		{
+			std::cout << b.MoveToAlg(ml[i]) << std::endl;
+			abort();
+		}
+
 		if (b.ApplyMove(ml[i]))
 		{
 			if (depth == 1)

@@ -74,10 +74,8 @@ public:
 	template <MOVE_TYPES MT> void GenerateAllMoves(MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateAllLegalMovesSlow(MoveList &moveList) const;
 
-#ifdef DEBUG
 	// debug function to check consistency between occupied bitboards, piece bitboards, MB, and castling rights
 	void CheckBoardConsistency();
-#endif
 
 	std::string GetFen(bool omitMoveNums = false) const;
 
@@ -117,6 +115,12 @@ public:
 	// position must not be in check, otherwise behaviour is undefined
 	// null moves are recorded in the undo stacks, and can be undone using undo
 	void MakeNullMove();
+
+	// check whether the move is legal
+	// the move must be a legal move in SOME position (for example, no king promotions, or knights moving like a pawn)
+	bool CheckPseudoLegal(Move mv);
+
+	bool IsViolent(Move mv);
 
 	/*
 		SEE helpers

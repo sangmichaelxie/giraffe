@@ -10,6 +10,7 @@
 #include "util.h"
 #include "eval/eval.h"
 #include "see.h"
+#include "movepicker.h"
 
 namespace
 {
@@ -285,89 +286,20 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		}
 	}
 
-	MoveList moves;
-
-	board.GenerateAllMoves<Board::ALL>(moves);
-
 	bestMove = 0;
 
 	bool legalMoveFound = false;
-	bool hasHashMove = false;
+	bool hasHashMove = true; // TODO: for now, we always have hash move since we are doing IID
 
-	// assign scores to all the moves
-	for (size_t i = 0; i < moves.GetSize(); ++i)
+	MovePicker movePicker(board, tEntry ? tEntry->bestMove : 0, *(context.killer), false, ply);
+
+	Move mv = 0;
+
+	size_t i = 0;
+
+	while ((mv = movePicker.GetNextMove()))
 	{
-		// lower 16 bits are used for SEE value, biased by 0x8000
-		uint32_t score = 0;
-
-		bool seeEligible = board.IsSeeEligible(moves[i]);
-
-		Score seeScore = 0;
-		uint16_t biasedSeeScore = 0;
-
-		if (seeEligible)
-		{
-			seeScore = StaticExchangeEvaluation(board, moves[i]);
-			biasedSeeScore = seeScore + 0x8000;
-		}
-
-		int32_t killerNum = context.killer->GetKillerNum(ply, moves[i]);
-
-		if (!ENABLE_KILLERS)
-		{
-			killerNum = -1;
-		}
-
-		uint32_t scoreType = 0;
-		// upper [23:16] is move type
-		// 255 = hash move
-		// 254 = queen promotions
-		// 253 = winning captures
-		// 220-252 = killer moves
-		// 211 = equal captures
-		// 210 = all others (history heuristics?)
-		// 200 = losing captures
-
-		if (tEntry && moves[i] == tEntry->bestMove)
-		{
-			scoreType = 255;
-			hasHashMove = true;
-		}
-		else if (GetPromoType(moves[i]) == WQ)
-		{
-			scoreType = 254;
-		}
-		else if (seeEligible && seeScore > 0)
-		{
-			scoreType = 253;
-		}
-		else if (killerNum != -1)
-		{
-			scoreType = 220 + killerNum;
-		}
-		else if (seeEligible && seeScore == 0)
-		{
-			scoreType = 253;
-		}
-		else if (!seeEligible)
-		{
-			scoreType = 210;
-		}
-		else
-		{
-			scoreType = 200;
-		}
-
-		score = biasedSeeScore + (scoreType << 16);
-
-		SetScore(moves[i], score);
-	}
-
-	std::sort(moves.Begin(), moves.End(), [](const Move &a, const Move &b) { return a > b; });
-
-	for (size_t i = 0; i < moves.GetSize(); ++i)
-	{
-		if (board.ApplyMove(moves[i]))
+		if (board.ApplyMove(mv))
 		{
 			legalMoveFound = true;
 
@@ -403,21 +335,23 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			if (score > alpha)
 			{
 				alpha = score;
-				bestMove = moves[i];
+				bestMove = mv;
 			}
 
 			if (score >= beta)
 			{
-				context.transpositionTable->Store(board.GetHash(), ClearScore(moves[i]), score, depth, LOWERBOUND);
+				context.transpositionTable->Store(board.GetHash(), mv, score, depth, LOWERBOUND);
 
 				// we don't want to store captures because those are searched before killers anyways
-				if (!board.IsSeeEligible(moves[i]))
+				if (!board.IsViolent(mv))
 				{
-					context.killer->Notify(ply, ClearScore(moves[i]));
+					context.killer->Notify(ply, mv);
 				}
 				return score;
 			}
 		}
+
+		++i;
 	}
 
 	if (legalMoveFound)
@@ -427,7 +361,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			if (bestMove)
 			{
 				// if we have a bestMove, that means we have a PV node
-				context.transpositionTable->Store(board.GetHash(), ClearScore(bestMove), alpha, depth, EXACT);
+				context.transpositionTable->Store(board.GetHash(), bestMove, alpha, depth, EXACT);
 			}
 			else
 			{
@@ -491,72 +425,27 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 	}
 
 	// now we start searching
-	MoveList moves;
+	MovePicker movePicker(board, 0, *(context.killer), true, ply);
 
-	board.GenerateAllMoves<Board::VIOLENT>(moves);
+	Move mv = 0;
 
-	// assign scores to all the moves for sorting
-	for (size_t i = 0; i < moves.GetSize(); ++i)
+	size_t i = 0;
+
+	while ((mv = movePicker.GetNextMove()))
 	{
-		// lower 16 bits are used for SEE value, biased by 0x8000
-		uint32_t score = 0;
-
-		bool seeEligible = board.IsSeeEligible(moves[i]);
-
-		Score seeScore = 0;
-		uint16_t biasedSeeScore = 0;
-
-		if (seeEligible)
-		{
-			seeScore = StaticExchangeEvaluation(board, moves[i]);
-			biasedSeeScore = seeScore + 0x8000;
-		}
-
-		uint32_t scoreType = 0;
-		// upper [23:16] is move type
-		// 254 = queen promotions
-		// 253 = winning and equal captures
-		// 250 = losing captures
-
-		// since we are generating silent moves only, we should only get queen promotions
-		if (GetPromoType(moves[i]) != 0)
-		{
-			scoreType = 254;
-		}
-		else if (seeEligible && seeScore >= 0)
-		{
-			scoreType = 253;
-		}
-		else
-		{
-			scoreType = 250;
-		}
-
-		score = biasedSeeScore + (scoreType << 16);
-
-		SetScore(moves[i], score);
-	}
-
-	std::sort(moves.Begin(), moves.End(), [](const Move &a, const Move &b) { return a > b; });
-
-	for (size_t i = 0; i < moves.GetSize(); ++i)
-	{
-		if (board.IsSeeEligible(moves[i]))
+		if (GetScore(mv))
 		{
 			// extract the SEE score
-			Score seeScore = 0;
-			seeScore = GetScore(moves[i]);
-			seeScore -= 0x8000; // unbias the score
+			Score seeScore = GetScore(mv) - 0x8000;
 
 			// only search the capture if it can potentially improve alpha
-			if ((staticEval + seeScore) < alpha)
+			if ((staticEval + seeScore) <= alpha)
 			{
-				// we don't have to search any more moves, because moves were sorted by SEE
 				break;
 			}
 		}
 
-		if (board.ApplyMove(moves[i]))
+		if (board.ApplyMove(mv))
 		{
 			Score score = -QSearch_(context, board, -beta, -alpha, ply + 1);
 
@@ -577,6 +466,8 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 				return score;
 			}
 		}
+
+		++i;
 	}
 
 	return alpha;

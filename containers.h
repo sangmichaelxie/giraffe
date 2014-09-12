@@ -2,6 +2,7 @@
 #define CONTAINERS_H
 
 #include <vector>
+#include <set>
 
 #include <cstdint>
 #include <cassert>
@@ -158,7 +159,44 @@ public:
 		m_size = 0;
 	}
 
-	size_t GetSize() { return m_size; }
+	bool Exists(T x) const
+	{
+		for (size_t i = 0; i < m_size; ++i)
+		{
+			if (m_data[i] == x)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool CompareUnorderedSlow(const FixedVector<T, MAX_SIZE> &other)
+	{
+		std::set<T> s;
+
+		if (GetSize() != other.GetSize())
+		{
+			return false;
+		}
+
+		for (size_t i = 0; i < GetSize(); ++i)
+		{
+			s.insert(m_data[i]);
+		}
+
+		for (size_t i = 0; i < other.GetSize(); ++i)
+		{
+			if (s.find(other.m_data[i]) == s.end())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	size_t GetSize() const { return m_size; }
 
 	T *Begin() { return m_data; }
 	T *End() { return m_data + m_size; }

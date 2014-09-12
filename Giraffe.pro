@@ -16,7 +16,8 @@ SOURCES += main.cpp \
     timeallocator.cpp \
     zobrist.cpp \
     ttable.cpp \
-    killer.cpp
+    killer.cpp \
+    movepicker.cpp
 
 HEADERS += \
     board_consts.h \
@@ -36,5 +37,6 @@ HEADERS += \
     eval/eval_params.h \
     zobrist.h \
     ttable.h \
-    killer.h
+    killer.h \
+    movepicker.h
 
