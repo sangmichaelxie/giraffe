@@ -494,8 +494,8 @@ void DebugRunMovePickerTests()
 	mv = mp.GetNextMove(); if (ClearScore(mv) != b.ParseMove("b7c8q")) { std::cout << "Got " << b.MoveToAlg(mv) << std::endl; abort(); }
 
 	// then we should get the winning and equal captures (except for the pawn promotion, because that's generated already)
-	mv = mp.GetNextMove(); if (ClearScore(mv) != b.ParseMove("f3g5")) { std::cout << "Got " << b.MoveToAlg(mv) << std::endl; abort(); }
 	mv = mp.GetNextMove(); if (ClearScore(mv) != b.ParseMove("f3e5")) { std::cout << "Got " << b.MoveToAlg(mv) << std::endl; abort(); }
+	mv = mp.GetNextMove(); if (ClearScore(mv) != b.ParseMove("f3g5")) { std::cout << "Got " << b.MoveToAlg(mv) << std::endl; abort(); }
 
 	// then we should get the valid killer only
 	mv = mp.GetNextMove(); if (ClearScore(mv) != b.ParseMove("f3g1")) { std::cout << "Got " << b.MoveToAlg(mv) << std::endl; abort(); }
