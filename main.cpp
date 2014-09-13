@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <sstream>
 
@@ -26,6 +27,20 @@ void Initialize()
 	InitializeZobrist();
 }
 
+std::string gVersion;
+
+void GetVersion()
+{
+	std::ifstream verFile("version.txt");
+
+	if (verFile.is_open())
+	{
+		std::getline(verFile, gVersion);
+
+		std::cout << "# Version: " << gVersion << std::endl;
+	}
+}
+
 int main(int argc, char **argv)
 {
 #ifdef DEBUG
@@ -35,6 +50,8 @@ int main(int argc, char **argv)
 #endif
 
 	Initialize();
+
+	GetVersion();
 
 	Backend backend;
 
@@ -57,8 +74,15 @@ int main(int argc, char **argv)
 
 			if (ver >= 2)
 			{
+				std::string name = "Giraffe";
+				if (gVersion != "")
+				{
+					name += " ";
+					name += gVersion;
+				}
+
 				std::cout << "feature ping=1 setboard=1 playother=0 san=0 usermove=1 time=1 draw=0 sigint=0 sigterm=0 "
-							 "reuse=1 analyze=1 myname=\"Giraffe\" variants=normal colors=0 ics=0 name=0 pause=0 nps=0 "
+							 "reuse=1 analyze=1 myname=\"" << name << "\" variants=normal colors=0 ics=0 name=0 pause=0 nps=0 "
 							 "debug=1 memory=0 smp=0 done=1" << std::endl;
 			}
 		}
