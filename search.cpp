@@ -291,7 +291,9 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	bool legalMoveFound = false;
 	bool hasHashMove = true; // TODO: for now, we always have hash move since we are doing IID
 
-	MovePicker movePicker(board, tEntry ? tEntry->bestMove : 0, *(context.killer), false, ply);
+	Killer dummyKiller;
+
+	MovePicker movePicker(board, tEntry ? tEntry->bestMove : 0, ENABLE_KILLERS ? *(context.killer) : dummyKiller, false, ply);
 
 	Move mv = 0;
 
