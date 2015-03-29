@@ -8,7 +8,7 @@ Backend::Backend()
 	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_maxDepth(0), m_showThinking(false),
 	  m_whiteClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
 	  m_blackClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
-	  m_tTable(DEFAULT_TTABLE_SIZE)
+	  m_tTable(DEFAULT_TTABLE_SIZE / sizeof(TTEntry))
 {
 }
 
