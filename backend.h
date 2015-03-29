@@ -52,6 +52,7 @@ public:
 
 	void DebugPrintBoard();
 	void DebugRunPerft(int32_t depth);
+	void DebugRunPerftWithNull(int32_t depth);
 	Score DebugEval();
 	void DebugPerftTests() { DebugRunPerftTests(); }
 

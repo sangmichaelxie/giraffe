@@ -169,7 +169,7 @@ void AsyncSearch::RootSearch_()
 		double totalAllocatedTime = endTime - startTime;
 		double estimatedNextIterationTime = elapsedTime * ESTIMATED_MIN_BRANCHING_FACTOR;
 
-		if (estimatedNextIterationTime > (totalAllocatedTime - elapsedTime))
+		if (estimatedNextIterationTime > (totalAllocatedTime - elapsedTime) && m_context.searchType != SearchType_infinite)
 		{
 			break;
 		}
@@ -389,12 +389,12 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			{
 				reduce += LATE_MOVE_REDUCTION;
 
-                if (ENABLE_BAD_MOVE_REDUCTION && moveStage == MovePicker::UNLIKELY)
+				if (ENABLE_BAD_MOVE_REDUCTION && moveStage == MovePicker::UNLIKELY)
 				{
 					reduce += BAD_MOVE_REDUCTION;
 				}
-                
-                // TODO: add re-search if move turns out to be above alpha
+
+				// TODO: add re-search if move turns out to be above alpha
 			}
 
 			Score score = 0;
@@ -559,25 +559,27 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 		{
 			// extract the SEE score
 			Score seeScore = GetScoreBiased(mv);
-
 #ifdef DEBUG
+
 			assert(seeScore == seeScoreCalculated);
 #endif
 			// only search the capture if it can potentially improve alpha
-			//PieceType promoType = GetPromoType(mv);
-			//Score promoVal = (promoType != 0) ? Eval::MAT[promoType & ~COLOR_MASK] : 0;
-			//if ((staticEval + seeScore + promoVal + Eval::MAX_POSITIONAL_SCORE) <= alpha)
-			//{
-			//	continue;
-			//}
+			PieceType promoType = GetPromoType(mv);
+			Score promoVal = (promoType != 0) ? Eval::MAT[promoType & ~COLOR_MASK] : 0;
+			if ((staticEval + seeScore + promoVal + Eval::MAX_POSITIONAL_SCORE) <= alpha)
+			{
+				board.UndoMove();
+				continue;
+			}
 
 			// even if this move can potentially improve alpha, if it's a losing capture
 			// we still don't search it, because it's highly likely that another capture or
 			// standing pat will be better
-			//if (seeScore < 0)
-			//{
-			//	continue;
-			//}
+			if (seeScore < 0)
+			{
+				board.UndoMove();
+				continue;
+			}
 
 			Score score = 0;
 

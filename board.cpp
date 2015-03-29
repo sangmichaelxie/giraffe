@@ -2033,6 +2033,53 @@ uint64_t Perft(Board &b, uint32_t depth)
 	return sum;
 }
 
+uint64_t PerftWithNull(Board &b, uint32_t depth)
+{
+	MoveList ml;
+	b.GenerateAllMoves<Board::ALL>(ml);
+
+	uint64_t sum = 0;
+
+#ifdef DEBUG
+	Board c = b;
+#endif
+
+	if (!b.InCheck())
+	{
+		b.MakeNullMove();
+		b.UndoMove();
+	}
+
+	for (size_t i = 0; i < ml.GetSize(); ++i)
+	{
+		if (!b.CheckPseudoLegal(ml[i]))
+		{
+			std::cout << b.MoveToAlg(ml[i]) << std::endl;
+			abort();
+		}
+
+		if (b.ApplyMove(ml[i]))
+		{
+			if (depth == 1)
+			{
+				++sum;
+			}
+			else
+			{
+				sum += Perft(b, depth - 1);
+			}
+
+			b.UndoMove();
+
+#ifdef DEBUG
+			assert(b == c);
+#endif
+		}
+	}
+
+	return sum;
+}
+
 uint64_t DebugPerft(Board &b, uint32_t depth)
 {
 	double startTime = CurrentTime();
@@ -2045,11 +2092,23 @@ uint64_t DebugPerft(Board &b, uint32_t depth)
 	return result;
 }
 
-bool CheckPerft(std::string fen, uint32_t depth, uint64_t expected)
+uint64_t DebugPerftWithNull(Board &b, uint32_t depth)
+{
+	double startTime = CurrentTime();
+	uint64_t result = PerftWithNull(b, depth);
+	std::cout << result << std::endl;
+	double duration = CurrentTime() - startTime;
+	std::cout << "Took: " << duration << " seconds" << std::endl;
+	std::cout << (result / duration) << " NPS" << std::endl;
+
+	return result;
+}
+
+bool CheckPerftWithNull(std::string fen, uint32_t depth, uint64_t expected)
 {
 	std::cout << "Checking Perft for " << fen << ", Depth: " << depth << std::endl;
 	Board b(fen);
-	uint64_t result = DebugPerft(b, depth);
+	uint64_t result = DebugPerftWithNull(b, depth);
 	if (result != expected)
 	{
 		std::cout << "Perft check failed for - " << fen << std::endl;
@@ -2062,11 +2121,11 @@ bool CheckPerft(std::string fen, uint32_t depth, uint64_t expected)
 
 void DebugRunPerftTests()
 {
-	if (!CheckPerft("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 6, 119060324ULL)) { abort(); }
-	if (!CheckPerft("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -", 5, 193690690ULL)) { abort(); }
-	if (!CheckPerft("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -", 7, 178633661ULL)) { abort(); }
-	if (!CheckPerft("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", 6, 706045033ULL)) { abort(); }
-	if (!CheckPerft("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1", 6, 706045033ULL)) { abort(); }
-	if (!CheckPerft("rnbqkb1r/pp1p1ppp/2p5/4P3/2B5/8/PPP1NnPP/RNBQK2R w KQkq - 0 6", 3, 53392ULL)) { abort(); }
-	if (!CheckPerft("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10", 5, 164075551ULL)) { abort(); }
+	if (!CheckPerftWithNull("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 6, 119060324ULL)) { abort(); }
+	if (!CheckPerftWithNull("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -", 5, 193690690ULL)) { abort(); }
+	if (!CheckPerftWithNull("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -", 7, 178633661ULL)) { abort(); }
+	if (!CheckPerftWithNull("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", 6, 706045033ULL)) { abort(); }
+	if (!CheckPerftWithNull("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1", 6, 706045033ULL)) { abort(); }
+	if (!CheckPerftWithNull("rnbqkb1r/pp1p1ppp/2p5/4P3/2B5/8/PPP1NnPP/RNBQK2R w KQkq - 0 6", 3, 53392ULL)) { abort(); }
+	if (!CheckPerftWithNull("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10", 5, 164075551ULL)) { abort(); }
 }

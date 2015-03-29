@@ -236,6 +236,14 @@ int main(int argc, char **argv)
 			line >> depth;
 			backend.DebugRunPerft(depth);
 		}
+		else if (cmd == "perft_with_null")
+		{
+			// special perft that also tries null moves (but doesn't count them)
+			// this is for debugging null make/unmake
+			int32_t depth;
+			line >> depth;
+			backend.DebugRunPerftWithNull(depth);
+		}
 		else if (cmd == "eval")
 		{
 			std::cout << backend.DebugEval() << std::endl;

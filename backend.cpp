@@ -208,6 +208,13 @@ void Backend::DebugRunPerft(int32_t depth)
 	DebugPerft(m_currentBoard, depth);
 }
 
+void Backend::DebugRunPerftWithNull(int32_t depth)
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+
+	DebugPerftWithNull(m_currentBoard, depth);
+}
+
 Score Backend::DebugEval()
 {
 	return Eval::Evaluate(m_currentBoard, SCORE_MIN, SCORE_MAX);
