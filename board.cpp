@@ -376,6 +376,15 @@ void Board::CheckBoardConsistency()
 	{
 		assert(!m_boardDescU8[B_LONG_CASTLE]);
 	}
+
+	uint64_t oldHash = GetHash();
+	UpdateHashFull_();
+
+	if (oldHash != GetHash())
+	{
+		std::cout << GetFen() << std::endl;
+	}
+	assert(oldHash == GetHash());
 }
 
 std::string Board::GetFen(bool omitMoveNums) const
@@ -869,6 +878,7 @@ bool Board::ApplyMove(Move mv)
 
 	if (oldHash != GetHash())
 	{
+		std::cout << GetFen() << std::endl;
 		std::cout << MoveToAlg(mv) << std::endl;
 	}
 	assert(oldHash == GetHash());
@@ -1103,6 +1113,7 @@ void Board::MakeNullMove()
 	if (m_boardDescBB[EN_PASS_SQUARE])
 	{
 		undoListBB.PushBack(std::make_pair(EN_PASS_SQUARE, m_boardDescBB[EN_PASS_SQUARE]));
+		m_boardDescBB[HASH] ^= EN_PASS_ZOBRIST[BitScanForward(m_boardDescBB[EN_PASS_SQUARE])];
 		m_boardDescBB[EN_PASS_SQUARE] = 0;
 	}
 
@@ -2047,6 +2058,12 @@ uint64_t PerftWithNull(Board &b, uint32_t depth)
 	if (!b.InCheck())
 	{
 		b.MakeNullMove();
+
+		if (depth > 1)
+		{
+			PerftWithNull(b, depth - 1);
+		}
+
 		b.UndoMove();
 	}
 
