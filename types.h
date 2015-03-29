@@ -20,7 +20,7 @@ typedef uint32_t PieceType;
 const static uint32_t NUM_PIECETYPES = 12;
 const static uint32_t PIECE_TYPE_INDICES[] = { 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd };
 
-// remember to update SEE_VALUES if these assignments change
+// remember to update material tables if these assignments change
 
 const static PieceType WK = 0x0; // 0b0000
 const static PieceType WQ = 0x1; // 0b0001

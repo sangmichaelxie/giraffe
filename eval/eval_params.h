@@ -8,11 +8,32 @@
 namespace Eval
 {
 
-static const Score Q_MAT = 1200;
-static const Score R_MAT = 600;
-static const Score B_MAT = 400;
-static const Score N_MAT = 400;
-static const Score P_MAT = 100;
+static const Score MAT[] = {
+	10000, // WK (we have a king score here for SEE only)
+	1200, // WQ
+	600, // WR
+	400, // WN
+	400, // WB
+	100, // WP
+
+	0,
+	0,
+
+	10000, // BK
+	1200, // BQ
+	600, // BR
+	400, // BN
+	400, // BB
+	100, // BP
+};
+
+static const Score MAX_POSITIONAL_SCORE = 150; // approximately how much the positional score can change from 1 move
+
+static const Score Q_MAT = MAT[WQ];
+static const Score R_MAT = MAT[WR];
+static const Score B_MAT = MAT[WB];
+static const Score N_MAT = MAT[WN];
+static const Score P_MAT = MAT[WP];
 
 static const Phase Q_PHASE_CONTRIBUTION = 4;
 static const Phase R_PHASE_CONTRIBUTION = 2;

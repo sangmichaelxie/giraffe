@@ -50,6 +50,14 @@ public:
 		ALL
 	};
 
+	enum GameStatus
+	{
+		WHITE_WINS,
+		BLACK_WINS,
+		STALEMATE,
+		ONGOING
+	};
+
 	typedef FixedVector<std::pair<uint8_t, uint64_t>, 7> UndoListBB; // list of bitboards to revert on undo
 	// 6 maximum bitboards (black occupied, white occupied, source piece type, captured piece type, promotion/castling piece type, en passant, hash)
 
@@ -122,6 +130,29 @@ public:
 
 	bool IsViolent(Move mv);
 
+	// whether the moving side has pawn on 7th rank or not
+	bool HasPawnOn7th();
+
+	// get the largest piece type of the opponent, in white's type
+	PieceType GetOpponentLargestPieceType();
+
+	// if this position has appeared 3 times before
+	// note, there is an intentional bug here -
+	// en passant status only counts if there is actually a pawn to do the capture
+	// we count it anyways since that's extremely rare, we never claim draws
+	// (only offer, which becomes a claim if the GUI thinks the draw is claimable)
+	// in the case that the "claim" is incorrect, we will simply play on (after offering a draw)
+	bool Is3Fold();
+
+	bool Is50Moves() { return m_boardDescU8[HALF_MOVES_CLOCK] >= 100; }
+
+	// look for a repetition in the last numMoves
+	// this is used in the search
+	// we don't look through the whole history because that can be very slow in long games
+	bool Is2Fold(size_t numMoves);
+
+	GameStatus GetGameStatus();
+
 	/*
 		SEE helpers
 		- Highly efficient limited ApplyMove/UndoMove for SEE only
@@ -165,6 +196,9 @@ private:
 
 	GrowableStack<UndoListBB> m_undoStackBB;
 	GrowableStack<UndoListU8> m_undoStackU8;
+
+	// stack of hashes, for detecting repetition
+	GrowableStack<uint64_t> m_hashStack;
 
 	// both these fields are stored as white piece types
 	void UpdateseeLastPT_(PieceType lastPT) { if (m_boardDescU8[SIDE_TO_MOVE] == WHITE) m_seeLastWhitePT = lastPT; else m_seeLastBlackPT = lastPT; }

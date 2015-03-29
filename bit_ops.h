@@ -4,6 +4,16 @@
 #include <cstdint>
 #include <cassert>
 
+inline uint64_t Bit(uint32_t shift)
+{
+    return 1LL << shift;
+}
+
+inline uint64_t InvBit(uint32_t shift)
+{
+    return ~(1LL << shift);
+}
+
 // returns the index of the least significant bit set
 // undefined if x = 0
 inline uint32_t BitScanForward(uint64_t x)

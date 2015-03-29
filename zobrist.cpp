@@ -4,7 +4,7 @@
 
 void InitializeZobrist()
 {
-	std::mt19937_64 gen; // using the default seed
+	std::mt19937_64 gen(53820873); // using the default seed
 
 	for (int32_t sq = 0; sq < 64; ++sq)
 	{

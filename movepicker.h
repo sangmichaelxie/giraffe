@@ -10,12 +10,22 @@
 class MovePicker
 {
 public:
+	enum MovePickerStage
+	{
+		LIKELY, // hash, queen promotions, winning and equal captures
+		NEUTRAL, // killers, other non captures
+		UNLIKELY // losing captures, leaving pieces en prise
+	};
+
 	// try moves are hash moves and killer moves. they do not have to be
 	// valid and will be verified
 	MovePicker(Board &b, Move hashMove, Killer &killer, bool isQS, int32_t ply);
 
 	// returns 0 if there are no more moves
-	Move GetNextMove();
+	Move GetNextMove(MovePickerStage &stage);
+
+	// returns 0 if there are no more moves
+	Move GetNextMove() { MovePickerStage dummy; return GetNextMove(dummy); }
 
 private:
 	enum Stage

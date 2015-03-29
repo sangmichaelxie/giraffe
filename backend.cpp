@@ -74,11 +74,21 @@ void Backend::Usermove(std::string move)
 		return;
 	}
 
+	StopSearch_(lock);
+
 	m_currentBoard.ApplyMove(parsedMove);
+
+	if (!CheckDeclareGameResult_())
+	{
+		m_mode = EngineMode_force;
+		return;
+	}
 
 	if (m_mode == EngineMode_playingWhite || m_mode == EngineMode_playingBlack)
 	{
-		StopSearch_(lock);
+		MoveList legalMoves;
+		m_currentBoard.GenerateAllLegalMovesSlow<Board::ALL>(legalMoves);
+
 		StartSearch_(Search::SearchType_makeMove);
 
 		if (m_mode == EngineMode_playingWhite)
@@ -94,7 +104,6 @@ void Backend::Usermove(std::string move)
 	}
 	else if (m_mode == EngineMode_analyzing)
 	{
-		StopSearch_(lock);
 		StartSearch_(Search::SearchType_infinite);
 	}
 
@@ -275,8 +284,25 @@ void Backend::StartSearch_(Search::SearchType searchType)
 	[this](std::string &mv)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		std::cout << "move " << mv << std::endl;
+
 		m_currentBoard.ApplyMove(m_currentBoard.ParseMove(mv));
+
+		// if we want to claim a draw, we have to send it before sending the move
+		if (m_currentBoard.Is3Fold() || m_currentBoard.Is50Moves())
+		{
+			// here we use the offer draw command instead of claiming a result
+			// it's safer this way because if the GUI doesn't agree this is a draw
+			// we can simply play on
+			std::cout << "offer draw" << std::endl;
+		}
+
+		std::cout << "move " << mv << std::endl;
+
+		if (!CheckDeclareGameResult_())
+		{
+			m_mode = EngineMode_force;
+			return;
+		}
 
 		m_tTable.AgeTable();
 		m_killer.MoveMade();
@@ -296,4 +322,29 @@ void Backend::StartSearch_(Search::SearchType searchType)
 	m_search.reset(new Search::AsyncSearch(*m_searchContext));
 
 	m_search->Start();
+}
+
+bool Backend::CheckDeclareGameResult_()
+{
+	Board::GameStatus gameResult = m_currentBoard.GetGameStatus();
+
+	if (gameResult == Board::ONGOING)
+	{
+		return true;
+	}
+
+	if (gameResult == Board::WHITE_WINS)
+	{
+		std::cout << "1-0 {White mates}" << std::endl;
+	}
+	else if (gameResult == Board::BLACK_WINS)
+	{
+		std::cout << "0-1 {Black mates}" << std::endl;
+	}
+	else if (gameResult == Board::STALEMATE)
+	{
+		std::cout << "1/2-1/2 {Stalemate}" << std::endl;
+	}
+
+	return false;
 }

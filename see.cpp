@@ -1,25 +1,7 @@
 #include "see.h"
+#include "eval/eval_params.h"
 
 #include <cstdint>
-
-static const Score SEE_VALUES[] = {
-	10000, // WK
-	900, // WQ
-	500, // WR
-	300, // WN
-	300, // WB
-	100, // WP
-
-	0,
-	0,
-
-	10000, // BK
-	900, // BQ
-	500, // BR
-	300, // BN
-	300, // BB
-	100, // BP
-};
 
 // best tactical result for the moving side
 Score StaticExchangeEvaluation(Board &board, Move mv)
@@ -42,7 +24,7 @@ Score StaticExchangeEvaluation(Board &board, Move mv)
 
 	if (capturedPT != EMPTY)
 	{
-		ret = SEE_VALUES[capturedPT] - StaticExchangeEvaluationImpl(board, to);
+		ret = Eval::MAT[capturedPT] - StaticExchangeEvaluationImpl(board, to);
 	}
 	else
 	{
@@ -66,7 +48,7 @@ Score StaticExchangeEvaluationImpl(Board &board, Square sq)
 	if (hasMoreCapture)
 	{
 		PieceType capturedPT = board.ApplyMoveSee(pt, from, sq);
-		ret = std::max(0, SEE_VALUES[capturedPT] - StaticExchangeEvaluationImpl(board, sq));
+		ret = std::max(0, Eval::MAT[capturedPT] - StaticExchangeEvaluationImpl(board, sq));
 		board.UndoMoveSee();
 	}
 
@@ -107,19 +89,19 @@ void DebugRunSeeTests()
 	if (!RunSeeTest("7k/8/8/3p4/8/3R4/8/K7 w - - 0 1", "d3d5", 100)) { abort(); }
 
 	// basic black capture, exf5
-	if (!RunSeeTest("7k/8/8/4p3/5R2/8/8/K7 b - - 0 1", "e5f4", 500)) { abort(); }
+	if (!RunSeeTest("7k/8/8/4p3/5R2/8/8/K7 b - - 0 1", "e5f4", 600)) { abort(); }
 
 	// simple exchange, exf4 Rxf4
-	if (!RunSeeTest("6k1/8/8/4p3/5R1R/8/8/K7 b - - 0 1", "e5f4", 400)) { abort(); }
+	if (!RunSeeTest("6k1/8/8/4p3/5R1R/8/8/K7 b - - 0 1", "e5f4", 500)) { abort(); }
 
 	// decide to not capture, exf4
-	if (!RunSeeTest("7k/8/8/4p3/5R2/8/8/K7 b - - 0 1", "e5f4", 500)) { abort(); }
+	if (!RunSeeTest("7k/8/8/4p3/5R2/8/8/K7 b - - 0 1", "e5f4", 600)) { abort(); }
 
 	// decide to not recapture due to discovered attacker, Rxe6
-	if (!RunSeeTest("7k/4q3/4q3/8/4R3/4R3/8/K7 w - - 0 1", "e4e6", 900)) { abort(); }
+	if (!RunSeeTest("7k/4q3/4q3/8/4R3/4R3/8/K7 w - - 0 1", "e4e6", 1200)) { abort(); }
 
 	// recapture without the discovered attacker, Rxe6 Qxe6
-	if (!RunSeeTest("7k/4q3/4q3/8/4R3/8/8/K7 w - - 0 1", "e4e6", 400)) { abort(); }
+	if (!RunSeeTest("7k/4q3/4q3/8/4R3/8/8/K7 w - - 0 1", "e4e6", 600)) { abort(); }
 
 	// complex capture sequence, cxd4 exd4 Nxd4
 	if (!RunSeeTest("4q2k/3q2b1/8/2p5/3P4/4P3/3Rn3/K2R4 b - - 0 1", "c5d4", 100)) { abort(); }
@@ -131,13 +113,13 @@ void DebugRunSeeTests()
 	if (!RunSeeTest("7k/q7/8/2p5/3P4/8/3R4/6K1 b - - 0 1", "c5d4", 100)) { abort(); }
 
 	// bad capture by black, Nxd4 Rxd4
-	if (!RunSeeTest("7k/q7/2n5/8/3P4/8/3R4/3R2K1 b - - 0 1", "c6d4", -200)) { abort(); }
+	if (!RunSeeTest("7k/q7/2n5/8/3P4/8/3R4/3R2K1 b - - 0 1", "c6d4", -300)) { abort(); }
 
 	// bad capture by white, Rxd4 Nxd4
-	if (!RunSeeTest("7k/q7/2n5/8/3p4/8/3R4/3R2K1 w - - 0 1", "d2d4", -400)) { abort(); }
+	if (!RunSeeTest("7k/q7/2n5/8/3p4/8/3R4/3R2K1 w - - 0 1", "d2d4", -500)) { abort(); }
 
 	// white non-capture, losing
-	if (!RunSeeTest("2r4k/1P6/8/4q1nr/7p/5N2/K7/8 w - - 0 1", "f3e1", -300)) { abort(); }
+	if (!RunSeeTest("2r4k/1P6/8/4q1nr/7p/5N2/K7/8 w - - 0 1", "f3e1", -400)) { abort(); }
 
 	// white non-capture, non-losing
 	if (!RunSeeTest("2r4k/1P6/8/4q1nr/7p/5N2/K7/8 w - - 0 1", "f3d2", 0)) { abort(); }

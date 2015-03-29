@@ -27,48 +27,7 @@ extern uint64_t RANK_OF_SQ[64];
 extern uint64_t FILE_OF_SQ[64];
 extern uint64_t ADJACENT_FILES_OF_SQ[64];
 
-// we have these as literals to enable constant propagation
-const static uint64_t BIT[64] =
-{
-	0x0000000000000001ULL, 0x0000000000000002ULL, 0x0000000000000004ULL, 0x0000000000000008ULL,
-	0x0000000000000010ULL, 0x0000000000000020ULL, 0x0000000000000040ULL, 0x0000000000000080ULL,
-	0x0000000000000100ULL, 0x0000000000000200ULL, 0x0000000000000400ULL, 0x0000000000000800ULL,
-	0x0000000000001000ULL, 0x0000000000002000ULL, 0x0000000000004000ULL, 0x0000000000008000ULL,
-	0x0000000000010000ULL, 0x0000000000020000ULL, 0x0000000000040000ULL, 0x0000000000080000ULL,
-	0x0000000000100000ULL, 0x0000000000200000ULL, 0x0000000000400000ULL, 0x0000000000800000ULL,
-	0x0000000001000000ULL, 0x0000000002000000ULL, 0x0000000004000000ULL, 0x0000000008000000ULL,
-	0x0000000010000000ULL, 0x0000000020000000ULL, 0x0000000040000000ULL, 0x0000000080000000ULL,
-	0x0000000100000000ULL, 0x0000000200000000ULL, 0x0000000400000000ULL, 0x0000000800000000ULL,
-	0x0000001000000000ULL, 0x0000002000000000ULL, 0x0000004000000000ULL, 0x0000008000000000ULL,
-	0x0000010000000000ULL, 0x0000020000000000ULL, 0x0000040000000000ULL, 0x0000080000000000ULL,
-	0x0000100000000000ULL, 0x0000200000000000ULL, 0x0000400000000000ULL, 0x0000800000000000ULL,
-	0x0001000000000000ULL, 0x0002000000000000ULL, 0x0004000000000000ULL, 0x0008000000000000ULL,
-	0x0010000000000000ULL, 0x0020000000000000ULL, 0x0040000000000000ULL, 0x0080000000000000ULL,
-	0x0100000000000000ULL, 0x0200000000000000ULL, 0x0400000000000000ULL, 0x0800000000000000ULL,
-	0x1000000000000000ULL, 0x2000000000000000ULL, 0x4000000000000000ULL, 0x8000000000000000ULL
-};
-
 const static uint64_t ALL = 0xffffffffffffffffULL;
-
-const static uint64_t INVBIT[64] =
-{
-	0xfffffffffffffffeULL, 0xfffffffffffffffdULL, 0xfffffffffffffffbULL, 0xfffffffffffffff7ULL,
-	0xffffffffffffffefULL, 0xffffffffffffffdfULL, 0xffffffffffffffbfULL, 0xffffffffffffff7fULL,
-	0xfffffffffffffeffULL, 0xfffffffffffffdffULL, 0xfffffffffffffbffULL, 0xfffffffffffff7ffULL,
-	0xffffffffffffefffULL, 0xffffffffffffdfffULL, 0xffffffffffffbfffULL, 0xffffffffffff7fffULL,
-	0xfffffffffffeffffULL, 0xfffffffffffdffffULL, 0xfffffffffffbffffULL, 0xfffffffffff7ffffULL,
-	0xffffffffffefffffULL, 0xffffffffffdfffffULL, 0xffffffffffbfffffULL, 0xffffffffff7fffffULL,
-	0xfffffffffeffffffULL, 0xfffffffffdffffffULL, 0xfffffffffbffffffULL, 0xfffffffff7ffffffULL,
-	0xffffffffefffffffULL, 0xffffffffdfffffffULL, 0xffffffffbfffffffULL, 0xffffffff7fffffffULL,
-	0xfffffffeffffffffULL, 0xfffffffdffffffffULL, 0xfffffffbffffffffULL, 0xfffffff7ffffffffULL,
-	0xffffffefffffffffULL, 0xffffffdfffffffffULL, 0xffffffbfffffffffULL, 0xffffff7fffffffffULL,
-	0xfffffeffffffffffULL, 0xfffffdffffffffffULL, 0xfffffbffffffffffULL, 0xfffff7ffffffffffULL,
-	0xffffefffffffffffULL, 0xffffdfffffffffffULL, 0xffffbfffffffffffULL, 0xffff7fffffffffffULL,
-	0xfffeffffffffffffULL, 0xfffdffffffffffffULL, 0xfffbffffffffffffULL, 0xfff7ffffffffffffULL,
-	0xffefffffffffffffULL, 0xffdfffffffffffffULL, 0xffbfffffffffffffULL, 0xff7fffffffffffffULL,
-	0xfeffffffffffffffULL, 0xfdffffffffffffffULL, 0xfbffffffffffffffULL, 0xf7ffffffffffffffULL,
-	0xefffffffffffffffULL, 0xdfffffffffffffffULL, 0xbfffffffffffffffULL, 0x7fffffffffffffffULL
-};
 
 const static Square FLIP[64] = {
 	 56,  57,  58,  59,  60,  61,  62,  63,

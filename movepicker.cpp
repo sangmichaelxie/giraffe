@@ -19,7 +19,7 @@ MovePicker::MovePicker(Board &b, Move hashMove, Killer &killer, bool isQS, int32
 {
 }
 
-Move MovePicker::GetNextMove()
+Move MovePicker::GetNextMove(MovePickerStage &stage)
 {
 	if (m_firstMoveInStage)
 	{
@@ -36,7 +36,11 @@ Move MovePicker::GetNextMove()
 			// we have to exit stage here because we are not clearing m_hashMove
 			// we cannot get back in here again otherwise we'll return the hash move again
 			ExitStage_(m_stage);
-			return m_hashMove;
+			ret = m_hashMove;
+			Score seeScore = StaticExchangeEvaluation(m_board, ret);
+			SetScoreBiased(ret, seeScore);
+			stage = LIKELY;
+			return ret;
 		}
 		ExitStage_(m_stage);
 		return GetNextMove();
@@ -61,6 +65,8 @@ Move MovePicker::GetNextMove()
 					{
 						ret = m_moveListViolent[m_i];
 						m_moveListViolent[m_i++] = 0;
+						SetScoreBiased(ret, seeScore);
+						stage = LIKELY;
 						return ret;
 					}
 				}
@@ -88,6 +94,8 @@ Move MovePicker::GetNextMove()
 				{
 					ret = m_moveListViolent[m_i];
 					m_moveListViolent[m_i++] = 0;
+					SetScoreBiased(ret, seeScore);
+					stage = LIKELY;
 					return ret;
 				}
 			}
@@ -138,7 +146,11 @@ Move MovePicker::GetNextMove()
 
 				if (m_board.CheckPseudoLegal(m_killersList[m_i]))
 				{
-					return m_killersList[m_i++];
+					ret = m_killersList[m_i++];
+					Score seeScore = StaticExchangeEvaluation(m_board, ret);
+					SetScoreBiased(ret, seeScore);
+					stage = NEUTRAL;
+					return ret;
 				}
 			}
 		}
@@ -151,7 +163,7 @@ Move MovePicker::GetNextMove()
 		{
 			if (m_moveListQuiet[m_i])
 			{
-				if (ClearScore(m_moveListQuiet[m_i]) == m_hashMove || m_killersList.Exists(ClearScore(m_moveListQuiet[m_i])))
+				if (m_moveListQuiet[m_i] == m_hashMove || m_killersList.Exists(ClearScore(m_moveListQuiet[m_i])))
 				{
 					continue;
 				}
@@ -175,7 +187,10 @@ Move MovePicker::GetNextMove()
 					continue;
 				}
 
-				return m_moveListQuiet[m_i++];
+				ret = m_moveListQuiet[m_i++];
+				SetScoreBiased(ret, seeScore);
+				stage = NEUTRAL;
+				return ret;
 			}
 		}
 		ExitStage_(m_stage);
@@ -187,12 +202,16 @@ Move MovePicker::GetNextMove()
 		{
 			if (m_moveListViolent[m_i])
 			{
-				if (ClearScore(m_moveListViolent[m_i]) == m_hashMove)
+				if (m_moveListViolent[m_i] == m_hashMove)
 				{
 					continue;
 				}
 
-				return m_moveListViolent[m_i++];
+				ret = m_moveListViolent[m_i++];
+				Score seeScore = StaticExchangeEvaluation(m_board, ret);
+				SetScoreBiased(ret, seeScore);
+				stage = UNLIKELY;
+				return ret;
 			}
 		}
 		ExitStage_(m_stage);
@@ -328,15 +347,15 @@ void DebugMovePicker(Board &b, uint32_t depth, Killer &killer)
 
 	if (b.GetHash() & 0x1000ULL)
 	{
-		killer.Notify(4, ml[b.GetHash() % ml.GetSize()]);
+		killer.Notify(b.GetSideToMove() == WHITE ? 4 : 5, ml[b.GetHash() % ml.GetSize()]);
 	}
 
 	if (b.GetHash() & 0x10000ULL)
 	{
-		killer.Notify(2, ml[b.GetHash() % ml.GetSize()]);
+		killer.Notify(b.GetSideToMove() == WHITE ? 2 : 3, ml[b.GetHash() % ml.GetSize()]);
 	}
 
-	MovePicker mp(b, hashMove, killer, false, 4);
+	MovePicker mp(b, hashMove, killer, false, b.GetSideToMove() == WHITE ? 4 : 5);
 
 	Move mv;
 
@@ -353,7 +372,7 @@ void DebugMovePicker(Board &b, uint32_t depth, Killer &killer)
 		{
 			if (returnedMoves.GetSize() == 0)
 			{
-				if (hashMove && mv != hashMove)
+				if (hashMove && ClearScore(mv) != hashMove)
 				{
 					std::cout << "First move returned is not hash move!" << std::endl;
 					std::cout << "FEN: " << b.GetFen() << std::endl;
@@ -364,7 +383,7 @@ void DebugMovePicker(Board &b, uint32_t depth, Killer &killer)
 			}
 			else
 			{
-				if (mv == hashMove)
+				if (ClearScore(mv) == hashMove)
 				{
 					std::cout << "Hash move returned twice!" << std::endl;
 					abort();
@@ -405,7 +424,7 @@ void DebugMovePicker(Board &b, uint32_t depth, Killer &killer)
 		abort();
 	}
 
-	MovePicker mpq(b, 0, killer, true, 4);
+	MovePicker mpq(b, 0, killer, true, b.GetSideToMove() == WHITE ? 4 : 5);
 	returnedMoves.Clear();
 	mv = 0;
 

@@ -21,13 +21,38 @@ namespace Search
 typedef int32_t Depth;
 
 static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
-static const bool ENABLE_IID = true;
+static const bool ENABLE_IID = false;
 static const bool ENABLE_PVS = false;
 static const bool ENABLE_KILLERS = true;
+static const bool ENABLE_FUTILITY_PRUNING = false;
+
+static const bool ENABLE_LATE_MOVE_REDUCTION = false;
+
+// besides late move reduction, we can further reduce bad moves (moves that leave pieces hanging, but not losing captures)
+static const bool ENABLE_BAD_MOVE_REDUCTION = false;
 
 static const Depth NULL_MOVE_REDUCTION = 3;
 static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;
+static const Depth LMR_MIN_DEPTH = 3;
+static const int32_t LMR_NUM_MOVES_FULL_DEPTH = 3;
+static const Depth LATE_MOVE_REDUCTION = 1;
+static const Depth BAD_MOVE_REDUCTION = 1; // this is in addition to regular LMR
+
+// if we get above this size, just open wide
+// this prevents many researches when a mate score is first discovered
+// this must be less than max value for the type divided by WIDEN_MULTIPLIER, otherwise there is a potential for overflow
+static const Score ASPIRATION_WINDOW_HALF_SIZE_THRESHOLD = 500;
+
 static const Score ASPIRATION_WINDOW_WIDEN_MULTIPLIER = 4; // how much to widen the window every time we fail high/low
+
+// futility thresholds indexed by parent remaining depth
+// these values are from Crafty
+//static const Score FUTILITY_MARGINS[] = { 0, 100, 100, 200, 200, 300, 300, 400 };
+static const Score FUTILITY_MARGINS[] = { 0, 200, 500 };
+static const int32_t FUTILITY_MAX_DEPTH = 3; // this is actually 1 + max depth
+
+static const Score DRAW_SCORE = 0;
+static const size_t NUM_MOVES_TO_LOOK_FOR_DRAW = 8; // how many moves past to look for draws (we are only looking for 2-fold)
 
 struct ThinkingOutput
 {

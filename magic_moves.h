@@ -81,7 +81,7 @@
 //the default configuration is the best
 
 //Uncommont either one of the following or none
-#define MINIMIZE_MAGIC
+//#define MINIMIZE_MAGIC
 //#define PERFECT_MAGIC_HASH unsigned short
 
 //the following works only for perfect magic hash or no defenitions above

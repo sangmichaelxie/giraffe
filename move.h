@@ -107,6 +107,13 @@ inline uint32_t GetScore(Move mv)
 	return (mv >> MoveConstants::SCORE_SHIFT) & MoveConstants::SCORE_MASK;
 }
 
+inline Score GetScoreBiased(Move mv)
+{
+	int32_t tmp = GetScore(mv);
+	tmp -= 0x8000;
+	return static_cast<Score>(tmp);
+}
+
 inline void SetScore(Move &mv, uint32_t score)
 {
 #ifdef DEBUG
@@ -114,6 +121,14 @@ inline void SetScore(Move &mv, uint32_t score)
 	assert(GetScore(mv) == 0);
 #endif
 	mv |= static_cast<uint64_t>(score) << MoveConstants::SCORE_SHIFT;
+}
+
+// set the score, biased by 0x8000
+inline void SetScoreBiased(Move &mv, Score score)
+{
+	int32_t tmp = score;
+	tmp += 0x8000;
+	SetScore(mv, static_cast<uint32_t>(tmp));
 }
 
 inline bool IsCastling(Move mv)

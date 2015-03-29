@@ -166,15 +166,6 @@ Score Evaluate(const Board &b, Score lowerBound, Score upperBound)
 {
 	Score ret = 0;
 
-	ret += EvaluateMaterial(b);
-
-	return (b.GetSideToMove() == WHITE ? ret : (-ret)) + SIDE_TO_MOVE_BONUS;
-}
-
-Score EvaluateMaterial(const Board &b)
-{
-	Score ret = 0;
-
 	uint32_t WQCount = PopCount(b.GetPieceTypeBitboard(WQ));
 	uint32_t WRCount = PopCount(b.GetPieceTypeBitboard(WR));
 	uint32_t WBCount = PopCount(b.GetPieceTypeBitboard(WB));
@@ -240,7 +231,38 @@ Score EvaluateMaterial(const Board &b)
 	ret += EvaluateKings<WHITE>(b.GetPieceTypeBitboard(WK), phase);
 	ret -= EvaluateKings<BLACK>(b.GetPieceTypeBitboard(BK), phase);
 
-	return ret;
+	return (b.GetSideToMove() == WHITE ? ret : (-ret)) + SIDE_TO_MOVE_BONUS;
+}
+
+Score EvaluateMaterial(const Board &b)
+{
+	Score ret = 0;
+
+	uint32_t WQCount = PopCount(b.GetPieceTypeBitboard(WQ));
+	uint32_t WRCount = PopCount(b.GetPieceTypeBitboard(WR));
+	uint32_t WBCount = PopCount(b.GetPieceTypeBitboard(WB));
+	uint32_t WNCount = PopCount(b.GetPieceTypeBitboard(WN));
+	uint32_t WPCount = PopCount(b.GetPieceTypeBitboard(WP));
+
+	uint32_t BQCount = PopCount(b.GetPieceTypeBitboard(BQ));
+	uint32_t BRCount = PopCount(b.GetPieceTypeBitboard(BR));
+	uint32_t BBCount = PopCount(b.GetPieceTypeBitboard(BB));
+	uint32_t BNCount = PopCount(b.GetPieceTypeBitboard(BN));
+	uint32_t BPCount = PopCount(b.GetPieceTypeBitboard(BP));
+
+	ret += WQCount * Q_MAT;
+	ret += WRCount * R_MAT;
+	ret += WBCount * B_MAT;
+	ret += WNCount * N_MAT;
+	ret += WPCount * P_MAT;
+
+	ret -= BQCount * Q_MAT;
+	ret -= BRCount * R_MAT;
+	ret -= BBCount * B_MAT;
+	ret -= BNCount * N_MAT;
+	ret -= BPCount * P_MAT;
+
+	return (b.GetSideToMove() == WHITE ? ret : (-ret)) + SIDE_TO_MOVE_BONUS;
 }
 
 }

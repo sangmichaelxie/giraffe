@@ -64,6 +64,9 @@ private:
 
 	void StartSearch_(Search::SearchType searchType);
 
+	// returns whether the game is still ongoing
+	bool CheckDeclareGameResult_();
+
 	std::mutex m_mutex;
 
 	EngineMode m_mode;

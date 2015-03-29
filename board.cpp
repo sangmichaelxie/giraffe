@@ -219,7 +219,7 @@ Board::Board(const std::string &fen)
 
 	if (enPassantSq[0] != '-')
 	{
-		m_boardDescBB[EN_PASS_SQUARE] = BIT[StringToSquare(std::string(enPassantSq))];
+		m_boardDescBB[EN_PASS_SQUARE] = Bit(StringToSquare(std::string(enPassantSq)));
 	}
 
 	std::string strCastlingRights(castlingRights);
@@ -241,13 +241,13 @@ Board::Board(const std::string &fen)
 
 void Board::RemovePiece(Square sq)
 {
-	m_boardDescBB[m_boardDescU8[sq]] &= INVBIT[sq];
+	m_boardDescBB[m_boardDescU8[sq]] &= InvBit(sq);
 
 	m_boardDescU8[sq] = EMPTY;
 
 	// faster to reset both than check
-	m_boardDescBB[WHITE_OCCUPIED] &= INVBIT[sq];
-	m_boardDescBB[BLACK_OCCUPIED] &= INVBIT[sq];
+	m_boardDescBB[WHITE_OCCUPIED] &= InvBit(sq);
+	m_boardDescBB[BLACK_OCCUPIED] &= InvBit(sq);
 }
 
 void Board::PlacePiece(Square sq, PieceType pt)
@@ -258,15 +258,15 @@ void Board::PlacePiece(Square sq, PieceType pt)
 #endif
 
 	m_boardDescU8[sq] = pt;
-	m_boardDescBB[pt] |= BIT[sq];
+	m_boardDescBB[pt] |= Bit(sq);
 
 	if (GetColor(pt) == WHITE)
 	{
-		m_boardDescBB[WHITE_OCCUPIED] |= BIT[sq];
+		m_boardDescBB[WHITE_OCCUPIED] |= Bit(sq);
 	}
 	else
 	{
-		m_boardDescBB[BLACK_OCCUPIED] |= BIT[sq];
+		m_boardDescBB[BLACK_OCCUPIED] |= Bit(sq);
 	}
 }
 
@@ -322,34 +322,34 @@ void Board::CheckBoardConsistency()
 		{
 			for (uint32_t i = 0; i < NUM_PIECETYPES; ++i)
 			{
-				assert(!(m_boardDescBB[PIECE_TYPE_INDICES[i]] & BIT[sq]));
+				assert(!(m_boardDescBB[PIECE_TYPE_INDICES[i]] & Bit(sq)));
 			}
 
-			assert(!(m_boardDescBB[WHITE_OCCUPIED] & BIT[sq]));
-			assert(!(m_boardDescBB[BLACK_OCCUPIED] & BIT[sq]));
+			assert(!(m_boardDescBB[WHITE_OCCUPIED] & Bit(sq)));
+			assert(!(m_boardDescBB[BLACK_OCCUPIED] & Bit(sq)));
 		}
 		else
 		{
 			if (GetColor(pt) == WHITE)
 			{
-				assert(m_boardDescBB[WHITE_OCCUPIED] & BIT[sq]);
-				assert(!(m_boardDescBB[BLACK_OCCUPIED] & BIT[sq]));
+				assert(m_boardDescBB[WHITE_OCCUPIED] & Bit(sq));
+				assert(!(m_boardDescBB[BLACK_OCCUPIED] & Bit(sq)));
 			}
 			else
 			{
-				assert(m_boardDescBB[BLACK_OCCUPIED] & BIT[sq]);
-				assert(!(m_boardDescBB[WHITE_OCCUPIED] & BIT[sq]));
+				assert(m_boardDescBB[BLACK_OCCUPIED] & Bit(sq));
+				assert(!(m_boardDescBB[WHITE_OCCUPIED] & Bit(sq)));
 			}
 
 			for (uint32_t i = 0; i < NUM_PIECETYPES; ++i)
 			{
 				if (PIECE_TYPE_INDICES[i] != pt)
 				{
-					assert(!(m_boardDescBB[PIECE_TYPE_INDICES[i]] & BIT[sq]));
+					assert(!(m_boardDescBB[PIECE_TYPE_INDICES[i]] & Bit(sq)));
 				}
 			}
 
-			assert(m_boardDescBB[pt] & BIT[sq]);
+			assert(m_boardDescBB[pt] & Bit(sq));
 		}
 	}
 
@@ -481,18 +481,18 @@ std::string Board::PrintBoard() const
 bool Board::ApplyMove(Move mv)
 {
 #define MOVE_PIECE(pt, from, to) \
-	m_boardDescBB[pt] ^= BIT[from] | BIT[to]; \
+	m_boardDescBB[pt] ^= Bit(from) | Bit(to); \
 	m_boardDescU8[from] = EMPTY; \
 	m_boardDescU8[to] = pt;
 #define REMOVE_PIECE(pt, sq) \
-	m_boardDescBB[pt] &= INVBIT[sq]; \
+	m_boardDescBB[pt] &= InvBit(sq); \
 	m_boardDescU8[sq] = EMPTY;
 #define PLACE_PIECE(pt, sq) \
-	m_boardDescBB[pt] |= BIT[sq]; \
+	m_boardDescBB[pt] |= Bit(sq); \
 	m_boardDescU8[sq] = pt;
 #define REPLACE_PIECE(pt_old, pt_new, sq) \
-	m_boardDescBB[pt_old] &= INVBIT[sq]; \
-	m_boardDescBB[pt_new] |= BIT[sq]; \
+	m_boardDescBB[pt_old] &= InvBit(sq); \
+	m_boardDescBB[pt_new] |= Bit(sq); \
 	m_boardDescU8[sq] = pt_new;
 
 	UndoListBB &ulBB = m_undoStackBB.PrePush();
@@ -507,7 +507,7 @@ bool Board::ApplyMove(Move mv)
 	Color color = pt & COLOR_MASK;
 	PieceType promoType = GetPromoType(mv);
 
-	ulBB.PushBack(std::make_pair(HASH, m_boardDescBB[HASH]));
+	m_hashStack.Push(m_boardDescBB[HASH]);
 
 	if (m_boardDescBB[EN_PASS_SQUARE])
 	{
@@ -553,7 +553,7 @@ bool Board::ApplyMove(Move mv)
 			ulU8.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDescU8[W_LONG_CASTLE]));
 			m_boardDescU8[W_SHORT_CASTLE] = 0;
 			m_boardDescU8[W_LONG_CASTLE] = 0;
-			m_boardDescBB[WHITE_OCCUPIED] ^= BIT[E1] | BIT[G1] | BIT[H1] | BIT[F1];
+			m_boardDescBB[WHITE_OCCUPIED] ^= Bit(E1) | Bit(G1) | Bit(H1) | Bit(F1);
 		}
 		else if (GetCastlingType(mv) == MoveConstants::CASTLE_WHITE_LONG)
 		{
@@ -586,7 +586,7 @@ bool Board::ApplyMove(Move mv)
 			ulU8.PushBack(std::make_pair(W_LONG_CASTLE, m_boardDescU8[W_LONG_CASTLE]));
 			m_boardDescU8[W_SHORT_CASTLE] = 0;
 			m_boardDescU8[W_LONG_CASTLE] = 0;
-			m_boardDescBB[WHITE_OCCUPIED] ^= BIT[E1] | BIT[C1] | BIT[A1] | BIT[D1];
+			m_boardDescBB[WHITE_OCCUPIED] ^= Bit(E1) | Bit(C1) | Bit(A1) | Bit(D1);
 		}
 		else if (GetCastlingType(mv) == MoveConstants::CASTLE_BLACK_SHORT)
 		{
@@ -619,7 +619,7 @@ bool Board::ApplyMove(Move mv)
 			ulU8.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDescU8[B_LONG_CASTLE]));
 			m_boardDescU8[B_SHORT_CASTLE] = 0;
 			m_boardDescU8[B_LONG_CASTLE] = 0;
-			m_boardDescBB[BLACK_OCCUPIED] ^= BIT[E8] | BIT[G8] | BIT[H8] | BIT[F8];
+			m_boardDescBB[BLACK_OCCUPIED] ^= Bit(E8) | Bit(G8) | Bit(H8) | Bit(F8);
 		}
 		else // (GetCastlingType(mv) == MoveConstants::CASTLE_BLACK_LONG)
 		{
@@ -652,10 +652,10 @@ bool Board::ApplyMove(Move mv)
 			ulU8.PushBack(std::make_pair(B_LONG_CASTLE, m_boardDescU8[B_LONG_CASTLE]));
 			m_boardDescU8[B_SHORT_CASTLE] = 0;
 			m_boardDescU8[B_LONG_CASTLE] = 0;
-			m_boardDescBB[BLACK_OCCUPIED] ^= BIT[E8] | BIT[C8] | BIT[A8] | BIT[D8];
+			m_boardDescBB[BLACK_OCCUPIED] ^= Bit(E8) | Bit(C8) | Bit(A8) | Bit(D8);
 		}
 	}
-	else if ((pt == WP || pt == BP) && BIT[to] == currentEp) // en passant
+	else if ((pt == WP || pt == BP) && Bit(to) == currentEp) // en passant
 	{
 		if (pt == WP)
 		{
@@ -674,8 +674,8 @@ bool Board::ApplyMove(Move mv)
 
 			MOVE_PIECE(WP, from, to);
 			REMOVE_PIECE(BP, to - 8);
-			m_boardDescBB[WHITE_OCCUPIED] ^= (BIT[from] | BIT[to]);
-			m_boardDescBB[BLACK_OCCUPIED] ^= BIT[to - 8];
+			m_boardDescBB[WHITE_OCCUPIED] ^= (Bit(from) | Bit(to));
+			m_boardDescBB[BLACK_OCCUPIED] ^= Bit(to - 8);
 		}
 		else
 		{
@@ -694,8 +694,8 @@ bool Board::ApplyMove(Move mv)
 
 			MOVE_PIECE(BP, from, to);
 			REMOVE_PIECE(WP, to + 8);
-			m_boardDescBB[BLACK_OCCUPIED] ^= (BIT[from] | BIT[to]);
-			m_boardDescBB[WHITE_OCCUPIED] ^= BIT[to + 8];
+			m_boardDescBB[BLACK_OCCUPIED] ^= (Bit(from) | Bit(to));
+			m_boardDescBB[WHITE_OCCUPIED] ^= Bit(to + 8);
 		}
 	}
 	else
@@ -723,8 +723,8 @@ bool Board::ApplyMove(Move mv)
 			REMOVE_PIECE(pt, from);
 			REPLACE_PIECE(m_boardDescU8[to], pt, to);
 
-			m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)] ^= BIT[to];
-			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
+			m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)] ^= Bit(to);
+			m_boardDescBB[WHITE_OCCUPIED | color] ^= Bit(to) | Bit(from);
 		}
 		else if (!isPromotion && !isCapture)
 		{
@@ -738,7 +738,7 @@ bool Board::ApplyMove(Move mv)
 			m_boardDescBB[HASH] ^= PIECES_ZOBRIST[to][pt];
 
 			MOVE_PIECE(pt, from, to);
-			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
+			m_boardDescBB[WHITE_OCCUPIED | color] ^= Bit(to) | Bit(from);
 		}
 		else if (isPromotion && isCapture)
 		{
@@ -758,8 +758,8 @@ bool Board::ApplyMove(Move mv)
 			REMOVE_PIECE(pt, from);
 			REPLACE_PIECE(m_boardDescU8[to], promoType, to);
 
-			m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)] ^= BIT[to];
-			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
+			m_boardDescBB[WHITE_OCCUPIED | (color ^ COLOR_MASK)] ^= Bit(to);
+			m_boardDescBB[WHITE_OCCUPIED | color] ^= Bit(to) | Bit(from);
 		}
 		else // !isCapture && isPromotion
 		{
@@ -775,7 +775,7 @@ bool Board::ApplyMove(Move mv)
 
 			REMOVE_PIECE(pt, from);
 			PLACE_PIECE(promoType, to);
-			m_boardDescBB[WHITE_OCCUPIED | color] ^= BIT[to] | BIT[from];
+			m_boardDescBB[WHITE_OCCUPIED | color] ^= Bit(to) | Bit(from);
 		}
 
 		// check for pawn move (update ep)
@@ -890,6 +890,8 @@ bool Board::ApplyMove(Move mv)
 			m_boardDescU8[ulU8[i].first] = ulU8[i].second;
 		}
 
+		m_boardDescBB[HASH] = m_hashStack.Pop();
+
 		m_undoStackBB.Pop();
 		m_undoStackU8.Pop();
 
@@ -925,6 +927,8 @@ void Board::UndoMove()
 	{
 		m_boardDescU8[ulU8[i].first] = ulU8[i].second;
 	}
+
+	m_boardDescBB[HASH] = m_hashStack.Pop();
 
 	m_undoStackBB.Pop();
 	m_undoStackU8.Pop();
@@ -1091,6 +1095,8 @@ void Board::MakeNullMove()
 	undoListBB.Clear();
 	undoListU8.Clear();
 
+	m_hashStack.Push(m_boardDescBB[HASH]);
+
 	// this doesn't need to be stored in the undo stack
 	m_boardDescU8[SIDE_TO_MOVE] ^= COLOR_MASK;
 
@@ -1151,24 +1157,24 @@ bool Board::CheckPseudoLegal(Move mv)
 	else if (ptNoColor == WR)
 	{
 		// for rooks, we actually have to do move generation, because there may be an additional blocker
-		return Rmagic(from, totalOccupancy) & BIT[to];
+		return Rmagic(from, totalOccupancy) & Bit(to);
 	}
 	else if (ptNoColor == WB)
 	{
 		// for bishops, we actually have to do move generation, because there may be an additional blocker
-		return Bmagic(from, totalOccupancy) & BIT[to];
+		return Bmagic(from, totalOccupancy) & Bit(to);
 	}
 	else if (ptNoColor == WQ)
 	{
 		// for queens, we actually have to do move generation, because there may be an additional blocker
-		return Qmagic(from, totalOccupancy) & BIT[to];
+		return Qmagic(from, totalOccupancy) & Bit(to);
 	}
 	else if (ptNoColor == WP)
 	{
+		// if from and to are on different files, this must be a capture or en passant
 		if (GetX(from) != GetX(to))
 		{
-			// if from and to are on different files, this must be a capture or en passant
-			return toPt != EMPTY || to == BitScanForward(m_boardDescBB[EN_PASS_SQUARE]); // we have already checked for friendly
+			return (toPt != EMPTY) || (m_boardDescBB[EN_PASS_SQUARE] && to == BitScanForward(m_boardDescBB[EN_PASS_SQUARE])); // we have already checked for friendly
 		}
 		else if ((GetY(from) - GetY(to)) == 1 || (GetY(from) - GetY(to)) == -1)
 		{
@@ -1193,6 +1199,7 @@ bool Board::CheckPseudoLegal(Move mv)
 					m_boardDescU8[H1] == WR &&
 					m_boardDescU8[F1] == EMPTY &&
 					m_boardDescU8[G1] == EMPTY &&
+					!IsUnderAttack_(E1) &&
 					!IsUnderAttack_(F1);
 		}
 		else if (from == E1 && to == C1)
@@ -1202,6 +1209,7 @@ bool Board::CheckPseudoLegal(Move mv)
 					m_boardDescU8[B1] == EMPTY &&
 					m_boardDescU8[C1] == EMPTY &&
 					m_boardDescU8[D1] == EMPTY &&
+					!IsUnderAttack_(E1) &&
 					!IsUnderAttack_(D1);
 		}
 		else if (from == E8 && to == G8)
@@ -1210,6 +1218,7 @@ bool Board::CheckPseudoLegal(Move mv)
 					m_boardDescU8[H8] == BR &&
 					m_boardDescU8[F8] == EMPTY &&
 					m_boardDescU8[G8] == EMPTY &&
+					!IsUnderAttack_(E8) &&
 					!IsUnderAttack_(F8);
 		}
 		else if (from == E8 && to == C8)
@@ -1219,6 +1228,7 @@ bool Board::CheckPseudoLegal(Move mv)
 					m_boardDescU8[B8] == EMPTY &&
 					m_boardDescU8[C8] == EMPTY &&
 					m_boardDescU8[D8] == EMPTY &&
+					!IsUnderAttack_(E8) &&
 					!IsUnderAttack_(D8);
 		}
 		else
@@ -1232,9 +1242,117 @@ bool Board::CheckPseudoLegal(Move mv)
 bool Board::IsViolent(Move mv)
 {
 	bool isQPromo = GetPromoType(mv) == WQ || GetPromoType(mv) == BQ;
-	bool isCapture = m_boardDescU8[GetToSquare(mv)] != EMPTY || BIT[GetToSquare(mv)] == m_boardDescBB[EN_PASS_SQUARE];
+	bool isCapture = m_boardDescU8[GetToSquare(mv)] != EMPTY || Bit(GetToSquare(mv)) == m_boardDescBB[EN_PASS_SQUARE];
 
 	return isQPromo || isCapture;
+}
+
+bool Board::HasPawnOn7th()
+{
+	if (m_boardDescU8[SIDE_TO_MOVE] == WHITE)
+	{
+		return RANKS[RANK_7] & m_boardDescBB[WP];
+	}
+	else
+	{
+		return RANKS[RANK_2] & m_boardDescBB[BP];
+	}
+}
+
+PieceType Board::GetOpponentLargestPieceType()
+{
+	Color opponentColor = m_boardDescU8[SIDE_TO_MOVE] ^ COLOR_MASK;
+
+	if (m_boardDescBB[WQ | opponentColor])
+	{
+		return WQ;
+	}
+
+	if (m_boardDescBB[WR | opponentColor])
+	{
+		return WR;
+	}
+
+	if (m_boardDescBB[WB | opponentColor])
+	{
+		return WB;
+	}
+
+	if (m_boardDescBB[WN | opponentColor])
+	{
+		return WN;
+	}
+
+	// we return WP even if the opponent has no pawn, for simplicity
+	return WP;
+}
+
+bool Board::Is3Fold()
+{
+	// see whether this position has appeared twice already (at this point, the current hash shouldn't be in the stack)
+	// it doesn't matter what order - we are iterating through the whole list anyways
+	uint32_t count = 0;
+	for (size_t i = 0; i < m_hashStack.GetSize(); ++i)
+	{
+		if (m_hashStack[i] == m_boardDescBB[HASH])
+		{
+			++count;
+
+			if (count >= 2)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool Board::Is2Fold(size_t numMoves)
+{
+	if (numMoves > m_hashStack.GetSize())
+	{
+		numMoves = m_hashStack.GetSize();
+	}
+
+	for (size_t i = 0; i < numMoves; ++i)
+	{
+		if (m_hashStack[m_hashStack.GetSize() - 1 - i] == m_boardDescBB[HASH])
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+Board::GameStatus Board::GetGameStatus()
+{
+	MoveList legalMoves;
+	GenerateAllLegalMovesSlow<ALL>(legalMoves);
+
+	if (legalMoves.GetSize() == 0)
+	{
+		if (InCheck())
+		{
+			if (m_boardDescU8[SIDE_TO_MOVE] == WHITE)
+			{
+				return BLACK_WINS;
+			}
+			else
+			{
+				return WHITE_WINS;
+			}
+		}
+		else
+		{
+			return STALEMATE;
+		}
+	}
+	else
+	{
+		return ONGOING;
+	}
 }
 
 PieceType Board::ApplyMoveSee(PieceType pt, Square from, Square to)
@@ -1254,12 +1372,12 @@ PieceType Board::ApplyMoveSee(PieceType pt, Square from, Square to)
 	// we need to update the PT BB because otherwise GenerateSmallestCapture will see it again
 	ulBB[0].first = pt;
 	ulBB[0].second = m_boardDescBB[pt];
-	m_boardDescBB[pt] &= INVBIT[from];
+	m_boardDescBB[pt] &= InvBit(from);
 
 	// we need to update occupancy for discovered attacks
 	// borrow a space on the undo list for our own occupancy BB
 	ulBB[1].second = m_boardDescBB[pt];
-	m_seeTotalOccupancy &= INVBIT[from];
+	m_seeTotalOccupancy &= InvBit(from);
 
 	m_boardDescU8[SIDE_TO_MOVE] ^= COLOR_MASK;
 

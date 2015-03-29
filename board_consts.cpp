@@ -1,4 +1,5 @@
 #include "board_consts.h"
+#include "bit_ops.h"
 
 #include <iostream>
 #include <iomanip>
@@ -22,7 +23,7 @@ uint64_t SqOffset(int32_t sq, int32_t xOffset, int32_t yOffset)
 
 	if (Valid(x) && Valid(y))
 	{
-		return BIT[Sq(x, y)];
+		return Bit(Sq(x, y));
 	}
 
 	return 0ULL;
@@ -87,7 +88,7 @@ void DebugPrint(uint64_t bb)
 		std::cout << static_cast<char>('1' + y) << "| ";
 		for (int32_t x = 0; x < 8; ++x)
 		{
-			std::cout << ((bb & BIT[Sq(x, y)]) ? '1' : '0') << ' ';
+			std::cout << ((bb & Bit(Sq(x, y))) ? '1' : '0') << ' ';
 		}
 
 		std::cout << std::endl;
