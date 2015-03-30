@@ -22,14 +22,14 @@ typedef int32_t Depth;
 
 static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
 static const bool ENABLE_IID = false;
-static const bool ENABLE_PVS = false;
+static const bool ENABLE_PVS = true;
 static const bool ENABLE_KILLERS = true;
-static const bool ENABLE_FUTILITY_PRUNING = false;
+static const bool ENABLE_FUTILITY_PRUNING = true;
 
-static const bool ENABLE_LATE_MOVE_REDUCTION = false;
+static const bool ENABLE_LATE_MOVE_REDUCTION = true;
 
 // besides late move reduction, we can further reduce bad moves (moves that leave pieces hanging, but not losing captures)
-static const bool ENABLE_BAD_MOVE_REDUCTION = false;
+static const bool ENABLE_BAD_MOVE_REDUCTION = true;
 
 static const Depth NULL_MOVE_REDUCTION = 3;
 static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;

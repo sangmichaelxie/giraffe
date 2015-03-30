@@ -379,7 +379,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			int32_t reduce = 0;
 
 			if (ENABLE_LATE_MOVE_REDUCTION &&
-				depth >= LMR_MIN_DEPTH && /* TODO: should this be >=? (changed, was <) */
+				depth >= LMR_MIN_DEPTH &&
 				!inCheck &&
 				!extend &&
 				moveStage != MovePicker::LIKELY &&
@@ -393,8 +393,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 				{
 					reduce += BAD_MOVE_REDUCTION;
 				}
-
-				// TODO: add re-search if move turns out to be above alpha
 			}
 
 			Score score = 0;
@@ -415,6 +413,13 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			else
 			{
 				score = -Search_(context, board, -beta, -alpha, depth - 1 + extend - reduce, ply + 1);
+			}
+
+			// if we reduced and the move turned out to not fail low, we should re-search at original depth
+			// (and full window)
+			if (reduce && score > alpha)
+			{
+				score = -Search_(context, board, -beta, -alpha, depth - 1 + extend, ply + 1);
 			}
 
 			board.UndoMove();
