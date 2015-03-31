@@ -248,14 +248,11 @@ int main(int argc, char **argv)
 		{
 			std::cout << backend.DebugEval() << std::endl;
 		}
-		else if (cmd == "perfttest")
-		{
-			backend.DebugPerftTests();
-		}
 		else if (cmd == "runtests")
 		{
 			DebugRunSeeTests();
 			DebugRunMovePickerTests();
+			backend.DebugPerftTests();
 		}
 		else
 		{

@@ -1439,7 +1439,7 @@ bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
 		{
 			UpdateseeLastPT_(WN);
 		}
-		[[clang::fallthrough]];
+		// fallthrough
 	case WN:
 		attackers = KNIGHT_ATK[to] & m_boardDescBB[WN | stm];
 
@@ -1453,7 +1453,7 @@ bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
 		{
 			UpdateseeLastPT_(WB);
 		}
-		[[clang::fallthrough]];
+		// fall through
 	case WB:
 		attackers = Bmagic(to, m_seeTotalOccupancy) & m_boardDescBB[WB | stm];
 
@@ -1467,7 +1467,7 @@ bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
 		{
 			UpdateseeLastPT_(WR);
 		}
-		[[clang::fallthrough]];
+		// fall through
 	case WR:
 		attackers = Rmagic(to, m_seeTotalOccupancy) & m_boardDescBB[WR | stm];
 
@@ -1481,7 +1481,7 @@ bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
 		{
 			UpdateseeLastPT_(WQ);
 		}
-		[[clang::fallthrough]];
+		// fall through
 	case WQ:
 		attackers = Qmagic(to, m_seeTotalOccupancy) & m_boardDescBB[WQ | stm];
 
@@ -1495,7 +1495,7 @@ bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
 		{
 			UpdateseeLastPT_(WK);
 		}
-		[[clang::fallthrough]];
+		// fall through
 	case WK:
 		attackers = KING_ATK[to] & m_boardDescBB[WK | stm];
 

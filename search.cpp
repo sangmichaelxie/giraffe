@@ -252,17 +252,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		if (isPV && (!tEntry || tEntry->bestMove == 0) && depth > 4)
 		{
 			Move iidBestMove;
-			Score iidScore = Search_(context, iidBestMove, board, alpha, beta, depth - 2, ply);
-
-			TTEntryType entryType = EXACT;
-			if (iidScore >= beta)
-			{
-				entryType = LOWERBOUND;
-			}
-			else if (iidScore <= alpha)
-			{
-				entryType = UPPERBOUND;
-			}
+			Search_(context, iidBestMove, board, alpha, beta, depth - 2, ply);
 
 			tEntry = context.transpositionTable->Probe(board.GetHash());
 		}

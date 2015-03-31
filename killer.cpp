@@ -9,11 +9,11 @@ Killer::Killer()
 
 void Killer::Notify(int32_t ply, MoveNoScore move)
 {
-	if (m_killerMoves.size() < (ply + 1))
+	if (m_killerMoves.size() < (static_cast<size_t>(ply) + 1))
 	{
 		m_killerMoves.resize(ply + 1);
 
-		for (int32_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
+		for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 		{
 			m_killerMoves[ply].moves[i].first = 0;
 			m_killerMoves[ply].moves[i].second = 0;
@@ -21,7 +21,7 @@ void Killer::Notify(int32_t ply, MoveNoScore move)
 	}
 
 	// if the move is already in the table, just increment count
-	for (int i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
+	for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 	{
 		if (m_killerMoves[ply].moves[i].first == move)
 		{
@@ -34,7 +34,7 @@ void Killer::Notify(int32_t ply, MoveNoScore move)
 	int32_t lowestSlot = 0;
 	int32_t lowestCount = std::numeric_limits<int32_t>::max();
 
-	for (int32_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
+	for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 	{
 		if (m_killerMoves[ply].moves[i].second < lowestCount)
 		{
@@ -58,7 +58,7 @@ void Killer::GetKillers(KillerMoveList &moveList, int32_t ply)
 {
 	moveList.Clear();
 
-	if (m_killerMoves.size() < (ply + 1))
+	if (m_killerMoves.size() < (static_cast<size_t>(ply) + 1))
 	{
 		return;
 	}
@@ -72,16 +72,16 @@ void Killer::GetKillers(KillerMoveList &moveList, int32_t ply)
 	// moves from the ply-2
 	if (ply >= 2)
 	{
-		for (int32_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
+		for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 		{
 			moveList.PushBack(m_killerMoves[ply - 2].moves[i].first);
 		}
 	}
 
 	// moves from the ply+2
-	if ((ply + 2) < m_killerMoves.size())
+	if ((static_cast<size_t>(ply) + 2) < m_killerMoves.size())
 	{
-		for (int32_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
+		for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 		{
 			moveList.PushBack(m_killerMoves[ply + 2].moves[i].first);
 		}
@@ -94,11 +94,11 @@ void Killer::MoveMade()
 	// 1. decrement all plies
 	// 2. half all counts (so old killers will be replaced)
 
-	for (int32_t ply = 1; ply < m_killerMoves.size(); ++ply)
+	for (size_t ply = 1; ply < m_killerMoves.size(); ++ply)
 	{
 		m_killerMoves[ply - 1] = m_killerMoves[ply];
 
-		for (int32_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
+		for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 		{
 			m_killerMoves[ply - 1].moves[i].second /= 2;
 		}
