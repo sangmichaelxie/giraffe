@@ -54,7 +54,6 @@ public:
 	void DebugRunPerft(int32_t depth);
 	void DebugRunPerftWithNull(int32_t depth);
 	Score DebugEval();
-	void DebugPerftTests() { DebugRunPerftTests(); }
 
 private:
 	// these 2 functions take a lock_guard to remind the caller that m_mutex should be locked when calling

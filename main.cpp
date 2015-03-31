@@ -252,7 +252,8 @@ int main(int argc, char **argv)
 		{
 			DebugRunSeeTests();
 			DebugRunMovePickerTests();
-			backend.DebugPerftTests();
+			DebugRunPerftTests();
+			std::cout << "All passed!" << std::endl;
 		}
 		else
 		{
