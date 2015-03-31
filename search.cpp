@@ -264,8 +264,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 				entryType = UPPERBOUND;
 			}
 
-			context.transpositionTable->Store(board.GetHash(), iidBestMove, iidScore, depth - 2, entryType);
-
 			tEntry = context.transpositionTable->Probe(board.GetHash());
 		}
 	}
@@ -316,7 +314,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		{
 			board.MakeNullMove();
 
-			Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - NULL_MOVE_REDUCTION - 1, ply + 1, false);
+			Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - NULL_MOVE_REDUCTION, ply + 1, false);
 
 			board.UndoMove();
 
@@ -332,7 +330,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	//Score staticEval = Eval::Evaluate(board, alpha, beta);
 
 	bool legalMoveFound = false;
-	bool hasHashMove = true; // TODO: for now, we always have hash move since we are doing IID
 
 	bool inCheck = board.InCheck();
 
@@ -376,6 +373,17 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 				continue;
 			}
 
+			if (ENABLE_BAD_MOVE_PRUNING)
+			{
+				// if a move is in unlikely stage and is not a capture (just leaves a piece hanging),
+				// and we are in the last few plies, just throw them away
+				if (!inCheck && !isViolent && !extend && depth <= BAD_MOVE_PRUNING_MAX_DEPTH && moveStage == MovePicker::UNLIKELY)
+				{
+					board.UndoMove();
+					continue;
+				}
+			}
+
 			int32_t reduce = 0;
 
 			if (ENABLE_LATE_MOVE_REDUCTION &&
@@ -387,8 +395,18 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 				!isPV &&
 				!isViolent)
 			{
-				reduce += LATE_MOVE_REDUCTION;
+				// these are the Senpai rules
+				if (i < LMR_NUM_MOVES_REDUCE_1)
+				{
+					reduce += LATE_MOVE_REDUCTION;
+				}
+				else
+				{
+					reduce += depth / 3;
+				}
 
+				// these are moves that leave a piece hanging (not captures, since we don't reduce captures,
+				// even if they are losing captures)
 				if (ENABLE_BAD_MOVE_REDUCTION && moveStage == MovePicker::UNLIKELY)
 				{
 					reduce += BAD_MOVE_REDUCTION;
@@ -399,14 +417,16 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 			// only search the first move with full window, since everything else is expected to fail low
 			// if this is a null window search anyways, don't bother
-			if (ENABLE_PVS && i != 0 && ((beta - alpha) != 1) && hasHashMove && depth > 2)
+			if (ENABLE_PVS && i != 0 && ((beta - alpha) != 1) && depth > 1)
 			{
 				score = -Search_(context, board, -alpha - 1, -alpha, depth - 1 + extend - reduce, ply + 1);
 
-				if (score > alpha && score < beta)
+				if (score > alpha && score < beta && !reduce)
 				{
 					// if the move didn't actually fail low, this is now the PV, and we have to search with
 					// full window
+					// if we are reducing, then don't bother re-searching here, because we will be re-searching
+					// below anyways
 					score = -Search_(context, board, -beta, -alpha, depth - 1 + extend - reduce, ply + 1);
 				}
 			}

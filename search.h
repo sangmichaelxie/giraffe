@@ -21,10 +21,11 @@ namespace Search
 typedef int32_t Depth;
 
 static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
-static const bool ENABLE_IID = false;
+static const bool ENABLE_IID = true;
 static const bool ENABLE_PVS = true;
 static const bool ENABLE_KILLERS = true;
 static const bool ENABLE_FUTILITY_PRUNING = true;
+static const bool ENABLE_BAD_MOVE_PRUNING = true;
 
 static const bool ENABLE_LATE_MOVE_REDUCTION = true;
 
@@ -34,9 +35,14 @@ static const bool ENABLE_BAD_MOVE_REDUCTION = true;
 static const Depth NULL_MOVE_REDUCTION = 3;
 static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;
 static const Depth LMR_MIN_DEPTH = 3;
-static const int32_t LMR_NUM_MOVES_FULL_DEPTH = 3;
+
+static const int32_t LMR_NUM_MOVES_FULL_DEPTH = 2;
 static const Depth LATE_MOVE_REDUCTION = 1;
+
+static const int32_t LMR_NUM_MOVES_REDUCE_1 = 6; // additional reduction after this many moves
+
 static const Depth BAD_MOVE_REDUCTION = 1; // this is in addition to regular LMR
+static const Depth BAD_MOVE_PRUNING_MAX_DEPTH = 3;
 
 // if we get above this size, just open wide
 // this prevents many researches when a mate score is first discovered
