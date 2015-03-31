@@ -54,6 +54,11 @@ public:
 		}
 	}
 
+	void Prefetch(uint64_t hash)
+	{
+		__builtin_prefetch(&m_data[hash % m_size]);
+	}
+
 	void Store(uint64_t hash, MoveNoScore bestMove, Score score, int16_t depth, TTEntryType entryType);
 
 	void AgeTable() { ++m_currentGeneration; }
