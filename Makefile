@@ -1,4 +1,4 @@
-CXXFLAGS_COMMON=-Wall -g -std=gnu++11 -march=native -I. -pthread
+CXXFLAGS_COMMON=-Wall -g -std=gnu++11 -march=amdfam10 -mtune=native -I. -pthread
 CXXFLAGS_RELEASE=$(CXXFLAGS_COMMON) -O3 -flto
 #CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -Wno-inline -O3 -fno-inline -fno-inline-small-functions -fno-inline-functions
 CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -O3 
