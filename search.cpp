@@ -111,7 +111,7 @@ void AsyncSearch::RootSearch_()
 		bool highBoundOpen = false;
 		bool lowBoundOpen = false;
 
-		while (!m_context.stopRequest)
+		while (!m_context.Stopping())
 		{
 			latestResult.score = Search_(
 				m_context,
@@ -149,7 +149,7 @@ void AsyncSearch::RootSearch_()
 			}
 		}
 
-		if (!m_context.stopRequest || !m_context.onePlyDone)
+		if (!m_context.Stopping())
 		{
 			m_rootResult = latestResult;
 
@@ -242,6 +242,8 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	bool isPV = (beta - alpha) != 1;
 
+	bool isRoot = ply == 0;
+
 	TTEntry *tEntry = context.transpositionTable->Probe(board.GetHash());
 
 	// if we are at a PV node and don't have a best move (either because we don't have an entry,
@@ -300,24 +302,44 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	// try null move
 	if (ENABLE_NULL_MOVE_HEURISTICS)
 	{
-		if (depth > 1 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed && !avoidNullTT)
+		Depth reduction = NULL_MOVE_REDUCTION;
+
+		if (ENABLE_ADAPTIVE_NULL_MOVE && depth >= ADAPTIVE_NULL_MOVE_THRESHOLD)
+		{
+			reduction += 1;
+		}
+
+		if (depth > 1 && !board.InCheck() && (!board.IsZugzwangProbable() || NM_REDUCE_INSTEAD_OF_PRUNE) && nullMoveAllowed && !avoidNullTT)
 		{
 			board.MakeNullMove();
 
-			Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - NULL_MOVE_REDUCTION, ply + 1, false);
+			Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - reduction, ply + 1, false);
 
 			board.UndoMove();
 
 			if (nmScore >= beta)
 			{
-				return beta;
+				if (NM_REDUCE_INSTEAD_OF_PRUNE)
+				{
+					depth -= NMR_DR;
+
+					if (depth <= 0)
+					{
+						return QSearch_(context, board, alpha, beta, ply);
+					}
+				}
+				else
+				{
+					context.transpositionTable->Store(board.GetHash(), 0, nmScore, originalDepth, LOWERBOUND);
+					return beta;
+				}
 			}
 		}
 	}
 
 	bestMove = 0;
 
-	//Score staticEval = Eval::Evaluate(board, alpha, beta);
+	Score staticEval = Eval::Evaluate(board, alpha, beta);
 
 	bool legalMoveFound = false;
 
@@ -333,15 +355,19 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	Move mv = 0;
 
-	size_t i = 0;
+	int numMovesSearched = -1;
 
 	while ((mv = movePicker.GetNextMove(moveStage)))
 	{
-		bool isViolent = board.IsViolent(mv);
+		Score seeScore = GetScoreBiased(mv);
 
 		if (board.ApplyMove(mv))
 		{
+			bool isViolent = board.IsViolent(mv);
+
 			legalMoveFound = true;
+
+			++numMovesSearched;
 
 			int32_t extend = 0;
 			// check extension
@@ -355,8 +381,8 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			// see if we can do futility pruning
 			// futility pruning is when we are near the leaf, and are so far below alpha, that we only want to search
 			// moves that can potentially improve alpha
-			bool fut =  futilityAllowed && !isViolent && i > 0 && !extend &&
-						((-Eval::EvaluateMaterial(board) + FUTILITY_MARGINS[depth]) < alpha);
+			bool fut = !isRoot && futilityAllowed && !isViolent && !extend &&
+						((staticEval + seeScore + FUTILITY_MARGINS[depth]) <= alpha);
 			if (fut)
 			{
 				board.UndoMove();
@@ -367,7 +393,8 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			{
 				// if a move is in unlikely stage and is not a capture (just leaves a piece hanging),
 				// and we are in the last few plies, just throw them away
-				if (!inCheck && !isViolent && !extend && depth <= BAD_MOVE_PRUNING_MAX_DEPTH && moveStage == MovePicker::UNLIKELY)
+				// TODO: find a way to make sure we don't return a1a1 as best move
+				if (!isRoot && !inCheck && !isViolent && !extend && depth <= BAD_MOVE_PRUNING_MAX_DEPTH && moveStage == MovePicker::UNLIKELY)
 				{
 					board.UndoMove();
 					continue;
@@ -381,12 +408,12 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 				!inCheck &&
 				!extend &&
 				moveStage != MovePicker::LIKELY &&
-				i > LMR_NUM_MOVES_FULL_DEPTH &&
+				numMovesSearched >= LMR_NUM_MOVES_FULL_DEPTH &&
 				!isPV &&
 				!isViolent)
 			{
 				// these are the Senpai rules
-				if (i < LMR_NUM_MOVES_REDUCE_1)
+				if (numMovesSearched < LMR_NUM_MOVES_REDUCE_1)
 				{
 					reduce += LATE_MOVE_REDUCTION;
 				}
@@ -407,7 +434,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 			// only search the first move with full window, since everything else is expected to fail low
 			// if this is a null window search anyways, don't bother
-			if (ENABLE_PVS && i != 0 && ((beta - alpha) != 1) && depth > 1)
+			if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && depth > 1)
 			{
 				score = -Search_(context, board, -alpha - 1, -alpha, depth - 1 + extend - reduce, ply + 1);
 
@@ -456,11 +483,10 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 				{
 					context.killer->Notify(ply, ClearScore(mv));
 				}
+
 				return score;
 			}
 		}
-
-		++i;
 	}
 
 	// we don't have to check whether we are doing futility pruning here, because we still make those moves
@@ -520,13 +546,7 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 		return 0;
 	}
 
-	// if we are in check, search all nodes using regular Search_
-	//if (board.InCheck())
-	//{
-	//	return Search_(context, board, alpha, beta, 1, ply, true);
-	//}
-
-	// if we are not in check, we first see if we can stand-pat
+	// we first see if we can stand-pat
 	Score staticEval = Eval::Evaluate(board, alpha, beta);
 
 	if (staticEval >= beta)
@@ -570,42 +590,34 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 		Score seeScoreCalculated = StaticExchangeEvaluation(board, mv);
 #endif
 
-		if (board.ApplyMove(mv))
-		{
-			// extract the SEE score
-			Score seeScore = GetScoreBiased(mv);
+		// extract the SEE score
+		Score seeScore = GetScoreBiased(mv);
 #ifdef DEBUG
 
-			assert(seeScore == seeScoreCalculated);
+		assert(seeScore == seeScoreCalculated);
 #endif
-			// only search the capture if it can potentially improve alpha
-			PieceType promoType = GetPromoType(mv);
-			Score promoVal = (promoType != 0) ? Eval::MAT[promoType & ~COLOR_MASK] : 0;
-			if ((staticEval + seeScore + promoVal + Eval::MAX_POSITIONAL_SCORE) <= alpha)
-			{
-				board.UndoMove();
-				continue;
-			}
 
-			// even if this move can potentially improve alpha, if it's a losing capture
-			// we still don't search it, because it's highly likely that another capture or
-			// standing pat will be better
-			if (seeScore < 0)
-			{
-				board.UndoMove();
-				continue;
-			}
+		// only search the capture if it can potentially improve alpha
+		PieceType promoType = GetPromoType(mv);
+		Score promoVal = (promoType != 0) ? Eval::MAT[promoType & ~COLOR_MASK] : 0;
+		if ((staticEval + seeScore + promoVal + Eval::MAX_POSITIONAL_SCORE) <= alpha)
+		{
+			continue;
+		}
 
+		// even if this move can potentially improve alpha, if it's a losing capture
+		// we still don't search it, because it's highly likely that another capture or
+		// standing pat will be better
+		if (seeScore < 0)
+		{
+			continue;
+		}
+
+		if (board.ApplyMove(mv))
+		{
 			Score score = 0;
 
-			if (board.InCheck())
-			{
-				score = -Search_(context, board, -beta, -alpha, 1, ply + 1);
-			}
-			else
-			{
-				score = -QSearch_(context, board, -beta, -alpha, ply + 1);
-			}
+			score = -QSearch_(context, board, -beta, -alpha, ply + 1);
 
 			board.UndoMove();
 

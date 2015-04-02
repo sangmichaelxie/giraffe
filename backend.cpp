@@ -267,6 +267,7 @@ void Backend::StartSearch_(Search::SearchType searchType)
 	}
 
 	m_searchContext->timeAlloc = tAlloc;
+	m_searchContext->onePlyDone = false;
 	m_searchContext->stopRequest = false;
 	m_searchContext->startBoard = m_currentBoard;
 	m_searchContext->nodeCount = 0;

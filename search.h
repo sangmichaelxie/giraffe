@@ -21,18 +21,27 @@ namespace Search
 typedef int32_t Depth;
 
 static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
+static const bool ENABLE_ADAPTIVE_NULL_MOVE = false;
+
+static const bool NM_REDUCE_INSTEAD_OF_PRUNE = false;
+
 static const bool ENABLE_IID = true;
 static const bool ENABLE_PVS = true;
 static const bool ENABLE_KILLERS = true;
 static const bool ENABLE_FUTILITY_PRUNING = true;
-static const bool ENABLE_BAD_MOVE_PRUNING = true;
+static const bool ENABLE_BAD_MOVE_PRUNING = false;
 
-static const bool ENABLE_LATE_MOVE_REDUCTION = true;
+static const bool ENABLE_LATE_MOVE_REDUCTION = false;
 
 // besides late move reduction, we can further reduce bad moves (moves that leave pieces hanging, but not losing captures)
-static const bool ENABLE_BAD_MOVE_REDUCTION = true;
+static const bool ENABLE_BAD_MOVE_REDUCTION = false;
 
 static const Depth NULL_MOVE_REDUCTION = 3;
+static const int32_t ADAPTIVE_NULL_MOVE_THRESHOLD = 6;
+
+// how many plies to reduce if a null move fails high (this is only used if NM_REDUCE_INSTEAD_OF_PRUNE is set)
+static const Depth NMR_DR = 4;
+
 static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;
 static const Depth LMR_MIN_DEPTH = 3;
 
