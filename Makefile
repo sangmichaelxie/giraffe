@@ -1,4 +1,4 @@
-CXXFLAGS_COMMON=-Wall -g -std=gnu++11 -march=sandybridge -mtune=native -I. -pthread
+CXXFLAGS_COMMON=-Wall -g -std=gnu++11 -mtune=native -I. -pthread
 CXXFLAGS_RELEASE=$(CXXFLAGS_COMMON) -O3 -flto
 #CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -Wno-inline -O3 -fno-inline -fno-inline-small-functions -fno-inline-functions
 CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -O3 
@@ -8,7 +8,7 @@ CXXFLAGS_DEBUG=$(CXXFLAGS_COMMON)  -DDEBUG
 LIBS_CLUSTER=-Wl,--whole-archive -lpthread -Wl,--no-whole-archive
 
 all:
-	$(CXX) $(CXXFLAGS_RELEASE) giraffe.cpp -o giraffe
+	$(CXX) $(CXXFLAGS_RELEASE) -march=native giraffe.cpp -o giraffe
 
 debug:
 	$(CXX) $(CXXFLAGS_DEBUG) giraffe.cpp -o giraffe
@@ -17,4 +17,4 @@ profile:
 	$(CXX) $(CXXFLAGS_PROFILE) giraffe.cpp -o giraffe
 
 cluster:
-	$(CXX) -static $(CXXFLAGS_RELEASE) giraffe.cpp -o giraffe $(LIBS_CLUSTER)
+	$(CXX) -static -march=sandybridge $(CXXFLAGS_RELEASE) giraffe.cpp -o giraffe $(LIBS_CLUSTER)
