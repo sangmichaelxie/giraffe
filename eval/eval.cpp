@@ -43,7 +43,7 @@ Score EvaluatePawns(uint64_t bb, Phase phase, uint64_t &pawnAttacksOut)
 }
 
 template <Color COLOR>
-Score EvaluateKnights(uint64_t bb, Phase phase, uint64_t attackedByEnemyPawns)
+Score EvaluateKnights(uint64_t bb, Phase phase, uint64_t safeDestinations)
 {
 	Score ret = 0;
 
@@ -51,24 +51,24 @@ Score EvaluateKnights(uint64_t bb, Phase phase, uint64_t attackedByEnemyPawns)
 	{
 		uint32_t idx = Extract(bb);
 
-		uint32_t mobility = PopCount(KNIGHT_ATK[idx] & ~attackedByEnemyPawns);
+		uint32_t mobility = PopCount(KNIGHT_ATK[idx] & safeDestinations);
 
-		ret += ScalePhase(KNIGHT_MOBILITY[mobility] * KNIGHT_MOBILITY_MULTIPLIERS[0],
-						  KNIGHT_MOBILITY[mobility] * KNIGHT_MOBILITY_MULTIPLIERS[1], phase);
+		ret += ScalePhase(KNIGHT_MOBILITY[0][mobility] * MOBILITY_MULTIPLIERS[0],
+						  KNIGHT_MOBILITY[1][mobility] * MOBILITY_MULTIPLIERS[1], phase);
 
 		if (COLOR == BLACK)
 		{
 			idx = FLIP[idx];
 		}
 
-		ret += ScalePhase(KNIGHT_PCSQ[idx] * KNIGHT_PCSQ_MULTIPLIERS[0], KNIGHT_PCSQ[idx] * KNIGHT_PCSQ_MULTIPLIERS[1], phase);
+		ret += ScalePhase(KNIGHT_PCSQ[0][idx], KNIGHT_PCSQ[1][idx], phase);
 	}
 
 	return ret;
 }
 
 template <Color COLOR>
-Score EvaluateBishops(uint64_t bb, Phase phase, uint64_t attackedByEnemyPawns, uint64_t occupancy)
+Score EvaluateBishops(uint64_t bb, Phase phase, uint64_t safeDestinations, uint64_t occupancy)
 {
 	Score ret = 0;
 
@@ -81,24 +81,24 @@ Score EvaluateBishops(uint64_t bb, Phase phase, uint64_t attackedByEnemyPawns, u
 	{
 		uint32_t idx = Extract(bb);
 
-		uint32_t mobility = PopCount(Bmagic(idx, occupancy) & ~attackedByEnemyPawns);
+		uint32_t mobility = PopCount(Bmagic(idx, occupancy) & safeDestinations);
 
-		ret += ScalePhase(BISHOP_MOBILITY[mobility] * BISHOP_MOBILITY_MULTIPLIERS[0],
-						  BISHOP_MOBILITY[mobility] * BISHOP_MOBILITY_MULTIPLIERS[1], phase);
+		ret += ScalePhase(BISHOP_MOBILITY[0][mobility] * MOBILITY_MULTIPLIERS[0],
+						  BISHOP_MOBILITY[1][mobility] * MOBILITY_MULTIPLIERS[1], phase);
 
 		if (COLOR == BLACK)
 		{
 			idx = FLIP[idx];
 		}
 
-		ret += ScalePhase(BISHOP_PCSQ[idx] * BISHOP_PCSQ_MULTIPLIERS[0], BISHOP_PCSQ[idx] * BISHOP_PCSQ_MULTIPLIERS[1], phase);
+		ret += ScalePhase(BISHOP_PCSQ[0][idx], BISHOP_PCSQ[1][idx], phase);
 	}
 
 	return ret;
 }
 
 template <Color COLOR>
-Score EvaluateRooks(uint64_t bb, Phase phase, uint64_t attackedByEnemyPawns, uint64_t occupancy)
+Score EvaluateRooks(uint64_t bb, Phase phase, uint64_t safeDestinations, uint64_t occupancy)
 {
 	Score ret = 0;
 
@@ -106,10 +106,10 @@ Score EvaluateRooks(uint64_t bb, Phase phase, uint64_t attackedByEnemyPawns, uin
 	{
 		uint32_t idx = Extract(bb);
 
-		uint32_t mobility = PopCount(Rmagic(idx, occupancy) & ~attackedByEnemyPawns);
+		uint32_t mobility = PopCount(Rmagic(idx, occupancy) & safeDestinations);
 
-		ret += ScalePhase(ROOK_MOBILITY[mobility] * ROOK_MOBILITY_MULTIPLIERS[0],
-						  ROOK_MOBILITY[mobility] * ROOK_MOBILITY_MULTIPLIERS[1], phase);
+		ret += ScalePhase(ROOK_MOBILITY[0][mobility] * MOBILITY_MULTIPLIERS[0],
+						  ROOK_MOBILITY[1][mobility] * MOBILITY_MULTIPLIERS[1], phase);
 
 		if (COLOR == BLACK)
 		{
@@ -123,7 +123,7 @@ Score EvaluateRooks(uint64_t bb, Phase phase, uint64_t attackedByEnemyPawns, uin
 }
 
 template <Color COLOR>
-Score EvaluateQueens(uint64_t bb, Phase phase)
+Score EvaluateQueens(uint64_t bb, Phase phase, uint64_t safeDestinations, uint64_t occupancy)
 {
 	Score ret = 0;
 
@@ -131,12 +131,17 @@ Score EvaluateQueens(uint64_t bb, Phase phase)
 	{
 		uint32_t idx = Extract(bb);
 
+		uint32_t mobility = PopCount(Qmagic(idx, occupancy) & safeDestinations);
+
+		ret += ScalePhase(QUEEN_MOBILITY[0][mobility] * MOBILITY_MULTIPLIERS[0],
+						  QUEEN_MOBILITY[1][mobility] * MOBILITY_MULTIPLIERS[1], phase);
+
 		if (COLOR == BLACK)
 		{
 			idx = FLIP[idx];
 		}
 
-		ret += ScalePhase(QUEEN_PCSQ[idx] * QUEEN_PCSQ_MULTIPLIERS[0], QUEEN_PCSQ[idx] * QUEEN_PCSQ_MULTIPLIERS[1], phase);
+		ret += ScalePhase(QUEEN_PCSQ[0][idx], QUEEN_PCSQ[1][idx], phase);
 	}
 
 	return ret;
@@ -216,17 +221,22 @@ Score Evaluate(const Board &b, Score lowerBound, Score upperBound)
 	ret += EvaluatePawns<WHITE>(b.GetPieceTypeBitboard(WP), phase, attackedByWhitePawns);
 	ret -= EvaluatePawns<BLACK>(b.GetPieceTypeBitboard(BP), phase, attackedByBlackPawns);
 
-	ret += EvaluateKnights<WHITE>(b.GetPieceTypeBitboard(WN), phase, attackedByBlackPawns);
-	ret -= EvaluateKnights<BLACK>(b.GetPieceTypeBitboard(BN), phase, attackedByWhitePawns);
+	// safe destinations are empty squares or squares with enemy pieces
+	// these squares must not be defended by enemy pawns
+	uint64_t whiteSafeDestinations = ~b.GetOccupiedBitboard<WHITE>() & ~attackedByBlackPawns;
+	uint64_t blackSafeDestinations = ~b.GetOccupiedBitboard<BLACK>() & ~attackedByWhitePawns;
 
-	ret += EvaluateBishops<WHITE>(b.GetPieceTypeBitboard(WB), phase, attackedByBlackPawns, occupancy);
-	ret -= EvaluateBishops<BLACK>(b.GetPieceTypeBitboard(BB), phase, attackedByWhitePawns, occupancy);
+	ret += EvaluateKnights<WHITE>(b.GetPieceTypeBitboard(WN), phase, whiteSafeDestinations);
+	ret -= EvaluateKnights<BLACK>(b.GetPieceTypeBitboard(BN), phase, blackSafeDestinations);
 
-	ret += EvaluateRooks<WHITE>(b.GetPieceTypeBitboard(WR), phase, attackedByBlackPawns, occupancy);
-	ret -= EvaluateRooks<BLACK>(b.GetPieceTypeBitboard(BR), phase, attackedByWhitePawns, occupancy);
+	ret += EvaluateBishops<WHITE>(b.GetPieceTypeBitboard(WB), phase, whiteSafeDestinations, occupancy);
+	ret -= EvaluateBishops<BLACK>(b.GetPieceTypeBitboard(BB), phase, blackSafeDestinations, occupancy);
 
-	ret += EvaluateQueens<WHITE>(b.GetPieceTypeBitboard(WQ), phase);
-	ret -= EvaluateQueens<BLACK>(b.GetPieceTypeBitboard(BQ), phase);
+	ret += EvaluateRooks<WHITE>(b.GetPieceTypeBitboard(WR), phase, whiteSafeDestinations, occupancy);
+	ret -= EvaluateRooks<BLACK>(b.GetPieceTypeBitboard(BR), phase, blackSafeDestinations, occupancy);
+
+	ret += EvaluateQueens<WHITE>(b.GetPieceTypeBitboard(WQ), phase, whiteSafeDestinations, occupancy);
+	ret -= EvaluateQueens<BLACK>(b.GetPieceTypeBitboard(BQ), phase, blackSafeDestinations, occupancy);
 
 	ret += EvaluateKings<WHITE>(b.GetPieceTypeBitboard(WK), phase);
 	ret -= EvaluateKings<BLACK>(b.GetPieceTypeBitboard(BK), phase);
