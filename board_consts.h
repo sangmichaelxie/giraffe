@@ -5,13 +5,6 @@
 
 #include "types.h"
 
-inline int32_t GetX(Square sq) { return sq % 8; }
-inline int32_t GetY(Square sq) { return sq / 8; }
-inline int32_t GetRank(Square sq) { return GetY(sq); }
-inline int32_t GetFile(Square sq) { return GetX(sq); }
-inline Square Sq(int32_t x, int32_t y) { return y * 8 + x; }
-inline bool Valid(int32_t x) { return x < 8 && x >= 0; }
-
 // these are initialized on startup
 extern uint64_t KING_ATK[64];
 extern uint64_t KNIGHT_ATK[64];
