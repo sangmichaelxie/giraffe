@@ -24,7 +24,7 @@ Score StaticExchangeEvaluation(Board &board, Move mv)
 
 	if (capturedPT != EMPTY)
 	{
-		ret = Eval::MAT[capturedPT] - StaticExchangeEvaluationImpl(board, to);
+		ret = Eval::MAT[0][capturedPT] - StaticExchangeEvaluationImpl(board, to);
 	}
 	else
 	{
@@ -48,7 +48,7 @@ Score StaticExchangeEvaluationImpl(Board &board, Square sq)
 	if (hasMoreCapture)
 	{
 		PieceType capturedPT = board.ApplyMoveSee(pt, from, sq);
-		ret = std::max(0, Eval::MAT[capturedPT] - StaticExchangeEvaluationImpl(board, sq));
+		ret = std::max(0, Eval::MAT[0][capturedPT] - StaticExchangeEvaluationImpl(board, sq));
 		board.UndoMoveSee();
 	}
 

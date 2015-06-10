@@ -183,18 +183,6 @@ Score Evaluate(const Board &b, Score lowerBound, Score upperBound)
 	uint32_t BNCount = PopCount(b.GetPieceTypeBitboard(BN));
 	uint32_t BPCount = PopCount(b.GetPieceTypeBitboard(BP));
 
-	ret += WQCount * Q_MAT;
-	ret += WRCount * R_MAT;
-	ret += WBCount * B_MAT;
-	ret += WNCount * N_MAT;
-	ret += WPCount * P_MAT;
-
-	ret -= BQCount * Q_MAT;
-	ret -= BRCount * R_MAT;
-	ret -= BBCount * B_MAT;
-	ret -= BNCount * N_MAT;
-	ret -= BPCount * P_MAT;
-
 	Phase phase =
 		WQCount * Q_PHASE_CONTRIBUTION +
 		BQCount * Q_PHASE_CONTRIBUTION +
@@ -212,6 +200,18 @@ Score Evaluate(const Board &b, Score lowerBound, Score upperBound)
 		// this can happen on custom positions and in case of promotions
 		phase = MAX_PHASE;
 	}
+
+	ret += WQCount * ScalePhase(MAT[0][WQ], MAT[1][WQ], phase);
+	ret += WRCount * ScalePhase(MAT[0][WR], MAT[1][WR], phase);
+	ret += WBCount * ScalePhase(MAT[0][WB], MAT[1][WB], phase);
+	ret += WNCount * ScalePhase(MAT[0][WN], MAT[1][WN], phase);
+	ret += WPCount * ScalePhase(MAT[0][WP], MAT[1][WP], phase);
+
+	ret -= BQCount * ScalePhase(MAT[0][WQ], MAT[1][WQ], phase);
+	ret -= BRCount * ScalePhase(MAT[0][WR], MAT[1][WR], phase);
+	ret -= BBCount * ScalePhase(MAT[0][WB], MAT[1][WB], phase);
+	ret -= BNCount * ScalePhase(MAT[0][WN], MAT[1][WN], phase);
+	ret -= BPCount * ScalePhase(MAT[0][WP], MAT[1][WP], phase);
 
 	uint64_t occupancy = b.GetOccupiedBitboard<WHITE>() | b.GetOccupiedBitboard<BLACK>();
 
@@ -260,17 +260,35 @@ Score EvaluateMaterial(const Board &b)
 	uint32_t BNCount = PopCount(b.GetPieceTypeBitboard(BN));
 	uint32_t BPCount = PopCount(b.GetPieceTypeBitboard(BP));
 
-	ret += WQCount * Q_MAT;
-	ret += WRCount * R_MAT;
-	ret += WBCount * B_MAT;
-	ret += WNCount * N_MAT;
-	ret += WPCount * P_MAT;
+	Phase phase =
+		WQCount * Q_PHASE_CONTRIBUTION +
+		BQCount * Q_PHASE_CONTRIBUTION +
+		WRCount * R_PHASE_CONTRIBUTION +
+		BRCount * R_PHASE_CONTRIBUTION +
+		WBCount * B_PHASE_CONTRIBUTION +
+		BBCount * B_PHASE_CONTRIBUTION +
+		WNCount * N_PHASE_CONTRIBUTION +
+		BNCount * N_PHASE_CONTRIBUTION +
+		WPCount * P_PHASE_CONTRIBUTION +
+		BPCount * P_PHASE_CONTRIBUTION;
 
-	ret -= BQCount * Q_MAT;
-	ret -= BRCount * R_MAT;
-	ret -= BBCount * B_MAT;
-	ret -= BNCount * N_MAT;
-	ret -= BPCount * P_MAT;
+	if (phase > MAX_PHASE)
+	{
+		// this can happen on custom positions and in case of promotions
+		phase = MAX_PHASE;
+	}
+
+	ret += WQCount * ScalePhase(MAT[0][WQ], MAT[1][WQ], phase);
+	ret += WRCount * ScalePhase(MAT[0][WR], MAT[1][WR], phase);
+	ret += WBCount * ScalePhase(MAT[0][WB], MAT[1][WB], phase);
+	ret += WNCount * ScalePhase(MAT[0][WN], MAT[1][WN], phase);
+	ret += WPCount * ScalePhase(MAT[0][WP], MAT[1][WP], phase);
+
+	ret -= BQCount * ScalePhase(MAT[0][WQ], MAT[1][WQ], phase);
+	ret -= BRCount * ScalePhase(MAT[0][WR], MAT[1][WR], phase);
+	ret -= BBCount * ScalePhase(MAT[0][WB], MAT[1][WB], phase);
+	ret -= BNCount * ScalePhase(MAT[0][WN], MAT[1][WN], phase);
+	ret -= BPCount * ScalePhase(MAT[0][WP], MAT[1][WP], phase);
 
 	return (b.GetSideToMove() == WHITE ? ret : (-ret)) + SIDE_TO_MOVE_BONUS;
 }

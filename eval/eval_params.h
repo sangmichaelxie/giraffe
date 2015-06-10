@@ -8,32 +8,47 @@
 namespace Eval
 {
 
-static const Score MAT[] = {
-	10000, // WK (we have a king score here for SEE only)
-	1200, // WQ
-	600, // WR
-	400, // WN
-	400, // WB
-	100, // WP
+// most of the values in this file are taken from Stockfish
+static const Score MAT[2][14] = {
+	{
+		10000, // WK (we have a king score here for SEE only)
+		2521, // WQ
+		1270, // WR
+		817, // WN
+		836, // WB
+		198, // WP
 
-	0,
-	0,
+		0,
+		0,
 
-	10000, // BK
-	1200, // BQ
-	600, // BR
-	400, // BN
-	400, // BB
-	100, // BP
+		10000, // BK
+		2521, // BQ
+		1270, // BR
+		817, // BN
+		836, // BB
+		198 // BP
+	},
+	{
+		10000, // WK (we have a king score here for SEE only)
+		2558, // WQ
+		1278, // WR
+		846, // WN
+		857, // WB
+		258, // WP
+
+		0,
+		0,
+
+		10000, // BK
+		2558, // BQ
+		1278, // BR
+		846, // BN
+		857, // BB
+		258 // BP
+	}
 };
 
 static const Score MAX_POSITIONAL_SCORE = 150; // approximately how much the positional score can change from 1 move
-
-static const Score Q_MAT = MAT[WQ];
-static const Score R_MAT = MAT[WR];
-static const Score B_MAT = MAT[WB];
-static const Score N_MAT = MAT[WN];
-static const Score P_MAT = MAT[WP];
 
 static const Phase Q_PHASE_CONTRIBUTION = 4;
 static const Phase R_PHASE_CONTRIBUTION = 2;
@@ -41,7 +56,7 @@ static const Phase B_PHASE_CONTRIBUTION = 1;
 static const Phase N_PHASE_CONTRIBUTION = 1;
 static const Phase P_PHASE_CONTRIBUTION = 0;
 
-float MOBILITY_MULTIPLIERS[2] = { 1.129f, 1.344f };
+float MOBILITY_MULTIPLIERS[2] = { 0.0f, 0.0f };
 
 // max phase without custom positions and promotions
 static const Phase MAX_PHASE =
@@ -50,8 +65,6 @@ static const Phase MAX_PHASE =
 	B_PHASE_CONTRIBUTION * 4 +
 	N_PHASE_CONTRIBUTION * 4 +
 	P_PHASE_CONTRIBUTION * 16;
-
-// these values are taken from Stockfish
 
 const float PAWN_PCSQ_MULTIPLIERS[2] = { 1.0f, 2.0f };
 const Score PAWN_PCSQ[64] =
