@@ -6,6 +6,7 @@
 #include "types.h"
 #include "board_consts.h"
 #include "move.h"
+#include "bit_ops.h"
 
 const static std::string DEFAULT_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -108,7 +109,7 @@ public:
 
 	Color GetSideToMove() const { return m_boardDescU8[SIDE_TO_MOVE]; }
 
-	PieceType GetPieceAtSquare(Square sq) { return m_boardDescU8[sq]; }
+	PieceType GetPieceAtSquare(Square sq) const { return m_boardDescU8[sq]; }
 
 	Move ParseMove(std::string str);
 
@@ -170,6 +171,15 @@ public:
 	bool IsSeeEligible(Move mv);
 	void UndoMoveSee();
 	bool GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to); // to doesn't need to be returned, because it's the target square
+
+	uint64_t SpeculateHashAfterMove(Move mv);
+
+	size_t GetPieceCount(PieceType pt) const { return PopCount(m_boardDescBB[pt]); }
+
+	bool HasCastlingRight(uint32_t right) const { return m_boardDescU8[right]; }
+
+	// get the position of any piece of piece type (this is mostly used for kings)
+	size_t GetFirstPiecePos(PieceType pt) const { return BitScanForward(m_boardDescBB[pt]); }
 
 private:
 	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList) const;

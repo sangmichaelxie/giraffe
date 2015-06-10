@@ -4,6 +4,7 @@
 #include <set>
 #include <sstream>
 #include <regex>
+#include <tuple>
 
 #include <cassert>
 #include <cstdlib>
@@ -80,43 +81,6 @@ PieceType CharToPieceType(char c)
 	}
 
 	return EMPTY;
-}
-
-char PieceTypeToChar(PieceType pt)
-{
-	switch (pt)
-	{
-	case WK:
-		return 'K';
-	case WQ:
-		return 'Q';
-	case WB:
-		return 'B';
-	case WN:
-		return 'N';
-	case WR:
-		return 'R';
-	case WP:
-		return 'P';
-
-	case BK:
-		return 'k';
-	case BQ:
-		return 'q';
-	case BB:
-		return 'b';
-	case BN:
-		return 'n';
-	case BR:
-		return 'r';
-	case BP:
-		return 'p';
-
-	case EMPTY:
-		return ' ';
-	}
-
-	return '?';
 }
 
 }
@@ -1511,6 +1475,29 @@ bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
 	}
 
 	return false;
+}
+
+uint64_t Board::SpeculateHashAfterMove(Move mv)
+{
+	uint64_t hash = m_boardDescBB[HASH];
+
+	PieceType pt = GetPieceType(mv);
+	Square from = GetFromSquare(mv);
+	Square to = GetToSquare(mv);
+
+	hash ^= PIECES_ZOBRIST[from][pt];
+	hash ^= PIECES_ZOBRIST[to][pt];
+
+	hash ^= SIDE_TO_MOVE_ZOBRIST;
+
+	PieceType originalPiece = GetPieceAtSquare(to);
+
+	if (originalPiece != EMPTY)
+	{
+		hash ^= PIECES_ZOBRIST[to][originalPiece];
+	}
+
+	return hash;
 }
 
 template <Board::MOVE_TYPES MT>
