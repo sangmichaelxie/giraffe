@@ -16,6 +16,10 @@
 #include "chessclock.h"
 #include "util.h"
 #include "movepicker.h"
+#include "ann/learn_ann.h"
+#include "ann/features_conv.h"
+
+#include "Eigen/Dense"
 
 void Initialize()
 {
@@ -43,6 +47,103 @@ void GetVersion()
 
 int main(int argc, char **argv)
 {
+	Eigen::initParallel();
+
+	// first we handle special operation modes
+	if (argc >= 2 && std::string(argv[1]) == "conv_dataset")
+	{
+		// operate in special conv_dataset mode, where we convert a bunch of FENs to neural network input format
+		if (argc != 5)
+		{
+			std::cout << "Usage: " << argv[0] << " conv_dataset input_filename output_filename output_features" << std::endl;
+			return 1;
+		}
+
+		std::vector<FeaturesConv::FeatureDescription> featureDescriptions =
+			FeaturesConv::ConvertBoardToNN<FeaturesConv::FeatureDescription>(Board());
+
+		std::string fen;
+
+		std::ifstream infile(argv[2]);
+		std::ofstream outfile(argv[3], std::ofstream::binary);
+
+		{
+			std::ofstream featuresfile(argv[4], std::ofstream::binary);
+
+			// first we print the feature descriptions
+			for (const auto &fd : featureDescriptions)
+			{
+				if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_global)
+				{
+					featuresfile << 'G' << std::endl;
+				}
+				else
+				{
+					featuresfile << 'S';
+
+					std::set<Square> influences = FeaturesConv::GetInfluences(fd);
+
+					featuresfile << ' ' << influences.size();
+
+					for (const auto &sq : influences)
+					{
+						featuresfile << ' ' << sq;
+					}
+
+					featuresfile << std::endl;
+				}
+			}
+		}
+
+		uint32_t numRows = 0;
+		uint32_t numCols = 0;
+
+		// we first write 2*sizeof(uint32_t) of placeholders to be overwritten later
+		outfile.write(reinterpret_cast<const char *>(&numRows), sizeof(uint32_t));
+		outfile.write(reinterpret_cast<const char *>(&numCols), sizeof(uint32_t));
+
+		while (std::getline(infile, fen))
+		{
+			Board b(fen);
+
+			std::vector<float> features = FeaturesConv::ConvertBoardToNN<float>(b);
+
+			if (features.size() != featureDescriptions.size())
+			{
+				std::cout << "Wrong feature vector size! " << features.size() << " (Expecting: " << featureDescriptions.size() << ")" << std::endl;
+				return 1;
+			}
+
+			++numRows;
+			numCols = features.size();
+
+			outfile.write(reinterpret_cast<const char *>(&features[0]), numCols * sizeof(float));
+		}
+
+		outfile.seekp(0);
+
+		outfile.write(reinterpret_cast<const char *>(&numRows), sizeof(uint32_t));
+		outfile.write(reinterpret_cast<const char *>(&numCols), sizeof(uint32_t));
+
+		return 0;
+	}
+	else if (argc >= 2 && std::string(argv[1]) == "learn")
+	{
+		if (argc < 5)
+		{
+			std::cout << "Usage: " << argv[0] << " learn x_filename y_filename features_filename" << std::endl;
+			return 1;
+		}
+
+		std::string xFilename = argv[2];
+		std::string yFilename = argv[3];
+		std::string featuresFilename = argv[4];
+
+		LearnAnn::Learn(xFilename, yFilename, featuresFilename);
+
+		return 0;
+	}
+
 #ifdef DEBUG
 	std::cout << "# Running in debug mode" << std::endl;
 #else
