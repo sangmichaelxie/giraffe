@@ -15,4 +15,6 @@
 #include "timeallocator.cpp"
 #include "backend.cpp"
 #include "zobrist.cpp"
+#include "ann/learn_ann.cpp"
+#include "ann/features_conv.cpp"
 #include "main.cpp"

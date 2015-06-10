@@ -17,7 +17,11 @@ SOURCES += main.cpp \
     zobrist.cpp \
     ttable.cpp \
     killer.cpp \
-    movepicker.cpp
+    movepicker.cpp \
+    ann/ann.cpp \
+    tools/gen_bitboard_consts.cpp \
+    ann/learn_ann.cpp \
+    ann/features_conv.cpp
 
 HEADERS += \
     board_consts.h \
@@ -38,5 +42,9 @@ HEADERS += \
     zobrist.h \
     ttable.h \
     killer.h \
-    movepicker.h
+    movepicker.h \
+    ann/ann.h \
+    ann/ann_impl.h \
+    ann/learn_ann.h \
+    ann/features_conv.h
 
