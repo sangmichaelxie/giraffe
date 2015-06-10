@@ -217,7 +217,7 @@ void AsyncSearch::SearchTimer_(double time)
 
 Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
 {
-	// switch to QSearch is we are at depth 0
+	// switch to QSearch if we are at depth 0
 	if (depth <= 0)
 	{
 		return QSearch_(context, board, alpha, beta, ply);
@@ -244,7 +244,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	bool isRoot = ply == 0;
 
-	TTEntry *tEntry = context.transpositionTable->Probe(board.GetHash());
+	TTEntry *tEntry = ENABLE_TT ? context.transpositionTable->Probe(board.GetHash()) : 0;
 
 	// if we are at a PV node and don't have a best move (either because we don't have an entry,
 	// or the entry doesn't have a best move)
@@ -263,7 +263,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	if (tEntry)
 	{
 		// try to get a cutoff from ttable
-		if (tEntry->depth >= depth)
+		if (tEntry->depth >= depth && !isPV)
 		{
 			if (tEntry->entryType == EXACT)
 			{
@@ -299,8 +299,10 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		avoidNullTT = true;
 	}
 
+	Score staticEval = Eval::Evaluate(board, alpha, beta);
+
 	// try null move
-	if (ENABLE_NULL_MOVE_HEURISTICS)
+	if (ENABLE_NULL_MOVE_HEURISTICS && staticEval >= beta && !isPV)
 	{
 		Depth reduction = NULL_MOVE_REDUCTION;
 
@@ -339,8 +341,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	bestMove = 0;
 
-	Score staticEval = Eval::Evaluate(board, alpha, beta);
-
 	bool legalMoveFound = false;
 
 	bool inCheck = board.InCheck();
@@ -373,7 +373,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			// check extension
 			// we have the depth > 1 condition here so we don't get qsearch explosion (since we search in-check positions
 			// from QS at depth = 1)
-			if (board.InCheck() && originalDepth > 1)
+			if (CHECK_EXTENSION && board.InCheck() && originalDepth > 1)
 			{
 				extend = 1;
 			}
@@ -381,6 +381,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			// see if we can do futility pruning
 			// futility pruning is when we are near the leaf, and are so far below alpha, that we only want to search
 			// moves that can potentially improve alpha
+			// TODO: don't prune if it's a passed pawn to 7th or 8th rank
 			bool fut = !isRoot && futilityAllowed && !isViolent && !extend &&
 						((staticEval + seeScore + FUTILITY_MARGINS[depth]) <= alpha);
 			if (fut)
@@ -546,6 +547,12 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 		return 0;
 	}
 
+	// if we are in check, switch back to normal search (we have to do this before stand-pat)
+	if (board.InCheck())
+	{
+		return Search_(context, board, alpha, beta, 1, ply, false);
+	}
+
 	// we first see if we can stand-pat
 	Score staticEval = Eval::Evaluate(board, alpha, beta);
 
@@ -561,8 +568,8 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 	// this is called delta pruning
 	Score highestPossibleScore =
 		staticEval +
-		Eval::MAT[board.GetOpponentLargestPieceType()] +
-		(board.HasPawnOn7th() ? Eval::MAT[WQ] : 0) +
+		Eval::MAT[0][board.GetOpponentLargestPieceType()] +
+		(board.HasPawnOn7th() ? Eval::MAT[0][WQ] : 0) +
 		Eval::MAX_POSITIONAL_SCORE;
 	if (highestPossibleScore <= alpha)
 	{
@@ -589,29 +596,26 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 #ifdef DEBUG
 		Score seeScoreCalculated = StaticExchangeEvaluation(board, mv);
 #endif
-
 		// extract the SEE score
-		Score seeScore = GetScoreBiased(mv);
-#ifdef DEBUG
+		//Score seeScore = GetScoreBiased(mv);
 
+#ifdef DEBUG
 		assert(seeScore == seeScoreCalculated);
 #endif
 
-		// only search the capture if it can potentially improve alpha
+		// only search the capture if it can potentially improve alpha (delta pruning)
 		PieceType promoType = GetPromoType(mv);
-		Score promoVal = (promoType != 0) ? Eval::MAT[promoType & ~COLOR_MASK] : 0;
-		if ((staticEval + seeScore + promoVal + Eval::MAX_POSITIONAL_SCORE) <= alpha)
+
+		// if piece at square is empty, this must be en-passant, if not promotion
+		Score capturedValue = board.GetPieceAtSquare(GetToSquare(mv)) == EMPTY ? ((promoType != 0) ? 0 : Eval::MAT[0][WP]) : Eval::MAT[0][board.GetPieceAtSquare(GetToSquare(mv))];
+
+		Score promoVal = (promoType != 0) ? Eval::MAT[0][promoType & ~COLOR_MASK] : 0;
+
+		if ((staticEval + capturedValue + promoVal + Eval::MAX_POSITIONAL_SCORE) <= alpha)
 		{
 			continue;
 		}
 
-		// even if this move can potentially improve alpha, if it's a losing capture
-		// we still don't search it, because it's highly likely that another capture or
-		// standing pat will be better
-		if (seeScore < 0)
-		{
-			continue;
-		}
 
 		if (board.ApplyMove(mv))
 		{
