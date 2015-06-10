@@ -4,3 +4,17 @@ Giraffe.pro.user
 *.dSYM
 giraffe
 a.out
+x_5M_with_squares
+x_5M_with_squares.features
+targets/y_imba
+targets/y_king
+targets/y_mobility
+targets/y_passed
+targets/y_pawns
+targets/y_pcsq
+targets/y_pieces
+targets/y_scaling_full
+targets/y_spaces
+targets/y_spec
+targets/y_threats
+targets/y_unstoppable
