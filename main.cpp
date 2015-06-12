@@ -49,6 +49,9 @@ int main(int argc, char **argv)
 {
 	Eigen::initParallel();
 
+	// set Eigen to use 1 thread because we are doing OpenMP here
+	Eigen::setNbThreads(1);
+
 	// first we handle special operation modes
 	if (argc >= 2 && std::string(argv[1]) == "conv_dataset")
 	{

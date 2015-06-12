@@ -1,5 +1,5 @@
 CXX=g++-4.9
-CXXFLAGS_COMMON=-Wall -g -std=gnu++11 -march=native -Wa,-q -ffast-math -I. -IEigen_dev -pthread
+CXXFLAGS_COMMON=-Wall -g -std=gnu++11 -march=native -Wa,-q -ffast-math -I. -IEigen_dev -pthread -fopenmp
 CXXFLAGS_RELEASE=$(CXXFLAGS_COMMON) -O3
 CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -Os
 CXXFLAGS_DEBUG=$(CXXFLAGS_COMMON)  -DDEBUG 

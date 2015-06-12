@@ -6,6 +6,8 @@
 
 #include <cstdint>
 
+#include <omp.h>
+
 // for floating point interrupts
 #include <xmmintrin.h>
 
@@ -110,17 +112,6 @@ FCANN<ACTF>::FCANN(
 		m_params.outputBiasRMSd2.push_back(NNVector::Zero(out_size));
 		m_params.weightsRMSd2.push_back(NNMatrix::Zero(in_size, out_size));
 	}
-
-	SetNumThreads(1);
-}
-
-template <ActivationFunc ACTF>
-FCANN<ACTF> &FCANN<ACTF>::operator=(const FCANN &other)
-{
-	this->m_params = other.m_params;
-	SetNumThreads(other.m_computeThreads.size());
-
-	return *this;
 }
 
 template <ActivationFunc ACTF>
@@ -262,60 +253,69 @@ void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, c
 }
 
 template <ActivationFunc ACTF>
-float FCANN<ACTF>::TrainGDM(const NNMatrix &x, const NNMatrix &y, float reg)
+template <typename Derived>
+float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived> &x, const MatrixBase<Derived> &y, float reg)
 {
-	size_t numThreads = m_computeThreads.size();
-	size_t rowsPerThread = x.rows() / numThreads;
-	size_t rem = x.rows() % numThreads; // the first "rem" threads get 1 extra row
-	int64_t begin = 0;
+	static std::vector<Gradients> gradLocal;
+	static std::vector<Activations> actLocal;
+	static bool initialized = false;
 
-	for (size_t thread = 0; thread < numThreads; ++thread)
+	if (!initialized)
 	{
-		size_t numRowsForThisThread = rowsPerThread + ((thread < rem) ? 1 : 0);
+		gradLocal = std::vector<Gradients>(omp_get_max_threads());
+		actLocal = std::vector<Activations>(omp_get_max_threads());
 
-		m_threadControls[thread]->x = &x;
-		m_threadControls[thread]->y = &y;
-		m_threadControls[thread]->rowBegin = begin;
-		m_threadControls[thread]->numRows = numRowsForThisThread;
-
-		begin += numRowsForThisThread;
-
+		for (int64_t i = 0; i < omp_get_max_threads(); ++i)
 		{
-			std::lock_guard<std::mutex> lock(m_threadControls[thread]->mtx);
-			m_threadControls[thread]->run = true;
-		}
-		m_threadControls[thread]->cv.notify_one();
-	}
+			InitializeActivations(actLocal[i]);
 
-	assert(begin == x.rows());
-
-	Gradients gradTotal;
-	InitializeGradients(gradTotal);
-
-	NNMatrix errorsMeasure = NNMatrix::Zero(x.rows(), y.cols());
-
-	begin = 0;
-
-	// now we wait till all threads are done, and accumulate their results
-	for (size_t thread = 0; thread < numThreads; ++thread)
-	{
-		{
-			std::unique_lock<std::mutex> lock(m_threadControls[thread]->mtx);
-			m_threadControls[thread]->cv.wait(lock, [this, thread]{ return m_threadControls[thread]->run == false; });
+			InitializeGradients(gradLocal[i]);
 		}
 
-		gradTotal += m_threadControls[thread]->grad;
-
-		errorsMeasure.block(begin, 0, m_threadControls[thread]->errorsMeasure.rows(), m_threadControls[thread]->errorsMeasure.cols())
-				= m_threadControls[thread]->errorsMeasure;
-
-		begin += m_threadControls[thread]->errorsMeasure.rows();
+		initialized = true;
 	}
 
-	ApplyWeightUpdates(gradTotal, reg);
+	NNMatrix errorsMeasureTotal = NNMatrix::Zero(x.rows(), y.cols());
 
-	NNMatrix errors = NNMatrix::Zero(errorsMeasure.rows(), errorsMeasure.cols());
-	ErrorFunc(errorsMeasure, errors);
+	#pragma omp parallel
+	{
+		int64_t begin;
+		int64_t numRows;
+
+		GetThreadBlock_(x.rows(), begin, numRows);
+
+		size_t threadId = omp_get_thread_num();
+		size_t numThreads = omp_get_num_threads();
+
+		auto pred = ForwardPropagate(x.block(begin, 0, numRows, x.cols()), actLocal[threadId]);
+
+		// these are the errors for propagation
+		NNMatrix errorsPropagate(pred.rows(), pred.cols());
+
+		auto errorsMeasure = pred - y.block(begin, 0, numRows, y.cols());
+
+		ErrorFuncDeri(errorsMeasure, errorsPropagate);
+
+		BackwardPropagateComputeGrad(errorsPropagate, actLocal[threadId], gradLocal[threadId]);
+
+		errorsMeasureTotal.block(begin, 0, numRows, errorsMeasureTotal.cols())
+				= errorsMeasure;
+
+		// reduce all the local gradients into total, using log(n) steps
+		for (size_t skip = 2; skip <= numThreads; skip *= 2)
+		{
+			if ((threadId % skip) == 0 && (threadId + skip / 2) < numThreads)
+			{
+				gradLocal[threadId] += gradLocal[threadId + skip / 2];
+			}
+			#pragma omp barrier
+		}
+	}
+
+	ApplyWeightUpdates(gradLocal[0], reg);
+
+	NNMatrix errors = NNMatrix::Zero(errorsMeasureTotal.rows(), errorsMeasureTotal.cols());
+	ErrorFunc(errorsMeasureTotal, errors);
 
 	return errors.sum() / x.rows();
 }
@@ -338,126 +338,102 @@ void FCANN<ACTF>::ApplyWeightUpdates(const Gradients &grad, float reg)
 
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
-#define L1_REG
-#ifdef L1_REG
-		NNMatrix weightReg(m_params.weights[layer].rows(), m_params.weights[layer].cols());
-
-		for (int64_t i = 0; i < (weightReg.rows() * weightReg.cols()); ++i)
+		#pragma omp parallel
 		{
-			float w = m_params.weights[layer].data()[i];
-			float x;
+			int64_t begin;
+			int64_t numCols;
 
-			if (w > 0.0f)
+			size_t inSize = m_params.weights[layer].rows();
+			size_t outSize = m_params.weights[layer].cols();
+
+			GetThreadBlock_(outSize, begin, numCols);
+
+			if (numCols != 0) // if numCols is less than num threads, some threads won't have anything to do
 			{
-				if (w > reg)
+				auto weightsBlock = m_params.weights[layer].block(0, begin, inSize, numCols);
+				auto biasBlock = m_params.outputBias[layer].block(0, begin, 1, numCols);
+
+				auto weightsGradientsBlock = grad.weightGradients[layer].block(0, begin, inSize, numCols);
+				auto biasGradientsBlock = grad.biasGradients[layer].block(0, begin, 1, numCols);
+
+				auto weightsEg2Block = m_params.weightsEg2[layer].block(0, begin, inSize, numCols);
+				auto biasEg2Block = m_params.outputBiasEg2[layer].block(0, begin, 1, numCols);
+
+				auto weightsRMSd2Block = m_params.weightsRMSd2[layer].block(0, begin, inSize, numCols);
+				auto biasRMSd2Block = m_params.outputBiasRMSd2[layer].block(0, begin, 1, numCols);
+
+				auto weightMaskBlock = m_params.weightMasks[layer].block(0, begin, inSize, numCols);
+
+				#define L1_REG
+				#ifdef L1_REG
+				NNMatrix weightReg(weightsBlock.rows(), weightsBlock.cols());
+
+				for (int64_t i = 0; i < (weightReg.rows() * weightReg.cols()); ++i)
 				{
-					x = -reg;
+					float w = weightsBlock.data()[i];
+					float x;
+
+					if (w > 0.0f)
+					{
+						if (w > reg)
+						{
+							x = -reg;
+						}
+						else
+						{
+							x = -w;
+						}
+					}
+					else
+					{
+						if (w < -reg)
+						{
+							x = reg;
+						}
+						else
+						{
+							x = -w;
+						}
+					}
+
+					weightReg.data()[i] = x;
 				}
-				else
+				#elif defined(L2_REG)
+				NNMatrix weightReg =  -reg * weightsBlock;
+				#else
+				NNMatrix weightReg = NNMatrix::Zero(weightsBlock.rows(), weightsBlock.cols());
+				#endif
+
+				// update Eg2 (ADADELTA)
+				float decay = 0.99f;
+				float e = 1e-8f;
+				weightsEg2Block.array() *= decay;
+				weightsEg2Block.array() += (weightsGradientsBlock.array() * weightsGradientsBlock.array()) * (1.0f - decay);
+				biasEg2Block.array() *= decay;
+				biasEg2Block.array() += (biasGradientsBlock.array() * biasGradientsBlock.array()) * (1.0f - decay);
+
+				// ADADELTA
+				NNMatrix weightDelta = -weightsGradientsBlock.array() * (weightsRMSd2Block.array() + e).sqrt() / (weightsEg2Block.array() + e).sqrt() + weightReg.array();
+				NNVector biasDelta = -biasGradientsBlock.array() * (biasRMSd2Block.array() + e).sqrt() / (biasEg2Block.array() + e).sqrt();
+
+				weightsBlock += weightDelta;
+				weightsBlock.array() *= weightMaskBlock.array();
+				biasBlock += biasDelta;
+
+				FP weightMax = std::max(std::max(weightsBlock.maxCoeff(), -weightsBlock.minCoeff()), std::max(biasBlock.maxCoeff(), -biasBlock.minCoeff()));
+				if (weightMax > MAX_WEIGHT)
 				{
-					x = -w;
+					throw LearningRateException();
 				}
+
+				// ADADELTA
+				weightsRMSd2Block *= decay;
+				weightsRMSd2Block.array() += weightDelta.array() * weightDelta.array() * (1.0f - decay);
+				biasRMSd2Block *= decay;
+				biasRMSd2Block.array() += biasDelta.array() * biasDelta.array() * (1.0f - decay);
 			}
-			else
-			{
-				if (w < -reg)
-				{
-					x = reg;
-				}
-				else
-				{
-					x = -w;
-				}
-			}
 
-			weightReg.data()[i] = x;
-		}
-#elif defined(L2_REG)
-		NNMatrix weightReg =  -reg * m_params.weights[layer];
-
-		NNMatrix weightDelta = -grad.weightGradients[layer] * learningRate + momentum * m_params.weightsLastUpdate[layer] + weightReg;
-		NNVector biasDelta = -grad.biasGradients[layer] * learningRate + momentum * m_params.outputBiasLastUpdate[layer];
-#else
-		NNMatrix weightReg = NNMatrix::Zero(m_params.weights[layer].rows(), m_params.weights[layer].cols());
-#endif
-
-		// update Eg2 (ADADELTA)
-		float decay = 0.99f;
-		float e = 1e-8f;
-		m_params.weightsEg2[layer].array() *= decay;
-		m_params.weightsEg2[layer].array() += (grad.weightGradients[layer].array() * grad.weightGradients[layer].array()) * (1.0f - decay);
-		m_params.outputBiasEg2[layer].array() *= decay;
-		m_params.outputBiasEg2[layer].array() += (grad.biasGradients[layer].array() * grad.biasGradients[layer].array()) * (1.0f - decay);
-
-		// ADADELTA
-		NNMatrix weightDelta = -grad.weightGradients[layer].array() * (m_params.weightsRMSd2[layer].array() + e).sqrt() / (m_params.weightsEg2[layer].array() + e).sqrt() + weightReg.array();
-		NNVector biasDelta = -grad.biasGradients[layer].array() * (m_params.outputBiasRMSd2[layer].array() + e).sqrt() / (m_params.outputBiasEg2[layer].array() + e).sqrt();
-
-		m_params.weights[layer] += weightDelta;
-		m_params.weights[layer].array() *= m_params.weightMasks[layer].array();
-		m_params.outputBias[layer] += biasDelta;
-
-		// SGD Nesterov Momentum
-//		NNMatrix weightsV = -grad.weightGradients[layer] * learningRate + momentum * m_params.weightsLastUpdate[layer];
-//		NNVector biasV = -grad.biasGradients[layer] * learningRate + momentum * m_params.outputBiasLastUpdate[layer];
-
-//		m_params.weights[layer] += momentum * weightsV - learningRate * grad.weightGradients[layer];
-//		m_params.outputBias[layer] += momentum * biasV - learningRate * grad.biasGradients[layer];
-
-		FP weightMax = std::max(std::max(m_params.weights[layer].maxCoeff(), -m_params.weights[layer].minCoeff()), std::max(m_params.outputBias[layer].maxCoeff(), -m_params.outputBias[layer].minCoeff()));
-		if (weightMax > MAX_WEIGHT)
-		{
-			throw LearningRateException();
-		}
-
-		// ADADELTA
-		m_params.weightsRMSd2[layer] *= decay;
-		m_params.weightsRMSd2[layer].array() += weightDelta.array() * weightDelta.array() * (1.0f - decay);
-		m_params.outputBiasRMSd2[layer] *= decay;
-		m_params.outputBiasRMSd2[layer].array() += biasDelta.array() * biasDelta.array() * (1.0f - decay);
-
-		// SGD Momentum
-//		m_params.weightsLastUpdate[layer] = weightsV;
-//		m_params.outputBiasLastUpdate[layer] = biasV;
-	}
-}
-
-template <ActivationFunc ACTF>
-void FCANN<ACTF>::SetNumThreads(size_t n)
-{
-	if (n == m_computeThreads.size())
-	{
-		return;
-	}
-	else if (n < m_computeThreads.size())
-	{
-		// we are downsizing
-		for (size_t i = n; i < m_computeThreads.size(); ++i)
-		{
-			// signal each extra thread to exit, and join them
-			{
-				std::lock_guard<std::mutex> lock(m_threadControls[i]->mtx);
-				m_threadControls[i]->exit = true;
-			}
-			m_threadControls[i]->cv.notify_one();
-
-			m_computeThreads[i].join();
-		}
-
-		// finally reduce the size of vectors
-		m_threadControls.resize(n);
-		m_computeThreads.resize(n);
-	}
-	else
-	{
-		// we are upsizing!
-		size_t originalSize = m_computeThreads.size();
-
-		for (size_t i = originalSize; i < n; ++i)
-		{
-			m_threadControls.push_back(std::unique_ptr<ComputeThreadControl>(new ComputeThreadControl));
-			m_computeThreads.push_back(std::move(std::thread(&FCANN::ComputeThreadMain_, this, &(*m_threadControls[i]))));
-		}
+		} // parallel
 	}
 }
 
@@ -536,40 +512,4 @@ void FCANN<ACTF>::ActivateDerivative_(MatrixBase<Derived> &x) const
 		x.array() = (x.array() > NNMatrix::Zero(x.rows(), x.cols()).array());
 	}
 	else assert(false);
-}
-
-template <ActivationFunc ACTF>
-void FCANN<ACTF>::ComputeThreadMain_(ComputeThreadControl *ctrl)
-{
-	Activations act;
-	InitializeActivations(act);
-	InitializeGradients(ctrl->grad);
-
-	while (!ctrl->exit)
-	{
-		std::unique_lock<std::mutex> lock(ctrl->mtx);
-		ctrl->cv.wait(lock, [&ctrl]{ return ctrl->exit || ctrl->run; });
-
-		if (ctrl->exit)
-		{
-			lock.unlock();
-			break;
-		}
-
-		NNMatrix pred = ForwardPropagate(ctrl->x->block(ctrl->rowBegin, 0, ctrl->numRows, ctrl->x->cols()), act);
-
-		// these are the errors for propagation
-		NNMatrix errorsPropagate(pred.rows(), pred.cols());
-
-		ctrl->errorsMeasure = pred - ctrl->y->block(ctrl->rowBegin, 0, ctrl->numRows, ctrl->y->cols());
-
-		ErrorFuncDeri(ctrl->errorsMeasure, errorsPropagate);
-
-		BackwardPropagateComputeGrad(errorsPropagate, act, ctrl->grad);
-
-		ctrl->run = false;
-
-		lock.unlock();
-		ctrl->cv.notify_one();
-	}
 }

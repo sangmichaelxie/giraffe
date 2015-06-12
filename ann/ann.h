@@ -65,11 +65,6 @@ public:
 		std::vector<size_t> hiddenLayers,
 		std::vector<std::vector<Eigen::Triplet<FP> > > &connectionMatrices);
 
-	// we have to define our own copy and assignment ctors because threads and thread controls need
-	// to be reconstructed
-	FCANN &operator=(const FCANN &other);
-	FCANN(const FCANN &other) { *this = other; }
-
 	struct Activations
 	{
 		std::vector<NNMatrix> act; // input into each layer
@@ -102,28 +97,6 @@ public:
 		LearningRateException() : std::runtime_error("Learning rate too high!") {}
 	};
 
-	// compute threads do a forward + backward pass on a set of examples, and return
-	// the gradients
-	struct ComputeThreadControl
-	{
-		ComputeThreadControl() :
-			exit(false), run(false) {} // everything else can be default-constructed
-
-		const NNMatrix *x;
-		const NNMatrix *y;
-
-		int64_t rowBegin;
-		int64_t numRows;
-
-		Gradients grad;
-		NNMatrix errorsMeasure;
-		bool exit;
-		bool run;
-
-		std::mutex mtx;
-		std::condition_variable cv;
-	};
-
 	void InitializeActivations(Activations &act);
 
 	void InitializeGradients(Gradients &grad);
@@ -139,15 +112,12 @@ public:
 	void BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad);
 
 	// this is a convenience function that simply runs 1 iteration of GDM
-	float TrainGDM(const NNMatrix &x, const NNMatrix &y, float reg);
+	template <typename Derived>
+	float TrainGDM(const MatrixBase<Derived> &x, const MatrixBase<Derived> &y, float reg);
 
 	void ApplyWeightUpdates(const Gradients &grad, float reg);
 
-	void SetNumThreads(size_t n);
-
 	float GetSparsity();
-
-	~FCANN() { SetNumThreads(0); } // this joins and deletes all compute threads
 
 private:
 
@@ -157,7 +127,25 @@ private:
 	template <typename Derived>
 	void ActivateDerivative_(MatrixBase<Derived> &x) const;
 
-	void ComputeThreadMain_(ComputeThreadControl *ctrl);
+	void GetThreadBlock_(int64_t numTotal, int64_t &begin, int64_t &num)
+	{
+		size_t threadId = omp_get_thread_num();
+		size_t numThreads = omp_get_num_threads();
+
+		size_t rowsPerThread = numTotal / numThreads;
+		size_t rem = numTotal % numThreads; // the first "rem" threads get 1 extra row
+
+		if (threadId < rem)
+		{
+			begin = threadId * (rowsPerThread + 1);
+			num = rowsPerThread + 1;
+		}
+		else
+		{
+			begin = rem * (rowsPerThread + 1) + (threadId - rem) * rowsPerThread;
+			num = rowsPerThread;
+		}
+	}
 
 	// this is used to ensure network stability
 	constexpr static FP MAX_WEIGHT = 1000.0f;
@@ -182,11 +170,6 @@ private:
 	} m_params;
 
 	std::mt19937 m_mersenneTwister;
-
-	// we have to use unique_ptr here because thread synchronization primitives
-	// cannot be std::move()'ed
-	std::vector<std::unique_ptr<ComputeThreadControl> > m_threadControls;
-	std::vector<std::thread> m_computeThreads;
 };
 
 #include "ann_impl.h"
