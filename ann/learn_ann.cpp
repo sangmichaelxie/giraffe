@@ -10,6 +10,12 @@
 #include <queue>
 #include <algorithm>
 #include <sstream>
+#include <omp.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 
 #include "ann.h"
 
@@ -29,57 +35,65 @@ const int64_t ExamplesLimit = 150000000LL;
 
 const float ExclusionFactor = 0.99f; // when computing test performance, ignore 1% of outliers
 
-void ReadMatrixFromFile(const std::string &filename, NNMatrixRM &x)
+class MMappedMatrix
 {
-	std::ifstream f(filename, std::ifstream::binary);
-
-	if (!f.is_open())
+public:
+	MMappedMatrix(const std::string &filename)
 	{
-		throw std::runtime_error(std::string("Failed to open ") + filename + " for reading");
+		m_fd = open(filename.c_str(), O_RDONLY);
+
+		if (m_fd == -1)
+		{
+			throw std::runtime_error(std::string("Failed to open ") + filename + " for reading");
+		}
+
+		// we first map the first 8 bytes to read the size of the matrix, before doing the actual mapping
+		m_mappedAddress = mmap(0, 8, PROT_READ, MAP_SHARED, m_fd, 0);
+
+		if (m_mappedAddress == MAP_FAILED)
+		{
+			throw std::runtime_error("Failed to map file for reading matrix size");
+		}
+
+		// read the size of the matrix
+		m_rows = *(reinterpret_cast<uint32_t *>(m_mappedAddress));
+		m_cols = *(reinterpret_cast<uint32_t *>(m_mappedAddress ) + 1);
+
+		munmap(m_mappedAddress, 8);
+
+		m_mapSize = static_cast<size_t>(m_rows) * m_cols * sizeof(float) + 8;
+
+		// map again using the actual size (we can't use the offset here because it
+		// must be a multiple of page size)
+		m_mappedAddress = mmap(0, m_mapSize, PROT_READ, MAP_SHARED, m_fd, 0);
+
+		if (m_mappedAddress == MAP_FAILED)
+		{
+			throw std::runtime_error("Failed to map file for reading");
+		}
+
+		madvise(m_mappedAddress, m_mapSize, MADV_SEQUENTIAL);
+
+		m_matrixStartAddress = reinterpret_cast<float*>(reinterpret_cast<char*>(m_mappedAddress) + 8);
 	}
 
-	uint32_t nRows;
-	uint32_t nCols;
+	Eigen::Map<NNMatrixRM> GetMap() { return Eigen::Map<NNMatrixRM>(m_matrixStartAddress, m_rows, m_cols); }
 
-	f.read(reinterpret_cast<char *>(&nRows), sizeof(uint32_t));
-	f.read(reinterpret_cast<char*>(&nCols), sizeof(uint32_t));
+	MMappedMatrix(const MMappedMatrix &) = delete;
+	MMappedMatrix &operator=(const MMappedMatrix &) = delete;
 
-	f.seekg(0, std::ios::end);
-	size_t fileSize = f.tellg();
+	~MMappedMatrix() { munmap(m_mappedAddress, m_mapSize); }
 
-	// careful with overflows here
-	size_t expectedSize = static_cast<size_t>(nRows) * nCols * sizeof(float) + 2 * sizeof(uint32_t);
+private:
+	int m_fd;
+	void *m_mappedAddress;
+	float *m_matrixStartAddress;
 
-	if (fileSize != expectedSize)
-	{
-		std::cout << filename << " has wrong size!" << std::endl;
-		std::cout << "Expected: " << expectedSize << std::endl;
-		std::cout << "Actual: " << fileSize << std::endl;
-	}
+	size_t m_mapSize;
 
-	if ((static_cast<size_t>(nRows) * nCols * sizeof(float)) > MaxMemory)
-	{
-		nRows = MaxMemory / sizeof(float) / nCols;
-	}
-
-	x.resize(nRows, nCols);
-
-	f.seekg(2 * sizeof(uint32_t), std::ios::beg);
-
-	size_t sizeToRead = static_cast<size_t>(nRows) * nCols * sizeof(float);
-	size_t sizeRead = 0;
-
-	while (sizeRead != sizeToRead && !f.fail())
-	{
-		f.read(reinterpret_cast<char *>(x.data()) + sizeRead, std::min<size_t>(8*1024*1024, sizeToRead - sizeRead));
-		sizeRead += f.gcount();
-	}
-
-	if (f.fail())
-	{
-		std::cout << "ifstream failed. " << sizeRead << " bytes read." << std::endl;
-	}
-}
+	uint32_t m_rows;
+	uint32_t m_cols;
+};
 
 void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, std::vector<std::vector<Eigen::Triplet<float> > > &connMatrices)
 {
@@ -170,7 +184,22 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 }
 
-void SplitDataset(const NNMatrixRM &x, const NNMatrixRM &y, NNMatrixRM &xTrain, NNMatrixRM &yTrain, NNMatrixRM &xVal, NNMatrixRM &yVal, NNMatrixRM &xTest, NNMatrixRM &yTest)
+struct Rows
+{
+	Rows() {}
+	Rows(int64_t begin, int64_t num) : begin(begin), num(num) {}
+
+	int64_t begin;
+	int64_t num;
+};
+
+template <typename Derived>
+void SplitDataset(
+	Eigen::MatrixBase<Derived> &x,
+	Eigen::MatrixBase<Derived> &y,
+	Rows &train,
+	Rows &val,
+	Rows &test)
 {
 	size_t numExamples = x.rows();
 
@@ -183,18 +212,23 @@ void SplitDataset(const NNMatrixRM &x, const NNMatrixRM &y, NNMatrixRM &xTrain, 
 	size_t valSize = std::min<size_t>(MaxVal, numExamples * valRatio);
 	size_t trainSize = numExamples - testSize - valSize;
 
-	xTest = x.block(0, 0, testSize, x.cols());
-	yTest = y.block(0, 0, testSize, y.cols());
+	test = Rows(0, testSize);
 
-	xVal = x.block(testSize, 0, valSize, x.cols());
-	yVal = y.block(testSize, 0, valSize, y.cols());
+	val = Rows(testSize, valSize);
 
-	xTrain = x.block(testSize + valSize, 0, trainSize, x.cols());
-	yTrain = y.block(testSize + valSize, 0, trainSize, y.cols());
+	train = Rows(testSize + valSize, trainSize);
 }
 
-template <typename T>
-void Train(T &nn, NNMatrixRM &xTrain, NNMatrixRM &yTrain, NNMatrixRM &xVal, NNMatrixRM &yVal, NNMatrixRM &xTest, NNMatrixRM &yTest, std::mt19937 &mt)
+template <typename T, typename Derived>
+void Train(
+	T &nn,
+	Eigen::MatrixBase<Derived> &xTrain,
+	Eigen::MatrixBase<Derived> &yTrain,
+	Eigen::MatrixBase<Derived> &xVal,
+	Eigen::MatrixBase<Derived> &yVal,
+	Eigen::MatrixBase<Derived> &xTest,
+	Eigen::MatrixBase<Derived> &yTest,
+	std::mt19937 &mt)
 {
 	size_t iter = 0;
 
@@ -265,67 +299,6 @@ void Train(T &nn, NNMatrixRM &xTrain, NNMatrixRM &yTrain, NNMatrixRM &xVal, NNMa
 	nn = bestNet;
 }
 
-void GenerateClusters(const NNMatrixRM &x, NNVector &clusterAssignments, NNMatrixRM &clusterCenters, std::mt19937 &mersenneTwister)
-{
-	clusterAssignments.resize(1, x.rows());
-	clusterCenters.resize(NumClusters, x.cols());
-
-	std::uniform_int_distribution<int64_t> idxDist(0, x.rows() - 1);
-
-	// randomly pick examples to be cluster centers
-	for (int64_t i = 0; i < NumClusters; ++i)
-	{
-		clusterCenters.row(i) = x.row(idxDist(mersenneTwister));
-	}
-
-	for (int64_t iteration = 0; iteration < KMeanNumIterations; ++iteration)
-	{
-		// assign clusters
-		for (int64_t i = 0; i < x.rows(); ++i)
-		{
-			float minNorm = std::numeric_limits<float>::max();
-			int64_t minCluster = 0;
-
-			for (int64_t c = 0; c < NumClusters; ++c)
-			{
-				float norm = (clusterCenters.row(c) - x.row(i)).block(0, 1, 1, 10).lpNorm<1>();
-				if (norm < minNorm)
-				{
-					minNorm = norm;
-					minCluster = c;
-				}
-			}
-
-			clusterAssignments(i) = minCluster;
-		}
-
-		// update centers
-		clusterCenters.setZero();
-		std::vector<int64_t> clusterSizes(NumClusters);
-
-		for (int64_t i = 0; i < x.rows(); ++i)
-		{
-			int64_t cluster = static_cast<int64_t>(clusterAssignments(i));
-			clusterCenters.row(cluster) += x.row(i);
-			++clusterSizes[cluster];
-		}
-
-		for (int64_t c = 0; c < NumClusters; ++c)
-		{
-			if (clusterSizes[c] != 0)
-			{
-				clusterCenters.row(c) /= static_cast<float>(clusterSizes[c]);
-			}
-		}
-
-		for (size_t c = 0; c < NumClusters; ++c)
-		{
-			std::cout << clusterSizes[c] << " ";
-		}
-		std::cout << std::endl;
-	}
-}
-
 template <typename T>
 NNMatrix EvalNet(T &nn, NNMatrixRM &x)
 {
@@ -348,8 +321,8 @@ NNMatrix EvalNet(T &nn, NNMatrixRM &x)
 	return ret;
 }
 
-template <typename T>
-void PrintTestStats(T &nn, NNMatrixRM &x, NNMatrixRM &y)
+template <typename T, typename Derived>
+void PrintTestStats(T &nn, Eigen::MatrixBase<Derived> &x, Eigen::MatrixBase<Derived> &y)
 {
 	NNMatrix pred = nn.ForwardPropagateFast(x);
 
@@ -438,58 +411,25 @@ void Learn(
 
 	BuildLayers(featuresFilename, hiddenLayersConfig, connMatrices);
 
-	NNMatrix xClusters[NumClusters];
-	NNMatrix yClusters[NumClusters];
+	MMappedMatrix xMap(xFilename);
+	MMappedMatrix yMap(yFilename);
 
-	NNMatrixRM xTrain, yTrain, xVal, yVal, xTest, yTest;
+	auto x = xMap.GetMap();
+	auto y = yMap.GetMap();
 
-	{
-		// this inner scope is to release memory for x and y before training starts
-		NNMatrixRM x;
-		NNMatrixRM y;
-
-		ReadMatrixFromFile(xFilename, x);
-		ReadMatrixFromFile(yFilename, y);
-		size_t clusterIdx[NumClusters]; // current indices
-
-		NNVector clusterAssignments;
-		NNMatrix clusterCenters;
-		GenerateClusters(x, clusterAssignments, clusterCenters, mersenneTwister);
-
-		std::vector<int64_t> clusterSizes(NumClusters);
-		for (int64_t i = 0; i < x.rows(); ++i)
-		{
-			++clusterSizes[static_cast<int64_t>(clusterAssignments(i))];
-		}
-
-		for (int64_t c = 0; c < NumClusters; ++c)
-		{
-			xClusters[c].resize(clusterSizes[c], x.cols());
-			yClusters[c].resize(clusterSizes[c], y.cols());
-			clusterIdx[c] = 0;
-		}
-
-		for (int64_t i = 0; i < x.rows(); ++i)
-		{
-			int64_t cluster = static_cast<int64_t>(clusterAssignments(i));
-			xClusters[cluster].row(clusterIdx[cluster]) = x.row(i);
-			yClusters[cluster].row(clusterIdx[cluster]) = y.row(i);
-			++clusterIdx[cluster];
-		}
-	}
-
-	int64_t threadCount = 1;
-	const char *threadCountEnv = std::getenv("NUM_THREADS");
-	if (threadCountEnv)
-	{
-		threadCount = atoi(threadCountEnv);
-	}
-
-	std::cout << "Using " << threadCount << " threads" << std::endl;
+	std::cout << "Using " << omp_get_max_threads() << " thread(s)" << std::endl;
 
 	for (int64_t c = 0; c < NumClusters; ++c)
 	{
-		SplitDataset(xClusters[c], yClusters[c], xTrain, yTrain, xVal, yVal, xTest, yTest);
+		Rows trainRows, valRows, testRows;
+		SplitDataset(x, y, trainRows, valRows, testRows);
+
+		auto xTrain = x.block(trainRows.begin, 0, trainRows.num, x.cols());
+		auto yTrain = y.block(trainRows.begin, 0, trainRows.num, y.cols());
+		auto xVal = x.block(valRows.begin, 0, valRows.num, x.cols());
+		auto yVal = y.block(valRows.begin, 0, valRows.num, y.cols());
+		auto xTest = x.block(testRows.begin, 0, testRows.num, x.cols());
+		auto yTest = y.block(testRows.begin, 0, testRows.num, y.cols());
 
 		std::cout << "Train: " << xTrain.rows() << std::endl;
 		std::cout << "Val: " << xVal.rows() << std::endl;
@@ -498,8 +438,7 @@ void Learn(
 
 		FCANN<Relu> nn(77, xTrain.cols(), 1, hiddenLayersConfig, connMatrices);
 
-		nn.SetNumThreads(threadCount);
-
+		std::cout << "Beginning training..." << std::endl;
 		Train(nn, xTrain, yTrain, xVal, yVal, xTest, yTest, mersenneTwister);
 
 		// compute test performance and statistics
