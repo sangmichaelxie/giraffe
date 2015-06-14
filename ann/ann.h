@@ -33,7 +33,8 @@ enum ActivationFunc
 	Relu
 };
 
-inline void ErrorFunc(const NNMatrix &in, NNMatrix &out)
+template <typename Derived1, typename Derived2>
+inline void ErrorFunc(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &out)
 {
 	// y = 10 * ln(cosh(x/10))
 	for (int32_t i = 0; i < in.rows(); ++i)
@@ -43,7 +44,8 @@ inline void ErrorFunc(const NNMatrix &in, NNMatrix &out)
 	}
 }
 
-inline void ErrorFuncDeri(const NNMatrix &in, NNMatrix &out)
+template <typename Derived1, typename Derived2>
+inline void ErrorFuncDeri(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &out)
 {
 	// y = tanh(x/10)
 	for (int32_t i = 0; i < in.rows(); ++i)
@@ -67,8 +69,8 @@ public:
 
 	struct Activations
 	{
-		std::vector<NNMatrix> act; // input into each layer
-		std::vector<NNMatrix> actIn; // input into activation functions for each layer
+		std::vector<NNMatrixRM> act; // input into each layer
+		std::vector<NNMatrixRM> actIn; // input into activation functions for each layer
 	};
 
 	struct Gradients
@@ -102,11 +104,11 @@ public:
 	void InitializeGradients(Gradients &grad);
 
 	template <typename Derived>
-	NNMatrix ForwardPropagate(const MatrixBase<Derived> &in, Activations &act);
+	NNMatrixRM ForwardPropagate(const MatrixBase<Derived> &in, Activations &act);
 
 	// same as ForwardPropagate, but doesn't bother with Activations
 	template <typename Derived>
-	NNMatrix ForwardPropagateFast(const MatrixBase<Derived> &in);
+	NNMatrixRM ForwardPropagateFast(const MatrixBase<Derived> &in);
 
 	template <typename Derived>
 	void BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad);

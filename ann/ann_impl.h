@@ -152,7 +152,7 @@ void FCANN<ACTF>::InitializeGradients(Gradients &grad)
 
 template <ActivationFunc ACTF>
 template <typename Derived>
-NNMatrix FCANN<ACTF>::ForwardPropagate(const MatrixBase<Derived> &in, Activations &act)
+NNMatrixRM FCANN<ACTF>::ForwardPropagate(const MatrixBase<Derived> &in, Activations &act)
 {
 	assert(act.act.size() == m_params.weights.size() + 1);
 	assert(act.actIn.size() == m_params.weights.size() + 1);
@@ -190,7 +190,7 @@ NNMatrix FCANN<ACTF>::ForwardPropagate(const MatrixBase<Derived> &in, Activation
 
 template <ActivationFunc ACTF>
 template <typename Derived>
-NNMatrix FCANN<ACTF>::ForwardPropagateFast(const MatrixBase<Derived> &in)
+NNMatrixRM FCANN<ACTF>::ForwardPropagateFast(const MatrixBase<Derived> &in)
 {
 	NNMatrixRM x;
 
@@ -226,7 +226,7 @@ void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, c
 
 	// currError are the errorTerms of the next layer
 	// for the output layer it's simply the network error (since activation is linear)
-	NNMatrix errorTerms = err;
+	NNMatrixRM errorTerms = err;
 
 	for (int32_t layer = (m_params.weights.size() - 1); layer >= 0; --layer)
 	{
@@ -243,7 +243,7 @@ void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, c
 		// bias gradients are just errorTerms
 		grad.biasGradients[layer].noalias() = errorTerms.colwise().sum();
 
-		NNMatrix derivatives = act.actIn[layer];
+		NNMatrixRM derivatives = act.actIn[layer];
 		ActivateDerivative_(derivatives);
 
 		// then we calculate error for the next (previous) layer
@@ -275,7 +275,7 @@ float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived> &x, const MatrixBase<Deriv
 		initialized = true;
 	}
 
-	NNMatrix errorsMeasureTotal = NNMatrix::Zero(x.rows(), y.cols());
+	NNMatrixRM errorsMeasureTotal = NNMatrixRM::Zero(x.rows(), y.cols());
 
 	#pragma omp parallel
 	{
@@ -290,7 +290,7 @@ float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived> &x, const MatrixBase<Deriv
 		auto pred = ForwardPropagate(x.block(begin, 0, numRows, x.cols()), actLocal[threadId]);
 
 		// these are the errors for propagation
-		NNMatrix errorsPropagate(pred.rows(), pred.cols());
+		NNMatrixRM errorsPropagate(pred.rows(), pred.cols());
 
 		auto errorsMeasure = pred - y.block(begin, 0, numRows, y.cols());
 
@@ -314,7 +314,7 @@ float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived> &x, const MatrixBase<Deriv
 
 	ApplyWeightUpdates(gradLocal[0], reg);
 
-	NNMatrix errors = NNMatrix::Zero(errorsMeasureTotal.rows(), errorsMeasureTotal.cols());
+	NNMatrixRM errors = NNMatrixRM::Zero(errorsMeasureTotal.rows(), errorsMeasureTotal.cols());
 	ErrorFunc(errorsMeasureTotal, errors);
 
 	return errors.sum() / x.rows();
@@ -494,7 +494,7 @@ void FCANN<ACTF>::ActivateDerivative_(MatrixBase<Derived> &x) const
 	// ACTF is a template parameter
 	if (ACTF == Linear)
 	{
-		x = NNMatrix::Ones(x.rows(), x.cols());
+		x = NNMatrixRM::Ones(x.rows(), x.cols());
 	}
 	else if (ACTF == Tanh)
 	{
@@ -509,7 +509,7 @@ void FCANN<ACTF>::ActivateDerivative_(MatrixBase<Derived> &x) const
 	}
 	else if (ACTF == Relu)
 	{
-		x.array() = (x.array() > NNMatrix::Zero(x.rows(), x.cols()).array());
+		x.array() = (x.array() > NNMatrixRM::Zero(x.rows(), x.cols()).array());
 	}
 	else assert(false);
 }
