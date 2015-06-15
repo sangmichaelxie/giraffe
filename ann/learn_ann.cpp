@@ -18,6 +18,7 @@
 #include <fcntl.h>
 
 #include "ann.h"
+#include "types.h"
 
 namespace
 {
@@ -57,7 +58,7 @@ public:
 
 		// read the size of the matrix
 		m_rows = *(reinterpret_cast<uint32_t *>(m_mappedAddress));
-		m_cols = *(reinterpret_cast<uint32_t *>(m_mappedAddress ) + 1);
+		m_cols = *(reinterpret_cast<uint32_t *>(m_mappedAddress) + 1);
 
 		munmap(m_mappedAddress, 8);
 
@@ -97,18 +98,24 @@ private:
 
 void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, std::vector<std::vector<Eigen::Triplet<float> > > &connMatrices)
 {
-	const size_t FirstHiddenLayerNumGlobalNodes = 1024;
-	const size_t FirstHiddenLayerNumNodesPerSquare = 24;
+	const size_t FirstHiddenLayerNumGlobalNodes = 256;
+	const size_t FirstHiddenLayerNumNodesPerSquare = 16;
+
+	const size_t SecondHiddenLayerNumGlobalNodes = 64;
+	const size_t SecondHiddenLayerNumNodesPerSquare = 4;
 
 	std::ifstream featuresFile(filename);
 
-	std::vector<size_t> globalFeatures;
-	std::vector<size_t> squareConnLists[64]; // list of features influencing each square
+	std::vector<size_t> firstHiddenLayerGlobalFeatures;
+	std::vector<size_t> firstHiddenLayerSquareConnLists[64]; // list of features influencing each square for first hidden layer
+	std::vector<size_t> secondHiddenLayerGlobalFeatures; // list of global features from first hidden layer output
+	std::vector<size_t> secondHiddenLayerSquareConnLists[64]; // list of features influencing each square for second hidden layer
 
 	std::string line;
 
 	size_t currentFeatureNum = 0;
 
+	// for the first hidden layer, we get the influences from feature file
 	while (std::getline(featuresFile, line))
 	{
 		std::stringstream ss(line);
@@ -118,7 +125,7 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 
 		if (featureType == 'G')
 		{
-			globalFeatures.push_back(currentFeatureNum);
+			firstHiddenLayerGlobalFeatures.push_back(currentFeatureNum);
 		}
 		else
 		{
@@ -131,7 +138,7 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 
 				ss >> sq;
 
-				squareConnLists[sq].push_back(currentFeatureNum);
+				firstHiddenLayerSquareConnLists[sq].push_back(currentFeatureNum);
 			}
 		}
 
@@ -141,18 +148,18 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 	currentFeatureNum = 0;
 
 	// first hidden layer is sparse
-	layerSizes.push_back(FirstHiddenLayerNumGlobalNodes + 64 * FirstHiddenLayerNumNodesPerSquare);
-
 	std::vector<Eigen::Triplet<float> > firstHiddenLayerConnMatrix;
 
 	for (size_t i = 0; i < FirstHiddenLayerNumGlobalNodes; ++i)
 	{
-		for (size_t j = 0; j < globalFeatures.size(); ++j)
+		for (size_t j = 0; j < firstHiddenLayerGlobalFeatures.size(); ++j)
 		{
-			Eigen::Triplet<float> trip(globalFeatures[j], currentFeatureNum, 1.0f);
+			Eigen::Triplet<float> trip(firstHiddenLayerGlobalFeatures[j], currentFeatureNum, 1.0f);
 
 			firstHiddenLayerConnMatrix.push_back(trip);
 		}
+
+		secondHiddenLayerGlobalFeatures.push_back(currentFeatureNum);
 
 		++currentFeatureNum;
 	}
@@ -161,11 +168,26 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 	{
 		for (size_t i = 0; i < FirstHiddenLayerNumNodesPerSquare; ++i)
 		{
-			for (size_t j = 0; j < squareConnLists[sq].size(); ++j)
+			for (size_t j = 0; j < firstHiddenLayerSquareConnLists[sq].size(); ++j)
 			{
-				Eigen::Triplet<float> trip(squareConnLists[sq][j], currentFeatureNum, 1.0f);
+				Eigen::Triplet<float> trip(firstHiddenLayerSquareConnLists[sq][j], currentFeatureNum, 1.0f);
 
 				firstHiddenLayerConnMatrix.push_back(trip);
+			}
+
+			// this square affects adjacent squares
+			// now we build the connection list for second layer
+			int32_t x = GetX(sq);
+			int32_t y = GetY(sq);
+			for (int32_t offsetX = -1; offsetX <= 1; ++offsetX)
+			{
+				for (int32_t offsetY = -1; offsetY <= 1; ++offsetY)
+				{
+					if (Valid(x + offsetX) && Valid(y + offsetY))
+					{
+						secondHiddenLayerSquareConnLists[Sq(x + offsetX, y + offsetY)].push_back(currentFeatureNum);
+					}
+				}
 			}
 
 			++currentFeatureNum;
@@ -173,12 +195,47 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 	}
 
 	assert(currentFeatureNum == (FirstHiddenLayerNumGlobalNodes + 64 * FirstHiddenLayerNumNodesPerSquare));
-
+	layerSizes.push_back(FirstHiddenLayerNumGlobalNodes + 64 * FirstHiddenLayerNumNodesPerSquare);
 	connMatrices.push_back(firstHiddenLayerConnMatrix);
+	currentFeatureNum = 0;
 
-	// fully connected second layer
-	layerSizes.push_back(256);
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+	// second hidden layer is sparse
+	std::vector<Eigen::Triplet<float> > secondHiddenLayerConnMatrix;
+
+	for (size_t i = 0; i < SecondHiddenLayerNumGlobalNodes; ++i)
+	{
+		for (size_t j = 0; j < secondHiddenLayerGlobalFeatures.size(); ++j)
+		{
+			Eigen::Triplet<float> trip(secondHiddenLayerGlobalFeatures[j], currentFeatureNum, 1.0f);
+
+			secondHiddenLayerConnMatrix.push_back(trip);
+		}
+
+		++currentFeatureNum;
+	}
+
+	for (size_t sq = 0; sq < 64; ++sq)
+	{
+		for (size_t i = 0; i < SecondHiddenLayerNumNodesPerSquare; ++i)
+		{
+			for (size_t j = 0; j < secondHiddenLayerSquareConnLists[sq].size(); ++j)
+			{
+				Eigen::Triplet<float> trip(secondHiddenLayerSquareConnLists[sq][j], currentFeatureNum, 1.0f);
+
+				secondHiddenLayerConnMatrix.push_back(trip);
+			}
+
+			++currentFeatureNum;
+		}
+	}
+
+	assert(currentFeatureNum == (SecondHiddenLayerNumGlobalNodes + 64 * SecondHiddenLayerNumNodesPerSquare));
+	//layerSizes.push_back(SecondHiddenLayerNumGlobalNodes + 64 * SecondHiddenLayerNumNodesPerSquare);
+	//connMatrices.push_back(secondHiddenLayerConnMatrix);
+
+	// fully connected third layer
+	//layerSizes.push_back(128);
+	//connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 	// fully connected output layer
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
@@ -403,6 +460,14 @@ void Learn(
 	const std::string &featuresFilename)
 {
 	EnableNanInterrupt();
+
+	// if we are using GPU, disable OMP (our own parallelization)
+	// and use Eigen's instead
+	// our implementation has lower overhead, but requires slicing matrices
+#ifdef VIENNACL_WITH_OPENCL
+	Eigen::setNbThreads(omp_get_max_threads());
+	omp_set_num_threads(1);
+#endif
 
 	std::mt19937 mersenneTwister(42);
 

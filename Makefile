@@ -1,5 +1,5 @@
 CXX=g++-4.9
-CXXFLAGS_COMMON=-Wall -g -std=gnu++11 -march=native -Wa,-q -ffast-math -I. -IEigen_dev -pthread -fopenmp
+CXXFLAGS_COMMON=-Wall -g -std=gnu++11 -mtune=native -Wa,-q -ffast-math -I. -IEigen_dev -pthread -fopenmp
 CXXFLAGS_RELEASE=$(CXXFLAGS_COMMON) -O3
 CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -Os
 CXXFLAGS_DEBUG=$(CXXFLAGS_COMMON)  -DDEBUG 
@@ -22,3 +22,9 @@ cluster:
 
 fast_compile:
 	$(CXX) $(CXXFLAGS_FAST_COMPILE) giraffe.cpp -o giraffe
+
+gpu_osx:
+	$(CXX) $(CXXFLAGS_RELEASE) -march=native -framework OpenCL -DVIENNACL_WITH_OPENCL giraffe.cpp -o giraffe
+
+gpu:
+	$(CXX) $(CXXFLAGS_RELEASE) -march=native -lOpenCL -DVIENNACL_WITH_OPENCL giraffe.cpp -o giraffe

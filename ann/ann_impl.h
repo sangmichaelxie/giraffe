@@ -112,6 +112,11 @@ FCANN<ACTF>::FCANN(
 		m_params.outputBiasRMSd2.push_back(NNVector::Zero(out_size));
 		m_params.weightsRMSd2.push_back(NNMatrix::Zero(in_size, out_size));
 	}
+
+	m_params.weightsGpuTmp.resize(hiddenLayers.size() + 1);
+	m_params.weightsTransGpuTmp.resize(hiddenLayers.size() + 1);
+	m_params.xGpuTmp.resize(hiddenLayers.size() + 2); // we also need tmp for result of final layer
+	m_params.errorTermGpuTmp.resize(hiddenLayers.size() + 2);
 }
 
 template <ActivationFunc ACTF>
@@ -160,18 +165,15 @@ NNMatrixRM FCANN<ACTF>::ForwardPropagate(const MatrixBase<Derived> &in, Activati
 	act.act[0] = in;
 	act.actIn[0] = in; // first layer has no activation
 
-	NNMatrixRM x;
+	NNMatrixRM x = in;
 
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
-		if (layer == 0)
-		{
-			x.noalias() = in * m_params.weights[layer];
-		}
-		else
-		{
-			x *= m_params.weights[layer];
-		}
+#ifdef VIENNACL_WITH_OPENCL
+		Multiply(x, m_params.weights[layer], m_params.xGpuTmp[layer], m_params.weightsGpuTmp[layer], m_params.xGpuTmp[layer + 1]);
+#else
+		x *= m_params.weights[layer];
+#endif
 
 		x.rowwise() += m_params.outputBias[layer];
 
@@ -247,7 +249,12 @@ void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, c
 		ActivateDerivative_(derivatives);
 
 		// then we calculate error for the next (previous) layer
+#ifdef VIENNACL_WITH_OPENCL
+		NNMatrixRM weightsTrans = m_params.weights[layer].transpose();
+		Multiply(errorTerms, weightsTrans, m_params.errorTermGpuTmp[layer], m_params.weightsTransGpuTmp[layer], m_params.errorTermGpuTmp[layer + 1]);
+#else
 		errorTerms *= m_params.weights[layer].transpose();
+#endif
 		errorTerms.array() *= derivatives.array();
 	}
 }
