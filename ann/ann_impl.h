@@ -170,7 +170,7 @@ NNMatrixRM FCANN<ACTF>::ForwardPropagate(const MatrixBase<Derived> &in, Activati
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
 #ifdef VIENNACL_WITH_OPENCL
-		Multiply(x, m_params.weights[layer], m_params.xGpuTmp[layer], m_params.weightsGpuTmp[layer], m_params.xGpuTmp[layer + 1]);
+		MultiplyGPU(x, m_params.weights[layer], m_params.xGpuTmp[layer], m_params.weightsGpuTmp[layer], m_params.xGpuTmp[layer + 1]);
 #else
 		x *= m_params.weights[layer];
 #endif
@@ -251,7 +251,7 @@ void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, c
 		// then we calculate error for the next (previous) layer
 #ifdef VIENNACL_WITH_OPENCL
 		NNMatrixRM weightsTrans = m_params.weights[layer].transpose();
-		Multiply(errorTerms, weightsTrans, m_params.errorTermGpuTmp[layer], m_params.weightsTransGpuTmp[layer], m_params.errorTermGpuTmp[layer + 1]);
+		MultiplyGPU(errorTerms, weightsTrans, m_params.errorTermGpuTmp[layer], m_params.weightsTransGpuTmp[layer], m_params.errorTermGpuTmp[layer + 1]);
 #else
 		errorTerms *= m_params.weights[layer].transpose();
 #endif
