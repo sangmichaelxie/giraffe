@@ -52,6 +52,12 @@ int main(int argc, char **argv)
 	// set Eigen to use 1 thread because we are doing OpenMP here
 	Eigen::setNbThreads(1);
 
+	Initialize();
+
+	GetVersion();
+
+	Backend backend;
+
 	// first we handle special operation modes
 	if (argc >= 2 && std::string(argv[1]) == "conv_dataset")
 	{
@@ -152,12 +158,6 @@ int main(int argc, char **argv)
 #else
 	std::cout << "# Running in release mode" << std::endl;
 #endif
-
-	Initialize();
-
-	GetVersion();
-
-	Backend backend;
 
 	while (true)
 	{
