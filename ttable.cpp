@@ -6,8 +6,6 @@ TTable::TTable(size_t size)
 	: m_size(size), m_currentGeneration(0)
 {
 	m_data = static_cast<TTEntry *>(malloc(m_size * sizeof(TTEntry)));
-
-	std::cout << "# TTEntry size: " << sizeof(TTEntry) << std::endl;
 }
 
 void TTable::Resize(size_t newSize)
