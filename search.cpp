@@ -378,66 +378,16 @@ Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Bo
 
 			++numMovesSearched;
 
-			int32_t extend = 0;
-			// check extension
-			// we have the depth > 1 condition here so we don't get qsearch explosion (since we search in-check positions
-			// from QS at depth = 1)
-			if (CHECK_EXTENSION && board.InCheck() && originalDepth > 1)
-			{
-				extend = 1;
-			}
-
 			// see if we can do futility pruning
 			// futility pruning is when we are near the leaf, and are so far below alpha, that we only want to search
 			// moves that can potentially improve alpha
 			// TODO: don't prune if it's a passed pawn to 7th or 8th rank
-			bool fut = !isRoot && futilityAllowed && !isViolent && !extend &&
+			bool fut = !isRoot && futilityAllowed && !isViolent && !board.InCheck() &&
 						((staticEval + seeScore + FUTILITY_MARGINS[depth]) <= alpha);
 			if (fut)
 			{
 				board.UndoMove();
 				continue;
-			}
-
-			if (ENABLE_BAD_MOVE_PRUNING)
-			{
-				// if a move is in unlikely stage and is not a capture (just leaves a piece hanging),
-				// and we are in the last few plies, just throw them away
-				// TODO: find a way to make sure we don't return a1a1 as best move
-				if (!isRoot && !inCheck && !isViolent && !extend && depth <= BAD_MOVE_PRUNING_MAX_DEPTH && moveStage == MovePicker::UNLIKELY)
-				{
-					board.UndoMove();
-					continue;
-				}
-			}
-
-			int32_t reduce = 0;
-
-			if (ENABLE_LATE_MOVE_REDUCTION &&
-				depth >= LMR_MIN_DEPTH &&
-				!inCheck &&
-				!extend &&
-				moveStage != MovePicker::LIKELY &&
-				numMovesSearched >= LMR_NUM_MOVES_FULL_DEPTH &&
-				!isPV &&
-				!isViolent)
-			{
-				// these are the Senpai rules
-				if (numMovesSearched < LMR_NUM_MOVES_REDUCE_1)
-				{
-					reduce += LATE_MOVE_REDUCTION;
-				}
-				else
-				{
-					reduce += depth / 3;
-				}
-
-				// these are moves that leave a piece hanging (not captures, since we don't reduce captures,
-				// even if they are losing captures)
-				if (ENABLE_BAD_MOVE_REDUCTION && moveStage == MovePicker::UNLIKELY)
-				{
-					reduce += BAD_MOVE_REDUCTION;
-				}
 			}
 
 			Score score = 0;
@@ -446,27 +396,18 @@ Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Bo
 			// if this is a null window search anyways, don't bother
 			if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && depth > 1)
 			{
-				score = -Search_(context, subPv, board, -alpha - 1, -alpha, depth - 1 + extend - reduce, ply + 1);
+				score = -Search_(context, subPv, board, -alpha - 1, -alpha, depth - 1, ply + 1);
 
-				if (score > alpha && score < beta && !reduce)
+				if (score > alpha && score < beta)
 				{
 					// if the move didn't actually fail low, this is now the PV, and we have to search with
 					// full window
-					// if we are reducing, then don't bother re-searching here, because we will be re-searching
-					// below anyways
-					score = -Search_(context, subPv, board, -beta, -alpha, depth - 1 + extend - reduce, ply + 1);
+					score = -Search_(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
 				}
 			}
 			else
 			{
-				score = -Search_(context, subPv, board, -beta, -alpha, depth - 1 + extend - reduce, ply + 1);
-			}
-
-			// if we reduced and the move turned out to not fail low, we should re-search at original depth
-			// (and full window)
-			if (reduce && score > alpha)
-			{
-				score = -Search_(context, subPv, board, -beta, -alpha, depth - 1 + extend, ply + 1);
+				score = -Search_(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
 			}
 
 			board.UndoMove();
