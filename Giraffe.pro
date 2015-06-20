@@ -46,5 +46,6 @@ HEADERS += \
     ann/ann.h \
     ann/ann_impl.h \
     ann/learn_ann.h \
-    ann/features_conv.h
+    ann/features_conv.h \
+    matrix_ops.h
 
