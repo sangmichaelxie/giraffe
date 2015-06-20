@@ -447,6 +447,7 @@ std::string Board::PrintBoard() const
 	ss << "Half moves since last pawn move or capture: " << m_boardDescU8[HALF_MOVES_CLOCK] << std::endl;
 	ss << "FEN: " << GetFen() << std::endl;
 	ss << "In check: " << m_boardDescU8[IN_CHECK] << std::endl;
+	ss << "Insufficient material: " << HasInsufficientMaterial() << std::endl;
 
 	return ss.str();
 }
@@ -1301,6 +1302,51 @@ bool Board::Is2Fold(size_t numMoves)
 	return false;
 }
 
+bool Board::HasInsufficientMaterial(bool relaxed) const
+{
+	// if we have any queen or rook or pawn, this is not insufficient
+	if (m_boardDescBB[WP] || m_boardDescBB[BP] || m_boardDescBB[WQ] || m_boardDescBB[BQ] || m_boardDescBB[WR] || m_boardDescBB[BR])
+	{
+		return false;
+	}
+
+	auto canWinFunc = [relaxed](const uint64_t &knights, const uint64_t &bishops) -> bool
+	{
+		if (!knights && !bishops)
+		{
+			return false;
+		}
+
+		// if we don't have knights, we can only win if we have bishops on opposite colours
+		if (!knights)
+		{
+			uint64_t b_on_white = bishops & WHITE_SQUARES;
+			uint64_t b_on_black = bishops & BLACK_SQUARES;
+
+			return b_on_white && b_on_black;
+		}
+
+		// if we don't have bishops, we can only win if we have at least 3 knights (highly unlikely)
+		if (!bishops)
+		{
+			if (relaxed)
+			{
+				return PopCount(knights) >= 3;
+			}
+			else
+			{
+				// 2 knights cannot force a mate (but can mate with suicidal opponent)
+				return PopCount(knights) >= 2;
+			}
+		}
+
+		// KBN is doable
+		return true;
+	};
+
+	return !canWinFunc(m_boardDescBB[WN], m_boardDescBB[WB]) && !canWinFunc(m_boardDescBB[BN], m_boardDescBB[BB]);
+}
+
 Board::GameStatus Board::GetGameStatus()
 {
 	MoveList legalMoves;
@@ -1323,6 +1369,10 @@ Board::GameStatus Board::GetGameStatus()
 		{
 			return STALEMATE;
 		}
+	}
+	else if (HasInsufficientMaterial(false))
+	{
+		return INSUFFICIENT_MATERIAL;
 	}
 	else
 	{

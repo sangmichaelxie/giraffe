@@ -56,6 +56,7 @@ public:
 		WHITE_WINS,
 		BLACK_WINS,
 		STALEMATE,
+		INSUFFICIENT_MATERIAL,
 		ONGOING
 	};
 
@@ -151,6 +152,10 @@ public:
 	// this is used in the search
 	// we don't look through the whole history because that can be very slow in long games
 	bool Is2Fold(size_t numMoves);
+
+	// in relaxed mode, we include material configurations that are not drawn by rule, but are
+	// effectively drawn (helpmate situations)
+	bool HasInsufficientMaterial(bool relaxed = true) const;
 
 	GameStatus GetGameStatus();
 

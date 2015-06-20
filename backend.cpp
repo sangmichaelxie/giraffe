@@ -353,6 +353,10 @@ bool Backend::CheckDeclareGameResult_()
 	{
 		std::cout << "1/2-1/2 {Stalemate}" << std::endl;
 	}
+	else if (gameResult == Board::INSUFFICIENT_MATERIAL)
+	{
+		std::cout << "1/2-1/2 {Draw by insufficient material}" << std::endl;
+	}
 
 	return false;
 }

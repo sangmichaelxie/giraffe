@@ -22,6 +22,10 @@ extern uint64_t ADJACENT_FILES_OF_SQ[64];
 
 const static uint64_t ALL = 0xffffffffffffffffULL;
 
+const static uint64_t BLACK_SQUARES = 0xaa55aa55aa55aa55ULL;
+
+const static uint64_t WHITE_SQUARES = ~BLACK_SQUARES;
+
 const static Square FLIP[64] = {
 	 56,  57,  58,  59,  60,  61,  62,  63,
 	 48,  49,  50,  51,  52,  53,  54,  55,

@@ -242,7 +242,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Bo
 
 	// we have to check for draws before probing the transposition table, because the ttable
 	// can potentially hide repetitions
-	if (ply > 0 && (board.Is2Fold(NUM_MOVES_TO_LOOK_FOR_DRAW) || board.Is50Moves()))
+	if (ply > 0 && (board.Is2Fold(NUM_MOVES_TO_LOOK_FOR_DRAW) || board.Is50Moves() || board.HasInsufficientMaterial()))
 	{
 		return DRAW_SCORE;
 	}
