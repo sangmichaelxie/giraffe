@@ -115,7 +115,7 @@ void AsyncSearch::RootSearch_()
 		{
 			latestResult.score = Search_(
 				m_context,
-				latestResult.bestMove,
+				latestResult.pv,
 				m_context.startBoard,
 				lowBoundOpen ? SCORE_MIN : (lastIterationScore - lowBoundOffset),
 				highBoundOpen ? SCORE_MAX : (lastIterationScore + highBoundOffset),
@@ -156,7 +156,14 @@ void AsyncSearch::RootSearch_()
 			ThinkingOutput thinkingOutput;
 			thinkingOutput.nodeCount = m_context.nodeCount;
 			thinkingOutput.ply = depth;
-			thinkingOutput.pv = m_context.startBoard.MoveToAlg(latestResult.bestMove);
+
+			// build the text pv
+			Board b = m_context.startBoard;
+			for (auto const &mv : latestResult.pv)
+			{
+				thinkingOutput.pv += b.MoveToAlg(mv) + ' ';
+			}
+
 			thinkingOutput.score = latestResult.score;
 			thinkingOutput.time = CurrentTime() - startTime;
 
@@ -185,7 +192,7 @@ void AsyncSearch::RootSearch_()
 
 	if (m_context.searchType == SearchType_makeMove)
 	{
-		std::string bestMove = m_context.startBoard.MoveToAlg(m_rootResult.bestMove);
+		std::string bestMove = m_context.startBoard.MoveToAlg(m_rootResult.pv[0]);
 		m_context.finalMoveFunc(bestMove);
 	}
 
@@ -215,12 +222,12 @@ void AsyncSearch::SearchTimer_(double time)
 	m_context.stopRequest = true;
 }
 
-Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
+Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
 {
 	// switch to QSearch if we are at depth 0
 	if (depth <= 0)
 	{
-		return QSearch_(context, board, alpha, beta, ply);
+		return QSearch_(context, pv, board, alpha, beta, ply);
 	}
 
 	++context.nodeCount;
@@ -230,6 +237,8 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		// if global stop request is set, we just return any value since it won't be used anyways
 		return 0;
 	}
+
+	pv.clear();
 
 	// we have to check for draws before probing the transposition table, because the ttable
 	// can potentially hide repetitions
@@ -253,8 +262,8 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	{
 		if (isPV && (!tEntry || tEntry->bestMove == 0) && depth > 4)
 		{
-			Move iidBestMove;
-			Search_(context, iidBestMove, board, alpha, beta, depth - 2, ply);
+			std::vector<Move> iidPv;
+			Search_(context, iidPv, board, alpha, beta, depth - 2, ply);
 
 			tEntry = context.transpositionTable->Probe(board.GetHash());
 		}
@@ -262,13 +271,12 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 	if (tEntry)
 	{
-		// try to get a cutoff from ttable
+		// try to get a cutoff from ttable, unless we are in PV (it can shorten PV)
 		if (tEntry->depth >= depth && !isPV)
 		{
 			if (tEntry->entryType == EXACT)
 			{
 				// if we have an exact score, we can always return it
-				bestMove = tEntry->bestMove;
 				return tEntry->score;
 			}
 			else if (tEntry->entryType == UPPERBOUND)
@@ -276,7 +284,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 				// if we have an upper bound, we can only return if this score fails low (no best move)
 				if (tEntry->score <= alpha)
 				{
-					bestMove = 0;
 					return tEntry->score;
 				}
 			}
@@ -285,7 +292,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 				// if we have an upper bound, we can only return if this score fails high
 				if (tEntry->score >= beta)
 				{
-					bestMove = tEntry->bestMove;
 					return tEntry->score;
 				}
 			}
@@ -315,7 +321,8 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 		{
 			board.MakeNullMove();
 
-			Score nmScore = -Search_(context, board, -beta, -beta + 1, depth - reduction, ply + 1, false);
+			std::vector<Move> pvNN;
+			Score nmScore = -Search_(context, pvNN, board, -beta, -beta + 1, depth - reduction, ply + 1, false);
 
 			board.UndoMove();
 
@@ -327,7 +334,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 
 					if (depth <= 0)
 					{
-						return QSearch_(context, board, alpha, beta, ply);
+						return QSearch_(context, pv, board, alpha, beta, ply);
 					}
 				}
 				else
@@ -338,8 +345,6 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			}
 		}
 	}
-
-	bestMove = 0;
 
 	bool legalMoveFound = false;
 
@@ -356,6 +361,10 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	Move mv = 0;
 
 	int numMovesSearched = -1;
+
+	std::vector<Move> subPv;
+
+	bool alphaRaised = false;
 
 	while ((mv = movePicker.GetNextMove(moveStage)))
 	{
@@ -437,7 +446,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			// if this is a null window search anyways, don't bother
 			if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && depth > 1)
 			{
-				score = -Search_(context, board, -alpha - 1, -alpha, depth - 1 + extend - reduce, ply + 1);
+				score = -Search_(context, subPv, board, -alpha - 1, -alpha, depth - 1 + extend - reduce, ply + 1);
 
 				if (score > alpha && score < beta && !reduce)
 				{
@@ -445,19 +454,19 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 					// full window
 					// if we are reducing, then don't bother re-searching here, because we will be re-searching
 					// below anyways
-					score = -Search_(context, board, -beta, -alpha, depth - 1 + extend - reduce, ply + 1);
+					score = -Search_(context, subPv, board, -beta, -alpha, depth - 1 + extend - reduce, ply + 1);
 				}
 			}
 			else
 			{
-				score = -Search_(context, board, -beta, -alpha, depth - 1 + extend - reduce, ply + 1);
+				score = -Search_(context, subPv, board, -beta, -alpha, depth - 1 + extend - reduce, ply + 1);
 			}
 
 			// if we reduced and the move turned out to not fail low, we should re-search at original depth
 			// (and full window)
 			if (reduce && score > alpha)
 			{
-				score = -Search_(context, board, -beta, -alpha, depth - 1 + extend, ply + 1);
+				score = -Search_(context, subPv, board, -beta, -alpha, depth - 1 + extend, ply + 1);
 			}
 
 			board.UndoMove();
@@ -472,7 +481,10 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 			if (score > alpha)
 			{
 				alpha = score;
-				bestMove = ClearScore(mv);
+				alphaRaised = true;
+				pv.clear();
+				pv.push_back(ClearScore(mv));
+				pv.insert(pv.end(), subPv.begin(), subPv.end());
 			}
 
 			if (score >= beta)
@@ -496,14 +508,14 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	{
 		if (!context.Stopping())
 		{
-			if (bestMove)
+			if (alphaRaised)
 			{
 				// if we have a bestMove, that means we have a PV node
-				context.transpositionTable->Store(board.GetHash(), bestMove, alpha, originalDepth, EXACT);
+				context.transpositionTable->Store(board.GetHash(), pv[0], alpha, originalDepth, EXACT);
 
-				if (!board.IsViolent(bestMove))
+				if (!board.IsViolent(pv[0]))
 				{
-					context.killer->Notify(ply, bestMove);
+					context.killer->Notify(ply, pv[0]);
 				}
 			}
 			else
@@ -531,13 +543,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, Move &bestMove, Board &bo
 	}
 }
 
-Score AsyncSearch::Search_(RootSearchContext &context, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
-{
-	Move dummy;
-	return Search_(context, dummy, board, alpha, beta, depth, ply, nullMoveAllowed);
-}
-
-Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alpha, Score beta, int32_t ply)
+Score AsyncSearch::QSearch_(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply)
 {
 	++context.nodeCount;
 
@@ -550,8 +556,10 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 	// if we are in check, switch back to normal search (we have to do this before stand-pat)
 	if (board.InCheck())
 	{
-		return Search_(context, board, alpha, beta, 1, ply, false);
+		return Search_(context, pv, board, alpha, beta, 1, ply, false);
 	}
+
+	pv.clear();
 
 	// we first see if we can stand-pat
 	Score staticEval = Eval::Evaluate(board, alpha, beta);
@@ -591,6 +599,8 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 
 	size_t i = 0;
 
+	std::vector<Move> subPv;
+
 	while ((mv = movePicker.GetNextMove(moveStage)))
 	{
 #ifdef DEBUG
@@ -621,7 +631,7 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 		{
 			Score score = 0;
 
-			score = -QSearch_(context, board, -beta, -alpha, ply + 1);
+			score = -QSearch_(context, subPv, board, -beta, -alpha, ply + 1);
 
 			board.UndoMove();
 
@@ -633,6 +643,9 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, Board &board, Score alph
 			if (score > alpha)
 			{
 				alpha = score;
+				pv.clear();
+				pv.push_back(ClearScore(mv));
+				pv.insert(pv.end(), subPv.begin(), subPv.end());
 			}
 
 			if (score >= beta)

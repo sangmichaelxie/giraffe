@@ -90,8 +90,9 @@ struct TimeAllocation
 
 struct SearchResult
 {
-	Move bestMove;
 	Score score;
+
+	std::vector<Move> pv;
 };
 
 enum SearchType
@@ -152,10 +153,9 @@ private:
 	// entry point for a thread that automatically interrupts the search after the specified time
 	void SearchTimer_(double time);
 
-	Score Search_(RootSearchContext &context, Move &bestMove, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true);
-	Score Search_(RootSearchContext &context, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true); // version without best move
+	Score Search_(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true);
 
-	Score QSearch_(RootSearchContext &context, Board &board, Score alpha, Score beta, int32_t ply);
+	Score QSearch_(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply);
 
 	RootSearchContext &m_context;
 	std::thread m_thread;
