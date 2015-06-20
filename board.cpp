@@ -1500,6 +1500,62 @@ uint64_t Board::SpeculateHashAfterMove(Move mv)
 	return hash;
 }
 
+template <PieceType PT>
+uint64_t Board::GetAttackers(Square sq) const
+{
+	uint64_t atkMask = 0;
+
+	if (PT == WK || PT == BK)
+	{
+		atkMask = KING_ATK[sq];
+	}
+	else if (PT == WN || PT == BN)
+	{
+		atkMask = KNIGHT_ATK[sq];
+	}
+	else if (PT == WB || PT == BB)
+	{
+		atkMask = Bmagic(sq, m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED] | (1ULL << sq));
+	}
+	else if (PT == WR || PT == BR)
+	{
+		atkMask = Rmagic(sq, m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED] | (1ULL << sq));
+	}
+	else if (PT == WQ || PT == BQ)
+	{
+		atkMask = Qmagic(sq, m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED] | (1ULL << sq));
+	}
+	else if (PT == WP)
+	{
+		atkMask = PAWN_ATK[sq][1]; // to find white attackers, we pretend we are a black attacker
+	}
+	else if (PT == BP)
+	{
+		atkMask = PAWN_ATK[sq][0];
+	}
+	else
+	{
+		assert(false);
+	}
+
+	return atkMask & m_boardDescBB[PT];
+}
+
+// instantiate templates
+template uint64_t Board::GetAttackers<WK>(Square sq) const;
+template uint64_t Board::GetAttackers<WQ>(Square sq) const;
+template uint64_t Board::GetAttackers<WR>(Square sq) const;
+template uint64_t Board::GetAttackers<WB>(Square sq) const;
+template uint64_t Board::GetAttackers<WN>(Square sq) const;
+template uint64_t Board::GetAttackers<WP>(Square sq) const;
+
+template uint64_t Board::GetAttackers<BK>(Square sq) const;
+template uint64_t Board::GetAttackers<BQ>(Square sq) const;
+template uint64_t Board::GetAttackers<BR>(Square sq) const;
+template uint64_t Board::GetAttackers<BB>(Square sq) const;
+template uint64_t Board::GetAttackers<BN>(Square sq) const;
+template uint64_t Board::GetAttackers<BP>(Square sq) const;
+
 template <Board::MOVE_TYPES MT>
 void Board::GenerateKingMoves_(Color color, MoveList &moveList) const
 {

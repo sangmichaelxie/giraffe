@@ -181,6 +181,9 @@ public:
 	// get the position of any piece of piece type (this is mostly used for kings)
 	size_t GetFirstPiecePos(PieceType pt) const { return BitScanForward(m_boardDescBB[pt]); }
 
+	template <PieceType PT>
+	uint64_t GetAttackers(Square sq) const;
+
 private:
 	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateQueenMoves_(Color color, MoveList &moveList) const;
