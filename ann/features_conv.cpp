@@ -1,5 +1,6 @@
 #include "features_conv.h"
 
+#include "bit_ops.h"
 
 namespace
 {
@@ -146,6 +147,20 @@ template<> void PushPosMobility<FeatureDescription>(
 	ret.push_back(fd);
 }
 
+template <typename T> void PushPosFloat(std::vector<T> &ret, Square pos, float x);
+template<> void PushPosFloat<float>(std::vector<float> &ret, Square pos, float x)
+{
+	ret.push_back(x);
+}
+
+template<> void PushPosFloat<FeatureDescription>(std::vector<FeatureDescription> &ret, Square pos, float x)
+{
+	FeatureDescription fd;
+	fd.featureType = FeatureDescription::FeatureType_pos;
+	fd.sq = pos;
+	ret.push_back(fd);
+}
+
 template <typename T>
 void PushAttacks(std::vector<T> &ret, bool isGlobal, Square sq, PieceType pt, bool exists, const Board &board)
 {
@@ -233,6 +248,19 @@ void PushSquareFeatures(std::vector<T> &ret, const Board &board, Square sq)
 	PushPosPieceType(ret, sq, BB, pt == BB);
 	PushPosPieceType(ret, sq, BN, pt == BN);
 	PushPosPieceType(ret, sq, BP, pt == BP);
+
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WK>(sq)), 1));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WQ>(sq)), 1));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WR>(sq)), 2));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WB>(sq)), 2));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WN>(sq)), 2));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WP>(sq)), 2));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BK>(sq)), 1));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BQ>(sq)), 1));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BR>(sq)), 2));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BB>(sq)), 2));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BN>(sq)), 2));
+	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BP>(sq)), 2));
 
 	// get the sliding ranges in
 	// we use queen type here to get both straight and diagonal ranges
@@ -456,7 +484,7 @@ std::vector<T> ConvertBoardToNN(const Board &board)
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushSquareFeatures(ret, board, sq);
+		//PushSquareFeatures(ret, board, sq);
 	}
 
 	return ret;
@@ -570,6 +598,10 @@ std::set<Square> GetInfluences(const FeatureDescription &fd)
 				}
 			}
 		}
+	}
+	else if (fd.featureType == FeatureDescription::FeatureType_pos)
+	{
+		ret.insert(fd.sq);
 	}
 
 	return ret;
