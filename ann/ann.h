@@ -179,11 +179,11 @@ private:
 	std::mt19937 m_mersenneTwister;
 };
 
-template <ActivationFunc ACTF>
-void SerializeNet(FCANN<ACTF> &net, std::ostream &s);
+typedef FCANN<Relu> ANN;
 
-template <ActivationFunc ACTF>
-FCANN<ACTF> DeserializeNet(std::istream &s);
+void SerializeNet(ANN &net, std::ostream &s);
+
+ANN DeserializeNet(std::istream &s);
 
 #include "ann_impl.h"
 

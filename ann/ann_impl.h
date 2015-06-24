@@ -576,8 +576,7 @@ NNMatrix ReadMatrix(std::istream &s)
 
 }
 
-template <ActivationFunc ACTF>
-void SerializeNet(FCANN<ACTF> &net, std::ostream &s)
+void SerializeNet(ANN &net, std::ostream &s)
 {
 	auto weights = net.Weights();
 	auto biases = net.Biases();
@@ -602,12 +601,11 @@ void SerializeNet(FCANN<ACTF> &net, std::ostream &s)
 	}
 }
 
-template <ActivationFunc ACTF>
-FCANN<ACTF> DeserializeNet(std::istream &s)
+ANN DeserializeNet(std::istream &s)
 {
-	std::vector<typename FCANN<ACTF>::WeightType> weights;
-	std::vector<typename FCANN<ACTF>::BiasType> biases;
-	std::vector<typename FCANN<ACTF>::WeightMaskType> weightMasks;
+	std::vector<typename ANN::WeightType> weights;
+	std::vector<typename ANN::BiasType> biases;
+	std::vector<typename ANN::WeightMaskType> weightMasks;
 
 	int64_t numLayers;
 
@@ -634,7 +632,7 @@ FCANN<ACTF> DeserializeNet(std::istream &s)
 	// overwrite the connection matrices anyways
 	std::vector<std::vector<Eigen::Triplet<FP> > > connections(hiddenLayerSizes.size() + 1);
 
-	FCANN<ACTF> ret(42, din, dout, hiddenLayerSizes, connections);
+	ANN ret(42, din, dout, hiddenLayerSizes, connections);
 
 	ret.Weights() = weights;
 	ret.Biases() = biases;
