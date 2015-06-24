@@ -520,3 +520,125 @@ void FCANN<ACTF>::ActivateDerivative_(MatrixBase<Derived> &x) const
 	}
 	else assert(false);
 }
+
+/* serialization format:
+ * numLayers
+ * for each layer:
+ *		weight matrix
+ *		weight mask
+ *		bias
+ *
+ * For each matrix:
+ *	rows
+ *	cols
+ *  each field in row major format (rows * cols)
+ */
+
+namespace
+{
+
+template <typename Derived>
+void PushMatrix(Eigen::MatrixBase<Derived> &m, std::ostream &s)
+{
+	s << m.rows() << ' ' << '\n';
+	s << m.cols() << ' ' << '\n';
+
+	for (int64_t row = 0; row < m.rows(); ++row)
+	{
+		for (int64_t col = 0; col < m.cols(); ++col)
+		{
+			s << m(row, col) << ' ';
+		}
+		s << '\n';
+	}
+}
+
+NNMatrix ReadMatrix(std::istream &s)
+{
+	int64_t nRows;
+	int64_t nCols;
+
+	s >> nRows;
+	s >> nCols;
+
+	NNMatrix ret(nRows, nCols);
+
+	for (int64_t row = 0; row < nRows; ++row)
+	{
+		for (int64_t col = 0; col < nCols; ++col)
+		{
+			s >> ret(row, col);
+		}
+	}
+
+	return ret;
+}
+
+}
+
+template <ActivationFunc ACTF>
+void SerializeNet(FCANN<ACTF> &net, std::ostream &s)
+{
+	auto weights = net.Weights();
+	auto biases = net.Biases();
+	auto weightMasks = net.WeightMasks();
+
+	int64_t numLayers = weights.size();
+
+	std::vector<size_t> hiddenLayerSizes;
+
+	for (int64_t i = 1; i < numLayers; ++i)
+	{
+		hiddenLayerSizes.push_back(weights[i].rows());
+	}
+
+	s << numLayers << '\n';
+
+	for (int64_t i = 0; i < numLayers; ++i)
+	{
+		PushMatrix(weights[i], s);
+		PushMatrix(weightMasks[i], s);
+		PushMatrix(biases[i], s);
+	}
+}
+
+template <ActivationFunc ACTF>
+FCANN<ACTF> DeserializeNet(std::istream &s)
+{
+	std::vector<typename FCANN<ACTF>::WeightType> weights;
+	std::vector<typename FCANN<ACTF>::BiasType> biases;
+	std::vector<typename FCANN<ACTF>::WeightMaskType> weightMasks;
+
+	int64_t numLayers;
+
+	s >> numLayers;
+
+	for (int64_t i = 0; i < numLayers; ++i)
+	{
+		weights.push_back(ReadMatrix(s));
+		weightMasks.push_back(ReadMatrix(s));
+		biases.push_back(ReadMatrix(s));
+	}
+
+	int64_t din = weights[0].rows();
+	int64_t dout = weights[weights.size() - 1].cols();
+
+	std::vector<size_t> hiddenLayerSizes;
+
+	for (int64_t i = 1; i < numLayers; ++i)
+	{
+		hiddenLayerSizes.push_back(weights[i].rows());
+	}
+
+	// we just set everything to be fully connected, since we will
+	// overwrite the connection matrices anyways
+	std::vector<std::vector<Eigen::Triplet<FP> > > connections(hiddenLayerSizes.size() + 1);
+
+	FCANN<ACTF> ret(42, din, dout, hiddenLayerSizes, connections);
+
+	ret.Weights() = weights;
+	ret.Biases() = biases;
+	ret.WeightMasks() = weightMasks;
+
+	return ret;
+}

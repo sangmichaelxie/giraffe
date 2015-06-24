@@ -11,6 +11,8 @@
 #include <condition_variable>
 #include <mutex>
 #include <atomic>
+#include <ostream>
+#include <istream>
 
 #include <cmath>
 #include <cassert>
@@ -27,22 +29,20 @@ enum ActivationFunc
 template <typename Derived1, typename Derived2>
 inline void ErrorFunc(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &out)
 {
-	// y = 10 * ln(cosh(x/10))
 	for (int32_t i = 0; i < in.rows(); ++i)
 	{
-		//out(i, 0) = 10.0f * log(cosh(in(i, 0) / 10.0f));
 		out(i, 0) = fabs(in(i, 0));
+		//out(i, 0) = in(i, 0) * in(i, 0);
 	}
 }
 
 template <typename Derived1, typename Derived2>
 inline void ErrorFuncDeri(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &out)
 {
-	// y = tanh(x/10)
 	for (int32_t i = 0; i < in.rows(); ++i)
 	{
-		//out(i, 0) = tanh(in(i, 0) / 10.0f);
-		out(i, 0) = (in(i, 0) > 0.0f) ? 1.0f : -1.0f;
+		//out(i, 0) = (in(i, 0) > 0.0f) ? 1.0f : -1.0f;
+		out(i, 0) = in(i, 0);
 	}
 }
 
@@ -112,8 +112,16 @@ public:
 
 	float GetSparsity();
 
-private:
+	typedef NNVector BiasType;
+	typedef NNMatrix WeightType;
+	typedef NNMatrix WeightMaskType;
 
+	// these are used to save and restore nets
+	std::vector<BiasType> &Biases() { return m_params.outputBias; }
+	std::vector<WeightType> &Weights() { return m_params.weights; }
+	std::vector<WeightMaskType> &WeightMasks() { return m_params.weightMasks; }
+
+private:
 	template <typename Derived>
 	void Activate_(MatrixBase<Derived> &x) const;
 
@@ -146,16 +154,16 @@ private:
 	// these are network parameters that should be copied by copy ctor and assignment operator
 	struct Params
 	{
-		std::vector<NNVector> outputBias;
-		std::vector<NNMatrix> weights;
+		// bias, weights, and weightMasks completely define the net
+		std::vector<BiasType> outputBias;
+		std::vector<WeightType> weights;
+		std::vector<WeightMaskType> weightMasks;
 
 		// these are temporary variables in case we want to do multiplications on GPU
 		std::vector<VCLMatrix> weightsGpuTmp;
 		std::vector<VCLMatrixRM> weightsTransGpuTmp;
 		std::vector<VCLMatrixRM> xGpuTmp;
 		std::vector<VCLMatrixRM> errorTermGpuTmp;
-
-		std::vector<NNMatrix> weightMasks;
 
 		// the following 2 fields are used by SGD with momentum
 		std::vector<NNVector> outputBiasLastUpdate;
@@ -170,6 +178,12 @@ private:
 
 	std::mt19937 m_mersenneTwister;
 };
+
+template <ActivationFunc ACTF>
+void SerializeNet(FCANN<ACTF> &net, std::ostream &s);
+
+template <ActivationFunc ACTF>
+FCANN<ACTF> DeserializeNet(std::istream &s);
 
 #include "ann_impl.h"
 
