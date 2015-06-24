@@ -113,7 +113,7 @@ void AsyncSearch::RootSearch_()
 
 		while (!m_context.Stopping())
 		{
-			latestResult.score = Search_(
+			latestResult.score = Search(
 				m_context,
 				latestResult.pv,
 				m_context.startBoard,
@@ -222,12 +222,12 @@ void AsyncSearch::SearchTimer_(double time)
 	m_context.stopRequest = true;
 }
 
-Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
+Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
 {
 	// switch to QSearch if we are at depth 0
 	if (depth <= 0)
 	{
-		return QSearch_(context, pv, board, alpha, beta, ply);
+		return QSearch(context, pv, board, alpha, beta, ply);
 	}
 
 	++context.nodeCount;
@@ -263,7 +263,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Bo
 		if (isPV && (!tEntry || tEntry->bestMove == 0) && depth > 4)
 		{
 			std::vector<Move> iidPv;
-			Search_(context, iidPv, board, alpha, beta, depth - 2, ply);
+			Search(context, iidPv, board, alpha, beta, depth - 2, ply);
 
 			tEntry = context.transpositionTable->Probe(board.GetHash());
 		}
@@ -322,7 +322,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Bo
 			board.MakeNullMove();
 
 			std::vector<Move> pvNN;
-			Score nmScore = -Search_(context, pvNN, board, -beta, -beta + 1, depth - reduction, ply + 1, false);
+			Score nmScore = -Search(context, pvNN, board, -beta, -beta + 1, depth - reduction, ply + 1, false);
 
 			board.UndoMove();
 
@@ -334,7 +334,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Bo
 
 					if (depth <= 0)
 					{
-						return QSearch_(context, pv, board, alpha, beta, ply);
+						return QSearch(context, pv, board, alpha, beta, ply);
 					}
 				}
 				else
@@ -396,18 +396,18 @@ Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Bo
 			// if this is a null window search anyways, don't bother
 			if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && depth > 1)
 			{
-				score = -Search_(context, subPv, board, -alpha - 1, -alpha, depth - 1, ply + 1);
+				score = -Search(context, subPv, board, -alpha - 1, -alpha, depth - 1, ply + 1);
 
 				if (score > alpha && score < beta)
 				{
 					// if the move didn't actually fail low, this is now the PV, and we have to search with
 					// full window
-					score = -Search_(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
+					score = -Search(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
 				}
 			}
 			else
 			{
-				score = -Search_(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
+				score = -Search(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
 			}
 
 			board.UndoMove();
@@ -484,7 +484,7 @@ Score AsyncSearch::Search_(RootSearchContext &context, std::vector<Move> &pv, Bo
 	}
 }
 
-Score AsyncSearch::QSearch_(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply)
+Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply)
 {
 	++context.nodeCount;
 
@@ -497,7 +497,7 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, std::vector<Move> &pv, B
 	// if we are in check, switch back to normal search (we have to do this before stand-pat)
 	if (board.InCheck())
 	{
-		return Search_(context, pv, board, alpha, beta, 1, ply, false);
+		return Search(context, pv, board, alpha, beta, 1, ply, false);
 	}
 
 	pv.clear();
@@ -572,7 +572,7 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, std::vector<Move> &pv, B
 		{
 			Score score = 0;
 
-			score = -QSearch_(context, subPv, board, -beta, -alpha, ply + 1);
+			score = -QSearch(context, subPv, board, -beta, -alpha, ply + 1);
 
 			board.UndoMove();
 
@@ -599,6 +599,31 @@ Score AsyncSearch::QSearch_(RootSearchContext &context, std::vector<Move> &pv, B
 	}
 
 	return alpha;
+}
+
+SearchResult SyncSearchDepthLimited(const Board &b, Depth depth)
+{
+	SearchResult ret;
+	RootSearchContext context;
+
+	context.startBoard = b;
+
+	// we create new tt and killer because this function is called in parallel
+	std::unique_ptr<Killer> killer(new Killer);
+	std::unique_ptr<TTable> ttable(new TTable(4*1024*1024));
+
+	context.killer = killer.get();
+	context.transpositionTable = ttable.get();
+
+	context.searchType = SearchType_infinite;
+	context.maxDepth = depth;
+
+	context.stopRequest = false;
+	context.onePlyDone = false;
+
+	ret.score = Search(context, ret.pv, context.startBoard, SCORE_MIN, SCORE_MAX, depth, 0);
+
+	return ret;
 }
 
 }

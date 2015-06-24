@@ -136,10 +136,6 @@ private:
 	// entry point for a thread that automatically interrupts the search after the specified time
 	void SearchTimer_(double time);
 
-	Score Search_(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true);
-
-	Score QSearch_(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply);
-
 	RootSearchContext &m_context;
 	std::thread m_thread;
 	std::atomic<bool> m_done;
@@ -151,6 +147,14 @@ private:
 
 	std::thread m_searchTimerThread;
 };
+
+Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true);
+
+Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply);
+
+// perform a synchronous search (no thread creation)
+// this is used in training only, where we don't want to do a typical root search, and don't want all the overhead
+SearchResult SyncSearchDepthLimited(const Board &b, Depth depth);
 
 }
 
