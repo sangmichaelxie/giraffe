@@ -41,8 +41,8 @@ inline void ErrorFuncDeri(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &
 {
 	for (int32_t i = 0; i < in.rows(); ++i)
 	{
-		//out(i, 0) = (in(i, 0) > 0.0f) ? 1.0f : -1.0f;
-		out(i, 0) = in(i, 0);
+		out(i, 0) = (in(i, 0) > 0.0f) ? 1.0f : -1.0f;
+		//out(i, 0) = in(i, 0);
 	}
 }
 
