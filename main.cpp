@@ -84,7 +84,7 @@ int main(int argc, char **argv)
 			{
 				if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_global)
 				{
-					featuresfile << 'G' << std::endl;
+					featuresfile << 'G' << ' ' << fd.group << std::endl;
 				}
 				else
 				{

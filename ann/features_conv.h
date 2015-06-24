@@ -27,6 +27,9 @@ struct FeatureDescription
 
 	FeatureType featureType;
 
+	// fields for global features
+	int32_t group;
+
 	// fields for pos features
 	Square sq;
 
@@ -47,7 +50,8 @@ struct FeatureDescription
 		switch (featureType)
 		{
 		case FeatureType_global:
-			ret << "GLOBAL";
+			ret << "GLOBAL ";
+			ret << group << ' ';
 			break;
 		case FeatureType_posPieceType:
 			ret << "POS_PT ";
