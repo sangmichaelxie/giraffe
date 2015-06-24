@@ -98,144 +98,61 @@ private:
 
 void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, std::vector<std::vector<Eigen::Triplet<float> > > &connMatrices)
 {
-	const size_t FirstHiddenLayerNumGlobalNodes = 256;
-	const size_t FirstHiddenLayerNumNodesPerSquare = 16;
+	std::vector<std::vector<int32_t> > featureGroups;
 
-	const size_t SecondHiddenLayerNumGlobalNodes = 64;
-	const size_t SecondHiddenLayerNumNodesPerSquare = 4;
+	std::ifstream featureFile(filename);
 
-	std::ifstream featuresFile(filename);
+	char type;
 
-	std::vector<size_t> firstHiddenLayerGlobalFeatures;
-	std::vector<size_t> firstHiddenLayerSquareConnLists[64]; // list of features influencing each square for first hidden layer
-	std::vector<size_t> secondHiddenLayerGlobalFeatures; // list of global features from first hidden layer output
-	std::vector<size_t> secondHiddenLayerSquareConnLists[64]; // list of features influencing each square for second hidden layer
+	int32_t feature = 0;
 
-	std::string line;
-
-	size_t currentFeatureNum = 0;
-
-	// for the first hidden layer, we get the influences from feature file
-	while (std::getline(featuresFile, line))
+	while (featureFile >> type)
 	{
-		std::stringstream ss(line);
+		int32_t group;
+		featureFile >> group;
 
-		char featureType;
-		ss >> featureType;
-
-		if (featureType == 'G')
+		if (static_cast<size_t>(group) >= featureGroups.size())
 		{
-			firstHiddenLayerGlobalFeatures.push_back(currentFeatureNum);
-		}
-		else
-		{
-			size_t numInfluencedSquares = 0;
-			ss >> numInfluencedSquares;
-
-			for (size_t i = 0; i < numInfluencedSquares; ++i)
-			{
-				int32_t sq;
-
-				ss >> sq;
-
-				firstHiddenLayerSquareConnLists[sq].push_back(currentFeatureNum);
-			}
+			featureGroups.resize(group + 1);
 		}
 
-		++currentFeatureNum;
+		featureGroups[group].push_back(feature);
+
+		++feature;
 	}
 
-	currentFeatureNum = 0;
+	// in the first layer, we connect the groups locally
+	// if a group has x features, we use x*FeatureCountMultiplier hidden nodes
+	float FeatureCountMultiplier = 2.0f;
+	size_t nodeCount = 0;
 
-	// first hidden layer is sparse
-	std::vector<Eigen::Triplet<float> > firstHiddenLayerConnMatrix;
-
-	for (size_t i = 0; i < FirstHiddenLayerNumGlobalNodes; ++i)
+	std::vector<Eigen::Triplet<float> > connections;
+	for (size_t group = 0; group < featureGroups.size(); ++group)
 	{
-		for (size_t j = 0; j < firstHiddenLayerGlobalFeatures.size(); ++j)
+		size_t numNodes = featureGroups[group].size() * FeatureCountMultiplier;
+
+		for (size_t node = 0; node < numNodes; ++node)
 		{
-			Eigen::Triplet<float> trip(firstHiddenLayerGlobalFeatures[j], currentFeatureNum, 1.0f);
-
-			firstHiddenLayerConnMatrix.push_back(trip);
-		}
-
-		secondHiddenLayerGlobalFeatures.push_back(currentFeatureNum);
-
-		++currentFeatureNum;
-	}
-
-	for (size_t sq = 0; sq < 64; ++sq)
-	{
-		for (size_t i = 0; i < FirstHiddenLayerNumNodesPerSquare; ++i)
-		{
-			for (size_t j = 0; j < firstHiddenLayerSquareConnLists[sq].size(); ++j)
+			// connect the node to all nodes in the group
+			for (const auto &feature : featureGroups[group])
 			{
-				Eigen::Triplet<float> trip(firstHiddenLayerSquareConnLists[sq][j], currentFeatureNum, 1.0f);
-
-				firstHiddenLayerConnMatrix.push_back(trip);
+				connections.push_back(Eigen::Triplet<float>(feature, nodeCount, 1.0f));
 			}
 
-			// this square affects adjacent squares
-			// now we build the connection list for second layer
-			int32_t x = GetX(sq);
-			int32_t y = GetY(sq);
-			for (int32_t offsetX = -1; offsetX <= 1; ++offsetX)
-			{
-				for (int32_t offsetY = -1; offsetY <= 1; ++offsetY)
-				{
-					if (Valid(x + offsetX) && Valid(y + offsetY))
-					{
-						secondHiddenLayerSquareConnLists[Sq(x + offsetX, y + offsetY)].push_back(currentFeatureNum);
-					}
-				}
-			}
-
-			++currentFeatureNum;
+			++nodeCount;
 		}
 	}
 
-	assert(currentFeatureNum == (FirstHiddenLayerNumGlobalNodes + 64 * FirstHiddenLayerNumNodesPerSquare));
-	layerSizes.push_back(FirstHiddenLayerNumGlobalNodes + 64 * FirstHiddenLayerNumNodesPerSquare);
-	connMatrices.push_back(firstHiddenLayerConnMatrix);
-	currentFeatureNum = 0;
+	std::cout << connections.size() << " " << (static_cast<int64_t>(nodeCount) * 223) << std::endl;
 
-	// second hidden layer is sparse
-	std::vector<Eigen::Triplet<float> > secondHiddenLayerConnMatrix;
+	layerSizes.push_back(nodeCount);
+	connMatrices.push_back(connections);
 
-	for (size_t i = 0; i < SecondHiddenLayerNumGlobalNodes; ++i)
-	{
-		for (size_t j = 0; j < secondHiddenLayerGlobalFeatures.size(); ++j)
-		{
-			Eigen::Triplet<float> trip(secondHiddenLayerGlobalFeatures[j], currentFeatureNum, 1.0f);
+	layerSizes.push_back(1024);
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
-			secondHiddenLayerConnMatrix.push_back(trip);
-		}
-
-		++currentFeatureNum;
-	}
-
-	for (size_t sq = 0; sq < 64; ++sq)
-	{
-		for (size_t i = 0; i < SecondHiddenLayerNumNodesPerSquare; ++i)
-		{
-			for (size_t j = 0; j < secondHiddenLayerSquareConnLists[sq].size(); ++j)
-			{
-				Eigen::Triplet<float> trip(secondHiddenLayerSquareConnLists[sq][j], currentFeatureNum, 1.0f);
-
-				secondHiddenLayerConnMatrix.push_back(trip);
-			}
-
-			++currentFeatureNum;
-		}
-	}
-
-	assert(currentFeatureNum == (SecondHiddenLayerNumGlobalNodes + 64 * SecondHiddenLayerNumNodesPerSquare));
-	//layerSizes.push_back(SecondHiddenLayerNumGlobalNodes + 64 * SecondHiddenLayerNumNodesPerSquare);
-	//connMatrices.push_back(secondHiddenLayerConnMatrix);
-
-	// fully connected third layer
-	//layerSizes.push_back(128);
-	//connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+	layerSizes.push_back(256);
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 	// fully connected output layer
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
@@ -503,11 +420,17 @@ void Learn(
 
 		FCANN<Relu> nn(77, xTrain.cols(), 1, hiddenLayersConfig, connMatrices);
 
+		//std::ifstream netfIn("net.dump");
+		//FCANN<Relu> nn = DeserializeNet<Relu>(netfIn);
+
 		std::cout << "Beginning training..." << std::endl;
 		Train(nn, xTrain, yTrain, xVal, yVal, xTest, yTest, mersenneTwister);
 
 		// compute test performance and statistics
 		PrintTestStats(nn, xTest, yTest);
+
+		//std::ofstream netf("net.dump");
+		//SerializeNet(nn, netf);
 	}
 }
 }
