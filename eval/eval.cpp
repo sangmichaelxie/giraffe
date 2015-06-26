@@ -167,7 +167,7 @@ Score EvaluateKings(uint64_t bb, Phase phase)
 	return ret;
 }
 
-Score Evaluate(const Board &b, Score lowerBound, Score upperBound)
+Score StaticEvaluate(const Board &b, Score lowerBound, Score upperBound)
 {
 	Score ret = 0;
 

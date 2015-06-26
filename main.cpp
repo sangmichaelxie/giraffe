@@ -18,6 +18,7 @@
 #include "movepicker.h"
 #include "ann/learn_ann.h"
 #include "ann/features_conv.h"
+#include "ann/ann_evaluator.h"
 
 #include "Eigen/Dense"
 
@@ -158,6 +159,10 @@ int main(int argc, char **argv)
 #else
 	std::cout << "# Running in release mode" << std::endl;
 #endif
+
+	ANNEvaluator evaluator("net.dump");
+
+	backend.SetEvaluator(&evaluator);
 
 	while (true)
 	{

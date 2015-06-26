@@ -14,6 +14,7 @@
 #include "ttable.h"
 #include "eval/eval.h"
 #include "killer.h"
+#include "evaluator.h"
 
 namespace Search
 {
@@ -105,6 +106,8 @@ struct RootSearchContext
 	TTable *transpositionTable;
 	Killer *killer;
 
+	EvaluatorIface *evaluator;
+
 	std::function<void (std::string &mv)> finalMoveFunc;
 	std::function<void (ThinkingOutput &to)> thinkingOutputFunc;
 
@@ -154,7 +157,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 // perform a synchronous search (no thread creation)
 // this is used in training only, where we don't want to do a typical root search, and don't want all the overhead
-SearchResult SyncSearchDepthLimited(const Board &b, Depth depth);
+SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator);
 
 }
 

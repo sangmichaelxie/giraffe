@@ -8,7 +8,8 @@ Backend::Backend()
 	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_maxDepth(0), m_showThinking(false),
 	  m_whiteClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
 	  m_blackClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
-	  m_tTable(DEFAULT_TTABLE_SIZE / sizeof(TTEntry))
+	  m_tTable(DEFAULT_TTABLE_SIZE / sizeof(TTEntry)),
+	  m_evaluator(&Eval::gStaticEvaluator)
 {
 }
 
@@ -217,7 +218,7 @@ void Backend::DebugRunPerftWithNull(int32_t depth)
 
 Score Backend::DebugEval()
 {
-	return Eval::Evaluate(m_currentBoard, SCORE_MIN, SCORE_MAX);
+	return m_evaluator->Evaluate(m_currentBoard, SCORE_MIN, SCORE_MAX);
 }
 
 void Backend::Force_(std::lock_guard<std::mutex> &lock)
@@ -275,6 +276,8 @@ void Backend::StartSearch_(Search::SearchType searchType)
 	m_searchContext->maxDepth = m_maxDepth;
 	m_searchContext->transpositionTable = &m_tTable;
 	m_searchContext->killer = &m_killer;
+
+	m_searchContext->evaluator = m_evaluator;
 
 	m_searchContext->thinkingOutputFunc =
 	[this](Search::ThinkingOutput &to)

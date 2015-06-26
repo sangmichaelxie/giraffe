@@ -220,6 +220,34 @@ NNMatrixRM FCANN<ACTF>::ForwardPropagateFast(const MatrixBase<Derived> &in)
 
 template <ActivationFunc ACTF>
 template <typename Derived>
+float FCANN<ACTF>::ForwardPropagateSingle(const MatrixBase<Derived> &vec)
+{
+	NNVector x;
+
+	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
+	{
+		if (layer == 0)
+		{
+			x.noalias() = vec * m_params.weights[layer];
+		}
+		else
+		{
+			x *= m_params.weights[layer];
+		}
+
+		x.rowwise() += m_params.outputBias[layer];
+
+		if (layer != (m_params.weights.size() - 1))
+		{
+			Activate_(x);
+		}
+	}
+
+	return x(0, 0);
+}
+
+template <ActivationFunc ACTF>
+template <typename Derived>
 void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad)
 {
 	assert(grad.weightGradients.size() == m_params.weights.size());

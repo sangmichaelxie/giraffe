@@ -50,6 +50,8 @@ public:
 	void AdjustEngineTime(double time);
 	void AdjustOpponentTime(double time);
 
+	void SetEvaluator(EvaluatorIface *newEvaluator) { m_evaluator = newEvaluator; }
+
 	void DebugPrintBoard();
 	void DebugRunPerft(int32_t depth);
 	void DebugRunPerftWithNull(int32_t depth);
@@ -84,6 +86,8 @@ private:
 
 	TTable m_tTable;
 	Killer m_killer;
+
+	EvaluatorIface *m_evaluator;
 };
 
 #endif // BACKEND_H

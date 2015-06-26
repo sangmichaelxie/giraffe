@@ -50,6 +50,8 @@ template <ActivationFunc ACTF>
 class FCANN
 {
 public:
+	FCANN() {}
+
 	// initialize with random weights
 	FCANN(
 		int randomSeed,
@@ -100,6 +102,10 @@ public:
 	// same as ForwardPropagate, but doesn't bother with Activations
 	template <typename Derived>
 	NNMatrixRM ForwardPropagateFast(const MatrixBase<Derived> &in);
+
+	// special case for 1 board - this is used in gameplay
+	template <typename Derived>
+	float ForwardPropagateSingle(const MatrixBase<Derived> &vec);
 
 	template <typename Derived>
 	void BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad);
