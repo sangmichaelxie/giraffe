@@ -96,7 +96,7 @@ private:
 	uint32_t m_cols;
 };
 
-void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, std::vector<std::vector<Eigen::Triplet<float> > > &connMatrices)
+void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, std::vector<std::vector<Eigen::Triplet<float> > > &connMatrices, std::mt19937 &mt)
 {
 	std::vector<std::vector<int32_t> > featureGroups;
 
@@ -123,7 +123,9 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 
 	// in the first layer, we connect the groups locally
 	// if a group has x features, we use x*FeatureCountMultiplier hidden nodes
-	float FeatureCountMultiplier = 2.0f;
+	std::vector<std::vector<int32_t> > firstLayerGroups(featureGroups.size());
+
+	float FeatureCountMultiplier = 3.0f;
 	size_t nodeCount = 0;
 
 	std::vector<Eigen::Triplet<float> > connections;
@@ -139,17 +141,42 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 				connections.push_back(Eigen::Triplet<float>(feature, nodeCount, 1.0f));
 			}
 
+			firstLayerGroups[group].push_back(nodeCount);
+
 			++nodeCount;
 		}
 	}
 
-	std::cout << connections.size() << " " << (static_cast<int64_t>(nodeCount) * 223) << std::endl;
-
 	layerSizes.push_back(nodeCount);
 	connMatrices.push_back(connections);
 
-	layerSizes.push_back(1024);
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+	// in the second layer, we do the same, but for each node, we choose 4 input groups to mix
+	const size_t SecondHiddenLayerNodes = 1024;
+	const size_t NumGroupsPerNode = 4;
+	nodeCount = 0;
+	connections.clear();
+
+	std::uniform_int_distribution<> groupDist(0, firstLayerGroups.size() - 1);
+
+	for (size_t node = 0; node < SecondHiddenLayerNodes; ++node)
+	{
+		for (size_t i = 0; i < NumGroupsPerNode; ++i)
+		{
+			// we can have duplicates, in which case we'll actually have less than 4 groups, and that's ok
+			size_t group = groupDist(mt);
+
+			// connect the node to all nodes in the group
+			for (const auto &feature : firstLayerGroups[group])
+			{
+				connections.push_back(Eigen::Triplet<float>(feature, nodeCount, 1.0f));
+			}
+		}
+
+		++nodeCount;
+	}
+
+	layerSizes.push_back(nodeCount);
+	connMatrices.push_back(connections);
 
 	layerSizes.push_back(256);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
@@ -391,7 +418,7 @@ void Learn(
 	std::vector<size_t> hiddenLayersConfig;
 	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
 
-	BuildLayers(featuresFilename, hiddenLayersConfig, connMatrices);
+	BuildLayers(featuresFilename, hiddenLayersConfig, connMatrices, mersenneTwister);
 
 	MMappedMatrix xMap(xFilename);
 	MMappedMatrix yMap(yFilename);
@@ -421,7 +448,7 @@ void Learn(
 		FCANN<Relu> nn(77, xTrain.cols(), 1, hiddenLayersConfig, connMatrices);
 
 		//std::ifstream netfIn("net.dump");
-		//FCANN<Relu> nn = DeserializeNet<Relu>(netfIn);
+		//ANN nn = DeserializeNet(netfIn);
 
 		std::cout << "Beginning training..." << std::endl;
 		Train(nn, xTrain, yTrain, xVal, yVal, xTest, yTest, mersenneTwister);
@@ -429,8 +456,8 @@ void Learn(
 		// compute test performance and statistics
 		PrintTestStats(nn, xTest, yTest);
 
-		//std::ofstream netf("net.dump");
-		//SerializeNet(nn, netf);
+		std::ofstream netf("net.dump");
+		SerializeNet(nn, netf);
 	}
 }
 }
