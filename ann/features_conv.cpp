@@ -341,7 +341,7 @@ void PushPawns(std::vector<T> &ret, uint64_t pawns, int32_t &group)
 		//PushAttackIfValid(ret, sq, -1, (color == WHITE) ? 1 : -1, exists);
 
 		PushGlobalCoords(ret, exists, sq, group);
-		++group;
+		//++group;
 	}
 }
 
