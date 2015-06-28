@@ -398,8 +398,6 @@ ANN TrainANNFromFile(
 	auto x = xMap.GetMap();
 	auto y = yMap.GetMap();
 
-	std::cout << "Using " << omp_get_max_threads() << " thread(s)" << std::endl;
-
 	Rows trainRows, valRows, testRows;
 	SplitDataset(x, y, trainRows, valRows, testRows);
 

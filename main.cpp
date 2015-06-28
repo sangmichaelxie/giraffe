@@ -25,6 +25,17 @@
 
 void Initialize()
 {
+	Eigen::initParallel();
+
+	// set Eigen to use 1 thread because we are doing OpenMP here
+	Eigen::setNbThreads(1);
+
+	// disable nested parallelism since we don't need it, and disabling it
+	// makes managing number of threads easier
+	omp_set_nested(0);
+
+	std::cout << "Using " << omp_get_max_threads() << " thread(s)" << std::endl;
+
 	// turn off IO buffering
 	std::cout.setf(std::ios::unitbuf);
 
@@ -49,15 +60,6 @@ void GetVersion()
 
 int main(int argc, char **argv)
 {
-	Eigen::initParallel();
-
-	// set Eigen to use 1 thread because we are doing OpenMP here
-	Eigen::setNbThreads(1);
-
-	// disable nested parallelism since we don't need it, and disabling it
-	// makes managing number of threads easier
-	omp_set_nested(0);
-
 	Initialize();
 
 	GetVersion();
