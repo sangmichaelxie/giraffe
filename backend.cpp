@@ -221,6 +221,13 @@ Score Backend::DebugEval()
 	return m_evaluator->Evaluate(m_currentBoard, SCORE_MIN, SCORE_MAX);
 }
 
+void Backend::Quit()
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+
+	StopSearch_(lock);
+}
+
 void Backend::Force_(std::lock_guard<std::mutex> &lock)
 {
 	StopSearch_(lock);
