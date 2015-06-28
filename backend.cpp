@@ -218,7 +218,7 @@ void Backend::DebugRunPerftWithNull(int32_t depth)
 
 Score Backend::DebugEval()
 {
-	return m_evaluator->Evaluate(m_currentBoard, SCORE_MIN, SCORE_MAX);
+	return m_evaluator->EvaluateForSTM(m_currentBoard, SCORE_MIN, SCORE_MAX);
 }
 
 void Backend::Quit()

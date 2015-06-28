@@ -305,7 +305,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		avoidNullTT = true;
 	}
 
-	Score staticEval = context.evaluator->Evaluate(board, alpha, beta);
+	Score staticEval = context.evaluator->EvaluateForSTM(board, alpha, beta);
 
 	// try null move
 	if (ENABLE_NULL_MOVE_HEURISTICS && staticEval >= beta && !isPV)
@@ -503,7 +503,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	pv.clear();
 
 	// we first see if we can stand-pat
-	Score staticEval = context.evaluator->Evaluate(board, alpha, beta);
+	Score staticEval = context.evaluator->EvaluateForSTM(board, alpha, beta);
 
 	if (staticEval >= beta)
 	{

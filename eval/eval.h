@@ -16,7 +16,7 @@ const static Score SCORE_MIN = std::numeric_limits<Score>::lowest() + 1000;
 namespace Eval
 {
 
-// returns score for side to move
+// returns score for white
 Score StaticEvaluate(const Board &b, Score lowerBound, Score upperBound);
 
 // returns score for white
@@ -25,7 +25,7 @@ Score EvaluateMaterial(const Board &b);
 class StaticEvaluator : public EvaluatorIface
 {
 public:
-	Score Evaluate(const Board &b, Score lowerBound, Score upperBound)
+	Score EvaluateForWhite(const Board &b, Score lowerBound, Score upperBound)
 	{
 		return StaticEvaluate(b, lowerBound, upperBound);
 	}

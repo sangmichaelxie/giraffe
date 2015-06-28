@@ -28,7 +28,7 @@ public:
 		m_evalHash.resize(EvalHashSize);
 	}
 
-	Score Evaluate(const Board &b, Score lowerBound, Score upperBound)
+	Score EvaluateForWhite(const Board &b, Score lowerBound, Score upperBound)
 	{
 		uint64_t hash = b.GetHash();
 		EvalHashEntry *entry = &m_evalHash[hash % EvalHashSize];
@@ -44,12 +44,10 @@ public:
 
 		Score nnRet = m_ann.ForwardPropagateSingle(mappedVec);
 
-		Score ret = b.GetSideToMove() == WHITE ? nnRet : -nnRet;
-
 		entry->hash = hash;
-		entry->val = ret;
+		entry->val = nnRet;
 
-		return ret;
+		return nnRet;
 	}
 
 private:
