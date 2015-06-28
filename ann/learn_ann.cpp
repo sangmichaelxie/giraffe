@@ -22,7 +22,6 @@
 
 namespace
 {
-const int64_t NumClusters = 1;
 const int64_t KMeanNumIterations = 1;
 
 const size_t BatchSize = 256;
@@ -121,64 +120,37 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 		++feature;
 	}
 
-	// in the first layer, we connect the groups locally
-	// if a group has x features, we use x*FeatureCountMultiplier hidden nodes
-	std::vector<std::vector<int32_t> > firstLayerGroups(featureGroups.size());
-
-	float FeatureCountMultiplier = 3.0f;
-	size_t nodeCount = 0;
-
 	std::vector<Eigen::Triplet<float> > connections;
-	for (size_t group = 0; group < featureGroups.size(); ++group)
-	{
-		size_t numNodes = featureGroups[group].size() * FeatureCountMultiplier;
 
-		for (size_t node = 0; node < numNodes; ++node)
-		{
-			// connect the node to all nodes in the group
-			for (const auto &feature : featureGroups[group])
-			{
-				connections.push_back(Eigen::Triplet<float>(feature, nodeCount, 1.0f));
-			}
-
-			firstLayerGroups[group].push_back(nodeCount);
-
-			++nodeCount;
-		}
-	}
-
-	layerSizes.push_back(nodeCount);
-	connMatrices.push_back(connections);
-
-	// in the second layer, we do the same, but for each node, we choose 4 input groups to mix
-	const size_t SecondHiddenLayerNodes = 1024;
-	const size_t NumGroupsPerNode = 4;
-	nodeCount = 0;
+	// build first layer
+	const size_t FirstHiddenLayerNodes = 1024;
+	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
 	connections.clear();
 
-	std::uniform_int_distribution<> groupDist(0, firstLayerGroups.size() - 1);
+	std::uniform_int_distribution<> groupDist(0, featureGroups.size() - 1);
 
-	for (size_t node = 0; node < SecondHiddenLayerNodes; ++node)
+	for (size_t node = 0; node < FirstHiddenLayerNodes; ++node)
 	{
-		for (size_t i = 0; i < NumGroupsPerNode; ++i)
+		for (size_t i = 0; i < FirstHiddenLayerNumGroupsPerNode; ++i)
 		{
 			// we can have duplicates, in which case we'll actually have less than 4 groups, and that's ok
 			size_t group = groupDist(mt);
 
 			// connect the node to all nodes in the group
-			for (const auto &feature : firstLayerGroups[group])
+			for (const auto &feature : featureGroups[group])
 			{
-				connections.push_back(Eigen::Triplet<float>(feature, nodeCount, 1.0f));
+				connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
 			}
 		}
-
-		++nodeCount;
 	}
 
-	layerSizes.push_back(nodeCount);
+	layerSizes.push_back(FirstHiddenLayerNodes);
 	connMatrices.push_back(connections);
 
-	layerSizes.push_back(256);
+	layerSizes.push_back(512);
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	layerSizes.push_back(32);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 	// fully connected output layer
@@ -398,7 +370,7 @@ void PrintTestStats(T &nn, Eigen::MatrixBase<Derived> &x, Eigen::MatrixBase<Deri
 
 namespace LearnAnn
 {
-void Learn(
+ANN TrainANNFromFile(
 	const std::string &xFilename,
 	const std::string &yFilename,
 	const std::string &featuresFilename)
@@ -428,36 +400,35 @@ void Learn(
 
 	std::cout << "Using " << omp_get_max_threads() << " thread(s)" << std::endl;
 
-	for (int64_t c = 0; c < NumClusters; ++c)
-	{
-		Rows trainRows, valRows, testRows;
-		SplitDataset(x, y, trainRows, valRows, testRows);
+	Rows trainRows, valRows, testRows;
+	SplitDataset(x, y, trainRows, valRows, testRows);
 
-		auto xTrain = x.block(trainRows.begin, 0, trainRows.num, x.cols());
-		auto yTrain = y.block(trainRows.begin, 0, trainRows.num, y.cols());
-		auto xVal = x.block(valRows.begin, 0, valRows.num, x.cols());
-		auto yVal = y.block(valRows.begin, 0, valRows.num, y.cols());
-		auto xTest = x.block(testRows.begin, 0, testRows.num, x.cols());
-		auto yTest = y.block(testRows.begin, 0, testRows.num, y.cols());
+	auto xTrain = x.block(trainRows.begin, 0, trainRows.num, x.cols());
+	auto yTrain = y.block(trainRows.begin, 0, trainRows.num, y.cols());
+	auto xVal = x.block(valRows.begin, 0, valRows.num, x.cols());
+	auto yVal = y.block(valRows.begin, 0, valRows.num, y.cols());
+	auto xTest = x.block(testRows.begin, 0, testRows.num, x.cols());
+	auto yTest = y.block(testRows.begin, 0, testRows.num, y.cols());
 
-		std::cout << "Train: " << xTrain.rows() << std::endl;
-		std::cout << "Val: " << xVal.rows() << std::endl;
-		std::cout << "Test: " << xTest.rows() << std::endl;
-		std::cout << "Features: " << xTrain.cols() << std::endl;
+	std::cout << "Train: " << xTrain.rows() << std::endl;
+	std::cout << "Val: " << xVal.rows() << std::endl;
+	std::cout << "Test: " << xTest.rows() << std::endl;
+	std::cout << "Features: " << xTrain.cols() << std::endl;
 
-		FCANN<Relu> nn(77, xTrain.cols(), 1, hiddenLayersConfig, connMatrices);
+	ANN nn(77, xTrain.cols(), 1, hiddenLayersConfig, connMatrices);
 
-		//std::ifstream netfIn("net.dump");
-		//ANN nn = DeserializeNet(netfIn);
+	//std::ifstream netfIn("net.dump");
+	//ANN nn = DeserializeNet(netfIn);
 
-		std::cout << "Beginning training..." << std::endl;
-		Train(nn, xTrain, yTrain, xVal, yVal, xTest, yTest, mersenneTwister);
+	std::cout << "Beginning training..." << std::endl;
+	Train(nn, xTrain, yTrain, xVal, yVal, xTest, yTest, mersenneTwister);
 
-		// compute test performance and statistics
-		PrintTestStats(nn, xTest, yTest);
+	// compute test performance and statistics
+	PrintTestStats(nn, xTest, yTest);
 
-		std::ofstream netf("net.dump");
-		SerializeNet(nn, netf);
-	}
+	std::ofstream netf("net.dump");
+	SerializeNet(nn, netf);
+
+	return nn;
 }
 }

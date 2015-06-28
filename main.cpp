@@ -149,7 +149,7 @@ int main(int argc, char **argv)
 		std::string yFilename = argv[3];
 		std::string featuresFilename = argv[4];
 
-		LearnAnn::Learn(xFilename, yFilename, featuresFilename);
+		LearnAnn::TrainANNFromFile(xFilename, yFilename, featuresFilename);
 
 		return 0;
 	}

@@ -6,7 +6,7 @@
 namespace LearnAnn
 {
 
-void Learn(
+ANN TrainANNFromFile(
 	const std::string &xFilename,
 	const std::string &yFilename,
 	const std::string &featuresFilename);
