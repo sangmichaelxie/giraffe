@@ -510,6 +510,40 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 		return staticEval;
 	}
 
+	bool isPV = (beta - alpha) != 1;
+
+	TTEntry *tEntry = ENABLE_TT ? context.transpositionTable->Probe(board.GetHash()) : 0;
+
+	if (tEntry)
+	{
+		// try to get a cutoff from ttable, unless we are in PV (it can shorten PV)
+		// since we are in Q-search, we don't have to check depth
+		if (!isPV)
+		{
+			if (tEntry->entryType == EXACT)
+			{
+				// if we have an exact score, we can always return it
+				return tEntry->score;
+			}
+			else if (tEntry->entryType == UPPERBOUND)
+			{
+				// if we have an upper bound, we can only return if this score fails low (no best move)
+				if (tEntry->score <= alpha)
+				{
+					return tEntry->score;
+				}
+			}
+			else if (tEntry->entryType == LOWERBOUND)
+			{
+				// if we have an upper bound, we can only return if this score fails high
+				if (tEntry->score >= beta)
+				{
+					return tEntry->score;
+				}
+			}
+		}
+	}
+
 	// can any move possibly increase alpha?
 	// we take opponent's biggest piece, and if even capturing that piece for free with the highest positional gain possible
 	// doesn't improve alpha, there is no point going further
@@ -541,6 +575,8 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	size_t i = 0;
 
 	std::vector<Move> subPv;
+
+	bool alphaRaised = false;
 
 	while ((mv = movePicker.GetNextMove(moveStage)))
 	{
@@ -587,15 +623,26 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 				pv.clear();
 				pv.push_back(ClearScore(mv));
 				pv.insert(pv.end(), subPv.begin(), subPv.end());
+				alphaRaised = true;
 			}
 
 			if (score >= beta)
 			{
+				context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, 0, LOWERBOUND);
 				return score;
 			}
 		}
 
 		++i;
+	}
+
+	if (alphaRaised)
+	{
+		context.transpositionTable->Store(board.GetHash(), pv[0], alpha, 0, EXACT);
+	}
+	else
+	{
+		context.transpositionTable->Store(board.GetHash(), 0, alpha, 0, UPPERBOUND);
 	}
 
 	return alpha;
