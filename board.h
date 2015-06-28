@@ -117,7 +117,7 @@ public:
 	// how many moves can be undone from the current position
 	int32_t PossibleUndo() { return m_undoStackBB.GetSize(); }
 
-	uint64_t GetHash() { return m_boardDescBB[HASH]; }
+	uint64_t GetHash() const { return m_boardDescBB[HASH]; }
 
 	// is it probable that this position is zugzwang (used in null move)
 	bool IsZugzwangProbable();
