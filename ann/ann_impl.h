@@ -11,6 +11,8 @@
 // for floating point interrupts
 #include <xmmintrin.h>
 
+#include "omp_scoped_thread_limiter.h"
+
 void EnableNanInterrupt()
 {
 	_MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
@@ -294,6 +296,9 @@ float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived> &x, const MatrixBase<Deriv
 	static std::vector<Gradients> gradLocal;
 	static std::vector<Activations> actLocal;
 	static bool initialized = false;
+
+	// we limit to 8 threads for the current block size of 256
+	ScopedThreadLimiter tlim(8);
 
 	if (!initialized)
 	{

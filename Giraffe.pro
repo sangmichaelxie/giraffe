@@ -25,7 +25,8 @@ SOURCES += main.cpp \
 	ann/ann.cpp \
 	tools/gen_bitboard_consts.cpp \
 	ann/learn_ann.cpp \
-	ann/features_conv.cpp
+	ann/features_conv.cpp \
+    learn.cpp
 
 HEADERS += \
 	board_consts.h \
@@ -53,5 +54,7 @@ HEADERS += \
 	ann/features_conv.h \
 	matrix_ops.h \
 	evaluator.h \
-	ann/ann_evaluator.h
+	ann/ann_evaluator.h \
+    learn.h \
+    omp_scoped_thread_limiter.h
 
