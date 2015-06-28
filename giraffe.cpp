@@ -17,4 +17,5 @@
 #include "zobrist.cpp"
 #include "ann/learn_ann.cpp"
 #include "ann/features_conv.cpp"
+#include "learn.cpp"
 #include "main.cpp"

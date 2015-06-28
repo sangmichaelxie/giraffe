@@ -19,6 +19,7 @@
 #include "ann/learn_ann.h"
 #include "ann/features_conv.h"
 #include "ann/ann_evaluator.h"
+#include "learn.h"
 
 #include "Eigen/Dense"
 
@@ -52,6 +53,10 @@ int main(int argc, char **argv)
 
 	// set Eigen to use 1 thread because we are doing OpenMP here
 	Eigen::setNbThreads(1);
+
+	// disable nested parallelism since we don't need it, and disabling it
+	// makes managing number of threads easier
+	omp_set_nested(0);
 
 	Initialize();
 
@@ -153,6 +158,18 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "tdl")
+	{
+		if (argc < 3)
+		{
+			std::cout << "Usage: " << argv[0] << " fen_filename" << std::endl;
+			return 1;
+		}
+
+		Learn::TDL(argv[2]);
+
+		return 0;
+	}
 
 #ifdef DEBUG
 	std::cout << "# Running in debug mode" << std::endl;
@@ -210,6 +227,7 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "quit")
 		{
+			backend.Quit();
 			return 0;
 		}
 		else if (cmd == "random") {}
