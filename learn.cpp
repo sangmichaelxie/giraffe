@@ -9,6 +9,7 @@
 #include "matrix_ops.h"
 #include "board.h"
 #include "ann/features_conv.h"
+#include "omp_scoped_thread_limiter.h"
 
 namespace Learn
 {
@@ -49,21 +50,25 @@ void TDL(const std::string &positionsFilename)
 
 	NNMatrixRM boardsInFeatureRepresentation(static_cast<int64_t>(trainingPositions.size()), static_cast<int64_t>(featureDescriptions.size()));
 
-	#pragma omp parallel for
-	for (size_t i = 0; i < trainingPositions.size(); ++i)
 	{
-		std::vector<float> features = FeaturesConv::ConvertBoardToNN<float>(Board(trainingPositions[i]));
+		ScopedThreadLimiter tlim(8);
 
-		if (features.size() != featureDescriptions.size())
+		#pragma omp parallel for
+		for (size_t i = 0; i < trainingPositions.size(); ++i)
 		{
-			std::stringstream msg;
+			std::vector<float> features = FeaturesConv::ConvertBoardToNN<float>(Board(trainingPositions[i]));
 
-			msg << "Wrong feature vector size! " << features.size() << " (Expecting: " << featureDescriptions.size() << ")";
+			if (features.size() != featureDescriptions.size())
+			{
+				std::stringstream msg;
 
-			throw std::runtime_error(msg.str());
+				msg << "Wrong feature vector size! " << features.size() << " (Expecting: " << featureDescriptions.size() << ")";
+
+				throw std::runtime_error(msg.str());
+			}
+
+			boardsInFeatureRepresentation.row(i) = Eigen::Map<NNVector>(&features[0], 1, static_cast<int64_t>(features.size()));
 		}
-
-		boardsInFeatureRepresentation.row(i) = Eigen::Map<NNVector>(&features[0], 1, static_cast<int64_t>(features.size()));
 	}
 
 	std::cout << "Memory usage for boards in feature representation: " <<
