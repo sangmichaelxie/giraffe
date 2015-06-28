@@ -237,7 +237,7 @@ float FCANN<ACTF>::ForwardPropagateSingle(const MatrixBase<Derived> &vec)
 			x *= m_params.weights[layer];
 		}
 
-		x.rowwise() += m_params.outputBias[layer];
+		x += m_params.outputBias[layer];
 
 		if (layer != (m_params.weights.size() - 1))
 		{
