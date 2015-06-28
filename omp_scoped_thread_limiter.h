@@ -9,7 +9,11 @@ public:
 	ScopedThreadLimiter(int limit)
 	{
 		m_originalLimit = omp_get_max_threads();
-		omp_set_num_threads(limit);
+
+		if (limit < m_originalLimit)
+		{
+			omp_set_num_threads(limit);
+		}
 	}
 
 	~ScopedThreadLimiter()
