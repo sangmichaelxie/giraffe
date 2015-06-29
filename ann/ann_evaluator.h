@@ -20,7 +20,16 @@ public:
 
 	const static size_t EvalHashSize = 8*1024*1024 / sizeof(EvalHashEntry);
 
-	ANNEvaluator(const ANN &ann) : m_ann(ann) {}
+	ANNEvaluator()
+	{
+		m_evalHash.resize(EvalHashSize);
+	}
+
+	ANNEvaluator(const ANN &ann) : m_ann(ann)
+	{
+		m_evalHash.resize(EvalHashSize);
+	}
+
 	ANNEvaluator(const std::string &filename)
 	{
 		std::ifstream netfIn(filename);
