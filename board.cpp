@@ -1606,6 +1606,19 @@ template uint64_t Board::GetAttackers<BB>(Square sq) const;
 template uint64_t Board::GetAttackers<BN>(Square sq) const;
 template uint64_t Board::GetAttackers<BP>(Square sq) const;
 
+void Board::ApplyVariation(const std::vector<Move> &moves)
+{
+	for (const auto &move : moves)
+	{
+		bool isLegal = ApplyMove(move);
+
+		if (!isLegal)
+		{
+			throw std::runtime_error(std::string("Illegal move in variation! - ") + MoveToAlg(move) + " FEN: " + GetFen());
+		}
+	}
+}
+
 template <Board::MOVE_TYPES MT>
 void Board::GenerateKingMoves_(Color color, MoveList &moveList) const
 {

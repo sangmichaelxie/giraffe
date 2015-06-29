@@ -189,6 +189,8 @@ public:
 	template <PieceType PT>
 	uint64_t GetAttackers(Square sq) const;
 
+	void ApplyVariation(const std::vector<Move> &moves);
+
 private:
 	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateQueenMoves_(Color color, MoveList &moveList) const;
