@@ -47,9 +47,9 @@ public:
 			return entry->val;
 		}
 
-		std::vector<float> conv = FeaturesConv::ConvertBoardToNN<float>(b);
+		FeaturesConv::ConvertBoardToNN(b, m_convTmp);
 
-		Eigen::Map<NNVector> mappedVec(&conv[0], 1, conv.size());
+		Eigen::Map<NNVector> mappedVec(&m_convTmp[0], 1, m_convTmp.size());
 
 		Score nnRet = m_ann.ForwardPropagateSingle(mappedVec);
 
@@ -66,6 +66,8 @@ public:
 
 private:
 	ANN m_ann;
+
+	std::vector<float> m_convTmp;
 
 	std::vector<EvalHashEntry> m_evalHash;
 };

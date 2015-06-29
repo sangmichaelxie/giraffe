@@ -432,13 +432,9 @@ namespace FeaturesConv
 {
 
 template <typename T>
-std::vector<T> ConvertBoardToNN(const Board &board)
+void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 {
-	std::vector<T> ret;
-
-	ret.reserve(256);
-
-	//std::cout << GetFen() << std::endl;
+	ret.clear(); // this shouldn't actually deallocate memory
 
 	int32_t group = 0;
 
@@ -509,8 +505,6 @@ std::vector<T> ConvertBoardToNN(const Board &board)
 	{
 		//PushSquareFeatures(ret, board, sq);
 	}
-
-	return ret;
 }
 
 std::set<Square> GetInfluences(const FeatureDescription &fd)

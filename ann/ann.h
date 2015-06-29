@@ -99,11 +99,11 @@ public:
 	template <typename Derived>
 	NNMatrixRM ForwardPropagate(const MatrixBase<Derived> &in, Activations &act);
 
-	// same as ForwardPropagate, but doesn't bother with Activations
+	// same as ForwardPropagate, but doesn't bother with Activations (NOT REENTRANT!!)
 	template <typename Derived>
 	NNMatrixRM ForwardPropagateFast(const MatrixBase<Derived> &in);
 
-	// special case for 1 board - this is used in gameplay
+	// special case for 1 board - this is used in gameplay (NOT REENTRANT!!)
 	template <typename Derived>
 	float ForwardPropagateSingle(const MatrixBase<Derived> &vec);
 

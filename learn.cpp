@@ -52,8 +52,9 @@ void TDL(const std::string &positionsFilename)
 
 	ANNEvaluator annEvaluator;
 
-	std::vector<FeaturesConv::FeatureDescription> featureDescriptions =
-		FeaturesConv::ConvertBoardToNN<FeaturesConv::FeatureDescription>(Board());
+	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
+
+	FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
 
 	NNMatrixRM boardsInFeatureRepresentation(static_cast<int64_t>(trainingPositions.size()), static_cast<int64_t>(featureDescriptions.size()));
 
@@ -191,21 +192,26 @@ void TDL(const std::string &positionsFilename)
 		{
 			ScopedThreadLimiter tlim(8);
 
-			#pragma omp parallel for
-			for (size_t i = 0; i < trainingPositions.size(); ++i)
+			#pragma omp parallel
 			{
-				std::vector<float> features = FeaturesConv::ConvertBoardToNN<float>(Board(trainingPositions[i]));
+				std::vector<float> features; // each thread reuses a vector to avoid needless allocation/deallocation
 
-				if (features.size() != featureDescriptions.size())
+				#pragma omp for
+				for (size_t i = 0; i < trainingPositions.size(); ++i)
 				{
-					std::stringstream msg;
+					FeaturesConv::ConvertBoardToNN(Board(trainingPositions[i]), features);
 
-					msg << "Wrong feature vector size! " << features.size() << " (Expecting: " << featureDescriptions.size() << ")";
+					if (features.size() != featureDescriptions.size())
+					{
+						std::stringstream msg;
 
-					throw std::runtime_error(msg.str());
+						msg << "Wrong feature vector size! " << features.size() << " (Expecting: " << featureDescriptions.size() << ")";
+
+						throw std::runtime_error(msg.str());
+					}
+
+					boardsInFeatureRepresentation.row(i) = Eigen::Map<NNMatrixRM>(&features[0], 1, static_cast<int64_t>(features.size()));
 				}
-
-				boardsInFeatureRepresentation.row(i) = Eigen::Map<NNMatrixRM>(&features[0], 1, static_cast<int64_t>(features.size()));
 			}
 		}
 

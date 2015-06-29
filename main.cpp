@@ -76,8 +76,9 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		std::vector<FeaturesConv::FeatureDescription> featureDescriptions =
-			FeaturesConv::ConvertBoardToNN<FeaturesConv::FeatureDescription>(Board());
+		std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
+
+		FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
 
 		std::string fen;
 
@@ -123,7 +124,9 @@ int main(int argc, char **argv)
 		{
 			Board b(fen);
 
-			std::vector<float> features = FeaturesConv::ConvertBoardToNN<float>(b);
+			std::vector<float> features;
+
+			FeaturesConv::ConvertBoardToNN(b, features);
 
 			if (features.size() != featureDescriptions.size())
 			{
