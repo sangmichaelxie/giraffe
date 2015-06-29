@@ -109,4 +109,7 @@ inline char PieceTypeToChar(PieceType pt)
 	return '?';
 }
 
+const static size_t KB = 1024;
+const static size_t MB = 1024*KB;
+
 #endif // TYPES_H

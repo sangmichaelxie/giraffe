@@ -13,7 +13,7 @@
 class Backend
 {
 public:
-	const static size_t DEFAULT_TTABLE_SIZE = 256*1024*1024; // 256MB
+	const static size_t DEFAULT_TTABLE_SIZE = 256*MB; // 256MB
 
 	enum EngineMode
 	{
