@@ -119,6 +119,9 @@ FCANN<ACTF>::FCANN(
 	m_params.weightsTransGpuTmp.resize(hiddenLayers.size() + 1);
 	m_params.xGpuTmp.resize(hiddenLayers.size() + 2); // we also need tmp for result of final layer
 	m_params.errorTermGpuTmp.resize(hiddenLayers.size() + 2);
+
+	m_params.evalTmp.resize(hiddenLayers.size() + 2);
+	m_params.evalSingleTmp.resize(hiddenLayers.size() + 2);
 }
 
 template <ActivationFunc ACTF>
@@ -196,56 +199,52 @@ template <ActivationFunc ACTF>
 template <typename Derived>
 NNMatrixRM FCANN<ACTF>::ForwardPropagateFast(const MatrixBase<Derived> &in)
 {
-	NNMatrixRM x;
-
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
 		if (layer == 0)
 		{
-			x.noalias() = in * m_params.weights[layer];
+			m_params.evalTmp[layer].noalias() = in * m_params.weights[layer];
 		}
 		else
 		{
-			x *= m_params.weights[layer];
+			m_params.evalTmp[layer].noalias() = m_params.evalTmp[layer - 1] * m_params.weights[layer];
 		}
 
-		x.rowwise() += m_params.outputBias[layer];
+		m_params.evalTmp[layer].rowwise() += m_params.outputBias[layer];
 
 		if (layer != (m_params.weights.size() - 1))
 		{
-			Activate_(x);
+			Activate_(m_params.evalTmp[layer]);
 		}
 	}
 
-	return x;
+	return m_params.evalTmp[m_params.weights.size() - 1];
 }
 
 template <ActivationFunc ACTF>
 template <typename Derived>
 float FCANN<ACTF>::ForwardPropagateSingle(const MatrixBase<Derived> &vec)
 {
-	NNVector x;
-
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
 		if (layer == 0)
 		{
-			x.noalias() = vec * m_params.weights[layer];
+			m_params.evalSingleTmp[layer].noalias() = vec * m_params.weights[layer];
 		}
 		else
 		{
-			x *= m_params.weights[layer];
+			m_params.evalSingleTmp[layer].noalias() = m_params.evalSingleTmp[layer - 1] * m_params.weights[layer];
 		}
 
-		x += m_params.outputBias[layer];
+		m_params.evalSingleTmp[layer] += m_params.outputBias[layer];
 
 		if (layer != (m_params.weights.size() - 1))
 		{
-			Activate_(x);
+			Activate_(m_params.evalSingleTmp[layer]);
 		}
 	}
 
-	return x(0, 0);
+	return m_params.evalSingleTmp[m_params.weights.size() - 1](0, 0);
 }
 
 template <ActivationFunc ACTF>

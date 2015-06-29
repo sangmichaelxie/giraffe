@@ -171,6 +171,10 @@ private:
 		std::vector<VCLMatrixRM> xGpuTmp;
 		std::vector<VCLMatrixRM> errorTermGpuTmp;
 
+		// these are temporary variables for evaluating the net, so we don't have to keep allocating and de-allocating
+		std::vector<NNMatrixRM> evalTmp;
+		std::vector<NNVector> evalSingleTmp;
+
 		// the following 2 fields are used by SGD with momentum
 		std::vector<NNVector> outputBiasLastUpdate;
 		std::vector<NNMatrix> weightsLastUpdate;
