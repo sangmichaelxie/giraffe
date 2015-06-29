@@ -157,7 +157,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 // perform a synchronous search (no thread creation)
 // this is used in training only, where we don't want to do a typical root search, and don't want all the overhead
-SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator);
+SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator, Killer *killer = nullptr, TTable *ttable = nullptr);
 
 }
 

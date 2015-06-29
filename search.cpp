@@ -680,19 +680,35 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	return alpha;
 }
 
-SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator)
+SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator, Killer *killer, TTable *ttable)
 {
 	SearchResult ret;
 	RootSearchContext context;
 
 	context.startBoard = b;
 
-	// we create new tt and killer because this function is called in parallel
-	std::unique_ptr<Killer> killer(new Killer);
-	std::unique_ptr<TTable> ttable(new TTable(4*1024));
+	std::unique_ptr<Killer> killer_u;
+	std::unique_ptr<TTable> ttable_u;
 
-	context.killer = killer.get();
-	context.transpositionTable = ttable.get();
+	if (killer == nullptr)
+	{
+		killer_u.reset(new Killer);
+		context.killer = killer_u.get();
+	}
+	else
+	{
+		context.killer = killer;
+	}
+
+	if (ttable == nullptr)
+	{
+		ttable_u.reset(new TTable(4*KB));
+		context.transpositionTable = ttable_u.get();
+	}
+	else
+	{
+		context.transpositionTable = ttable;
+	}
 
 	context.evaluator = evaluator;
 
