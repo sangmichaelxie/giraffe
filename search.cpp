@@ -242,7 +242,15 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 	// we have to check for draws before probing the transposition table, because the ttable
 	// can potentially hide repetitions
-	if (ply > 0 && (board.Is2Fold(NUM_MOVES_TO_LOOK_FOR_DRAW) || board.Is50Moves() || board.HasInsufficientMaterial()))
+
+	// first we check for hard draws
+	if (board.HasInsufficientMaterial())
+	{
+		return DRAW_SCORE;
+	}
+
+	// now we check for soft draws (only if ply > 0)
+	if (ply > 0 && (board.Is2Fold(NUM_MOVES_TO_LOOK_FOR_DRAW) || board.Is50Moves()))
 	{
 		return DRAW_SCORE;
 	}
@@ -258,7 +266,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	// if we are at a PV node and don't have a best move (either because we don't have an entry,
 	// or the entry doesn't have a best move)
 	// internal iterative deepening
-	if (ENABLE_IID)
+	if (ENABLE_IID && ENABLE_TT)
 	{
 		if (isPV && (!tEntry || tEntry->bestMove == 0) && depth > 4)
 		{
@@ -339,7 +347,10 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 				}
 				else
 				{
-					context.transpositionTable->Store(board.GetHash(), 0, nmScore, originalDepth, LOWERBOUND);
+					if (ENABLE_TT)
+					{
+						context.transpositionTable->Store(board.GetHash(), 0, nmScore, originalDepth, LOWERBOUND);
+					}
 					return beta;
 				}
 			}
@@ -430,7 +441,10 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 			if (score >= beta)
 			{
-				context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, originalDepth, LOWERBOUND);
+				if (ENABLE_TT)
+				{
+					context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, originalDepth, LOWERBOUND);
+				}
 
 				// we don't want to store captures because those are searched before killers anyways
 				if (!board.IsViolent(mv))
@@ -452,7 +466,10 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			if (alphaRaised)
 			{
 				// if we have a bestMove, that means we have a PV node
-				context.transpositionTable->Store(board.GetHash(), pv[0], alpha, originalDepth, EXACT);
+				if (ENABLE_TT)
+				{
+					context.transpositionTable->Store(board.GetHash(), pv[0], alpha, originalDepth, EXACT);
+				}
 
 				if (!board.IsViolent(pv[0]))
 				{
@@ -462,7 +479,10 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			else
 			{
 				// otherwise we failed low
-				context.transpositionTable->Store(board.GetHash(), 0, alpha, originalDepth, UPPERBOUND);
+				if (ENABLE_TT)
+				{
+					context.transpositionTable->Store(board.GetHash(), 0, alpha, originalDepth, UPPERBOUND);
+				}
 			}
 		}
 
@@ -501,6 +521,12 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	}
 
 	pv.clear();
+
+	// in QSearch we are only worried about insufficient material
+	if (board.HasInsufficientMaterial())
+	{
+		return DRAW_SCORE;
+	}
 
 	// we first see if we can stand-pat
 	Score staticEval = context.evaluator->EvaluateForSTM(board, alpha, beta);
@@ -628,7 +654,10 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 			if (score >= beta)
 			{
-				context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, 0, LOWERBOUND);
+				if (ENABLE_TT)
+				{
+					context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, 0, LOWERBOUND);
+				}
 				return score;
 			}
 		}
@@ -636,13 +665,16 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 		++i;
 	}
 
-	if (alphaRaised)
+	if (ENABLE_TT)
 	{
-		context.transpositionTable->Store(board.GetHash(), pv[0], alpha, 0, EXACT);
-	}
-	else
-	{
-		context.transpositionTable->Store(board.GetHash(), 0, alpha, 0, UPPERBOUND);
+		if (alphaRaised)
+		{
+			context.transpositionTable->Store(board.GetHash(), pv[0], alpha, 0, EXACT);
+		}
+		else
+		{
+			context.transpositionTable->Store(board.GetHash(), 0, alpha, 0, UPPERBOUND);
+		}
 	}
 
 	return alpha;
@@ -657,7 +689,7 @@ SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface 
 
 	// we create new tt and killer because this function is called in parallel
 	std::unique_ptr<Killer> killer(new Killer);
-	std::unique_ptr<TTable> ttable(new TTable(4*1024*1024));
+	std::unique_ptr<TTable> ttable(new TTable(4*1024));
 
 	context.killer = killer.get();
 	context.transpositionTable = ttable.get();
