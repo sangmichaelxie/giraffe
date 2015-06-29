@@ -168,8 +168,8 @@ struct Rows
 
 template <typename Derived>
 void SplitDataset(
-	Eigen::MatrixBase<Derived> &x,
-	Eigen::MatrixBase<Derived> &y,
+	const Eigen::MatrixBase<Derived> &x,
+	const Eigen::MatrixBase<Derived> &y,
 	Rows &train,
 	Rows &val,
 	Rows &test)
@@ -370,33 +370,19 @@ void PrintTestStats(T &nn, Eigen::MatrixBase<Derived> &x, Eigen::MatrixBase<Deri
 
 namespace LearnAnn
 {
-ANN TrainANNFromFile(
-	const std::string &xFilename,
-	const std::string &yFilename,
+
+template <typename Derived>
+ANN TrainANN(
+	const Eigen::MatrixBase<Derived> &x,
+	const Eigen::MatrixBase<Derived> &y,
 	const std::string &featuresFilename)
 {
-	EnableNanInterrupt();
-
-	// if we are using GPU, disable OMP (our own parallelization)
-	// and use Eigen's instead
-	// our implementation has lower overhead, but requires slicing matrices
-#ifdef VIENNACL_WITH_OPENCL
-	Eigen::setNbThreads(omp_get_max_threads());
-	omp_set_num_threads(1);
-#endif
-
 	std::mt19937 mersenneTwister(42);
 
 	std::vector<size_t> hiddenLayersConfig;
 	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
 
 	BuildLayers(featuresFilename, hiddenLayersConfig, connMatrices, mersenneTwister);
-
-	MMappedMatrix xMap(xFilename);
-	MMappedMatrix yMap(yFilename);
-
-	auto x = xMap.GetMap();
-	auto y = yMap.GetMap();
 
 	Rows trainRows, valRows, testRows;
 	SplitDataset(x, y, trainRows, valRows, testRows);
@@ -424,9 +410,20 @@ ANN TrainANNFromFile(
 	// compute test performance and statistics
 	PrintTestStats(nn, xTest, yTest);
 
-	std::ofstream netf("net.dump");
-	SerializeNet(nn, netf);
-
 	return nn;
+}
+
+ANN TrainANNFromFile(
+	const std::string &xFilename,
+	const std::string &yFilename,
+	const std::string &featuresFilename)
+{
+	MMappedMatrix xMap(xFilename);
+	MMappedMatrix yMap(yFilename);
+
+	auto x = xMap.GetMap();
+	auto y = yMap.GetMap();
+
+	return TrainANN(x, y, featuresFilename);
 }
 }
