@@ -18,7 +18,7 @@ public:
 		Score val;
 	};
 
-	const static size_t EvalHashSize = 8*1024*1024 / sizeof(EvalHashEntry);
+	const static size_t EvalHashSize = 1*MB / sizeof(EvalHashEntry);
 
 	ANNEvaluator()
 	{
@@ -57,6 +57,11 @@ public:
 		entry->val = nnRet;
 
 		return nnRet;
+	}
+
+	ANN& GetANN()
+	{
+		return m_ann;
 	}
 
 private:
