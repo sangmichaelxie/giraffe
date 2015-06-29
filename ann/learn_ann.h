@@ -8,14 +8,11 @@
 namespace LearnAnn
 {
 
-template <typename Derived>
+template <typename Derived1, typename Derived2>
 ANN TrainANN(
-	const Eigen::MatrixBase<Derived> &x,
-	const Eigen::MatrixBase<Derived> &y,
+	const Eigen::MatrixBase<Derived1> &x,
+	const Eigen::MatrixBase<Derived2> &y,
 	const std::string &featuresFilename);
-
-// here we have to list all instantiations used (except for in learn_ann.cpp)
-ANN TrainANN(const NNMatrixRM&, const NNVector&, const std::string);
 
 ANN TrainANNFromFile(
 	const std::string &xFilename,

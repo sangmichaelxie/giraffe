@@ -123,7 +123,7 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 	std::vector<Eigen::Triplet<float> > connections;
 
 	// build first layer
-	const size_t FirstHiddenLayerNodes = 1024;
+	const size_t FirstHiddenLayerNodes = 256;
 	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
 	connections.clear();
 
@@ -147,7 +147,7 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 	layerSizes.push_back(FirstHiddenLayerNodes);
 	connMatrices.push_back(connections);
 
-	layerSizes.push_back(512);
+	layerSizes.push_back(256);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 	layerSizes.push_back(32);
@@ -166,10 +166,10 @@ struct Rows
 	int64_t num;
 };
 
-template <typename Derived>
+template <typename Derived1, typename Derived2>
 void SplitDataset(
-	const Eigen::MatrixBase<Derived> &x,
-	const Eigen::MatrixBase<Derived> &y,
+	const Eigen::MatrixBase<Derived1> &x,
+	const Eigen::MatrixBase<Derived2> &y,
 	Rows &train,
 	Rows &val,
 	Rows &test)
@@ -192,15 +192,15 @@ void SplitDataset(
 	train = Rows(testSize + valSize, trainSize);
 }
 
-template <typename T, typename Derived>
+template <typename T, typename Derived1, typename Derived2>
 void Train(
 	T &nn,
-	Eigen::MatrixBase<Derived> &xTrain,
-	Eigen::MatrixBase<Derived> &yTrain,
-	Eigen::MatrixBase<Derived> &xVal,
-	Eigen::MatrixBase<Derived> &yVal,
-	Eigen::MatrixBase<Derived> &xTest,
-	Eigen::MatrixBase<Derived> &yTest,
+	Eigen::MatrixBase<Derived1> &xTrain,
+	Eigen::MatrixBase<Derived2> &yTrain,
+	Eigen::MatrixBase<Derived1> &xVal,
+	Eigen::MatrixBase<Derived2> &yVal,
+	Eigen::MatrixBase<Derived1> &xTest,
+	Eigen::MatrixBase<Derived2> &yTest,
 	std::mt19937 &mt)
 {
 	size_t iter = 0;
@@ -294,8 +294,8 @@ NNMatrix EvalNet(T &nn, NNMatrixRM &x)
 	return ret;
 }
 
-template <typename T, typename Derived>
-void PrintTestStats(T &nn, Eigen::MatrixBase<Derived> &x, Eigen::MatrixBase<Derived> &y)
+template <typename T, typename Derived1, typename Derived2>
+void PrintTestStats(T &nn, Eigen::MatrixBase<Derived1> &x, Eigen::MatrixBase<Derived2> &y)
 {
 	NNMatrix pred = nn.ForwardPropagateFast(x);
 
@@ -371,10 +371,10 @@ void PrintTestStats(T &nn, Eigen::MatrixBase<Derived> &x, Eigen::MatrixBase<Deri
 namespace LearnAnn
 {
 
-template <typename Derived>
+template <typename Derived1, typename Derived2>
 ANN TrainANN(
-	const Eigen::MatrixBase<Derived> &x,
-	const Eigen::MatrixBase<Derived> &y,
+	const Eigen::MatrixBase<Derived1> &x,
+	const Eigen::MatrixBase<Derived2> &y,
 	const std::string &featuresFilename)
 {
 	std::mt19937 mersenneTwister(42);
@@ -412,6 +412,9 @@ ANN TrainANN(
 
 	return nn;
 }
+
+// here we have to list all instantiations used (except for in this file)
+template ANN TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, const std::string&);
 
 ANN TrainANNFromFile(
 	const std::string &xFilename,

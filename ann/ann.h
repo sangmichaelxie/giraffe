@@ -111,8 +111,8 @@ public:
 	void BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad);
 
 	// this is a convenience function that simply runs 1 iteration of GDM
-	template <typename Derived>
-	float TrainGDM(const MatrixBase<Derived> &x, const MatrixBase<Derived> &y, float reg);
+	template <typename Derived1, typename Derived2>
+	float TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg);
 
 	void ApplyWeightUpdates(const Gradients &grad, float reg);
 

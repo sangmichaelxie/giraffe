@@ -290,8 +290,8 @@ void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, c
 }
 
 template <ActivationFunc ACTF>
-template <typename Derived>
-float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived> &x, const MatrixBase<Derived> &y, float reg)
+template <typename Derived1, typename Derived2>
+float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg)
 {
 	static std::vector<Gradients> gradLocal;
 	static std::vector<Activations> actLocal;
