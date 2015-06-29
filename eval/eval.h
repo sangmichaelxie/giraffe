@@ -27,7 +27,8 @@ class StaticEvaluator : public EvaluatorIface
 public:
 	Score EvaluateForWhite(const Board &b, Score lowerBound, Score upperBound)
 	{
-		return StaticEvaluate(b, lowerBound, upperBound);
+		//return StaticEvaluate(b, lowerBound, upperBound);
+		return EvaluateMaterial(b);
 	}
 } gStaticEvaluator;
 

@@ -290,7 +290,7 @@ Score EvaluateMaterial(const Board &b)
 	ret -= BNCount * ScalePhase(MAT[0][WN], MAT[1][WN], phase);
 	ret -= BPCount * ScalePhase(MAT[0][WP], MAT[1][WP], phase);
 
-	return (b.GetSideToMove() == WHITE ? ret : (-ret)) + SIDE_TO_MOVE_BONUS;
+	return ret;
 }
 
 }
