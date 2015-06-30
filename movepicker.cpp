@@ -220,6 +220,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 		break;
 	default:
 		assert(!"Unknown move picker stage!");
+		return 0;
 		break;
 	}
 }
