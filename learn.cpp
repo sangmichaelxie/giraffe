@@ -37,7 +37,7 @@ void TDL(const std::string &positionsFilename)
 
 	std::cout << "Reading FENs..." << std::endl;
 
-	while (std::getline(positionsFile, fen) && rootPositions.size() <= MaxTrainingPositions)
+	while (std::getline(positionsFile, fen) && rootPositions.size() < MaxTrainingPositions)
 	{
 		rootPositions.push_back(fen);
 	}
@@ -96,11 +96,12 @@ void TDL(const std::string &positionsFilename)
 				for (size_t i = 0; i < rootPositions.size(); ++i)
 				{
 					Board rootPos(rootPositions[i]);
-					Color stm = rootPos.GetSideToMove();
 					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, 2, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
 					Board leafPos = rootPos;
 					leafPos.ApplyVariation(rootResult.pv);
+
+					float leafScore = thread_annEvaluator.EvaluateForWhite(leafPos); // this should theoretically be the same as the search result, except for mates, etc
 
 					trainingPositions[i] = leafPos.GetFen();
 
@@ -112,7 +113,7 @@ void TDL(const std::string &positionsFilename)
 
 						// now we compute the error by making a few moves
 						float accumulatedError = 0.0f;
-						float lastScore = rootResult.score;
+						float lastScore = leafScore;
 						float discount = 1.0f;
 
 						for (int64_t m = 0; m < FullMovesToMake; ++m)
@@ -147,27 +148,27 @@ void TDL(const std::string &positionsFilename)
 								break;
 							}
 
+							float scoreWhite = resultOur.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f);
+
 							rootPos.ApplyMove(resultOur.pv[0]);
 							thread_killer.MoveMade();
 							thread_ttable.AgeTable();
 
 							// compute error contribution
-							accumulatedError += discount * (static_cast<float>(resultOur.score) - lastScore);
-							lastScore = resultOur.score;
+							accumulatedError += discount * (scoreWhite - lastScore);
+							lastScore = scoreWhite;
 							discount *= Lambda;
 						}
 
-						trainingTargets(i, 0) = static_cast<float>(rootResult.score) + accumulatedError;
+						accumulatedError = std::max(accumulatedError, -MaxError);
+						accumulatedError = std::min(accumulatedError, MaxError);
+
+						trainingTargets(i, 0) = leafScore + accumulatedError;
 					}
 					else
 					{
 						// if PV is empty, this is an end position, and we don't need to train it
-						trainingTargets(i, 0) = rootResult.score;
-					}
-
-					if (stm == BLACK)
-					{
-						trainingTargets(i, 0) *= -1.0f;
+						trainingTargets(i, 0) = leafScore;
 					}
 
 					if (omp_get_thread_num() == 0)
@@ -226,6 +227,7 @@ void TDL(const std::string &positionsFilename)
 		SerializeNet(newAnn, annOut);
 
 		annEvaluator.GetANN() = newAnn;
+		annEvaluator.Calibrate();
 	}
 }
 
