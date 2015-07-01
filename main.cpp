@@ -184,6 +184,8 @@ int main(int argc, char **argv)
 
 	ANNEvaluator evaluator("net.dump");
 
+	evaluator.Calibrate();
+
 	backend.SetEvaluator(&evaluator);
 
 	while (true)
