@@ -61,6 +61,12 @@ public:
 
 	ANN& GetANN()
 	{
+		InvalidateCache_();
+		return m_ann;
+	}
+
+	const ANN& GetANN() const
+	{
 		return m_ann;
 	}
 
@@ -73,9 +79,22 @@ public:
 		float v = EvaluateForWhiteImpl(calibratePosition, SCORE_MIN, SCORE_MAX);
 
 		m_scaling = 100.0f / v;
+
+		std::cout << "# Scaling factor: " << m_scaling << std::endl;
+
+		InvalidateCache_();
 	}
 
 private:
+
+	void InvalidateCache_()
+	{
+		for (auto &entry : m_evalHash)
+		{
+			entry.hash = 0;
+		}
+	}
+
 	ANN m_ann;
 
 	float m_scaling;
