@@ -72,6 +72,8 @@ public:
 
 	void Calibrate()
 	{
+		InvalidateCache_();
+
 		// set m_scaling so that eval on "rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 		// (black missing a7 pawn from start position) evaluates to 100
 		Board calibratePosition("rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
