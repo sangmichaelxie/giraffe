@@ -16,6 +16,20 @@
 #include "ttable.h"
 #include "killer.h"
 
+namespace
+{
+
+std::string getFilename(int64_t iter)
+{
+	std::stringstream filenameSs;
+
+	filenameSs << "trainingResults/net" << iter << ".dump";
+
+	return filenameSs.str();
+}
+
+}
+
 namespace Learn
 {
 
@@ -58,7 +72,33 @@ void TDL(const std::string &positionsFilename)
 
 	NNMatrixRM boardsInFeatureRepresentation(static_cast<int64_t>(trainingPositions.size()), static_cast<int64_t>(featureDescriptions.size()));
 
-	for (int64_t iter = 0; iter < NumIterations; ++iter)
+	int64_t iter = 0;
+
+	// try to read existing dumps to continue where we left off
+	for (; iter < NumIterations; ++iter)
+	{
+		std::string filename = getFilename(iter);
+
+		std::ifstream dump(filename);
+
+		if (dump.is_open())
+		{
+			ANN newAnn = DeserializeNet(dump);
+			annEvaluator.GetANN() = newAnn;
+			annEvaluator.Calibrate();
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if (iter != 0)
+	{
+		std::cout << "Continuing from iteration " << iter << std::endl;
+	}
+
+	for (; iter < NumIterations; ++iter)
 	{
 		std::cout << "======= Iteration: " << iter << " =======" << std::endl;
 
@@ -87,7 +127,11 @@ void TDL(const std::string &positionsFilename)
 			{
 				// each thread has her own ttable and killers, to save on page faults and allocations/deallocations
 				Killer thread_killer;
-				TTable thread_ttable(16*KB); // we want the ttable to fit in L1 (64 KB per core on recent Intel CPUs)
+				TTable thread_ttable(1*MB); // we want the ttable to fit in L3
+
+				// we are being paranoid here - it's possible tha the memory we get happens to be where a TTable used to be,
+				// in which case we will have many valid entries with wrong scores (since evaluator changed)
+				thread_ttable.InvalidateAllEntries();
 
 				// each thread makes a copy of the evaluator to reduce sharing
 				ANNEvaluator thread_annEvaluator = annEvaluator;
@@ -95,6 +139,8 @@ void TDL(const std::string &positionsFilename)
 				#pragma omp for
 				for (size_t i = 0; i < rootPositions.size(); ++i)
 				{
+					thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
+
 					Board rootPos(rootPositions[i]);
 					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, 2, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
@@ -116,48 +162,25 @@ void TDL(const std::string &positionsFilename)
 						float lastScore = leafScore;
 						float discount = 1.0f;
 
-						for (int64_t m = 0; m < FullMovesToMake; ++m)
+						for (int64_t m = 0; m < HalfMovesToMake; ++m)
 						{
-							// apply a move from opponent
-							if (rootPos.GetGameStatus() != Board::ONGOING)
-							{
-								break;
-							}
+							Search::SearchResult result = Search::SyncSearchDepthLimited(rootPos, 2, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
-							Search::SearchResult resultOpponent = Search::SyncSearchDepthLimited(rootPos, 2, &thread_annEvaluator, &thread_killer, &thread_ttable);
-
-							if (resultOpponent.pv.size() == 0)
-							{
-								break;
-							}
-
-							rootPos.ApplyMove(resultOpponent.pv[0]);
-							thread_killer.MoveMade();
-							thread_ttable.AgeTable();
-
-							// now apply move from the same side
-							if (rootPos.GetGameStatus() != Board::ONGOING)
-							{
-								break;
-							}
-
-							Search::SearchResult resultOur = Search::SyncSearchDepthLimited(rootPos, 2, &thread_annEvaluator, &thread_killer, &thread_ttable);
-
-							if (resultOur.pv.size() == 0)
-							{
-								break;
-							}
-
-							float scoreWhite = resultOur.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f);
-
-							rootPos.ApplyMove(resultOur.pv[0]);
-							thread_killer.MoveMade();
-							thread_ttable.AgeTable();
+							float scoreWhite = result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f);
 
 							// compute error contribution
 							accumulatedError += discount * (scoreWhite - lastScore);
 							lastScore = scoreWhite;
 							discount *= Lambda;
+
+							if ((rootPos.GetGameStatus() != Board::ONGOING) || (result.pv.size() == 0))
+							{
+								break;
+							}
+
+							rootPos.ApplyMove(result.pv[0]);
+							thread_killer.MoveMade();
+							thread_ttable.AgeTable();
 						}
 
 						accumulatedError = std::max(accumulatedError, -MaxError);
@@ -218,11 +241,7 @@ void TDL(const std::string &positionsFilename)
 
 		ANN newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargets, std::string("x_5M_nodiag.features"));
 
-		std::stringstream filenameSs;
-
-		filenameSs << "trainingResults/net" << iter << ".dump";
-
-		std::ofstream annOut(filenameSs.str());
+		std::ofstream annOut(getFilename(iter));
 
 		SerializeNet(newAnn, annOut);
 

@@ -38,6 +38,9 @@ public:
 	TTable(size_t size);
 	~TTable() { free(m_data); }
 
+	TTable(const TTable&) = delete;
+	TTable &operator=(const TTable&) = delete;
+
 	void Resize(size_t newSize);
 
 	TTEntry *Probe(uint64_t hash)
@@ -63,8 +66,16 @@ public:
 
 	void AgeTable() { ++m_currentGeneration; }
 
-	// invalidate all entries
+	// age all entries so any new entry will replace them
 	void ClearTable();
+
+	void InvalidateAllEntries()
+	{
+		for (size_t i = 0; i < m_size; ++i)
+		{
+			m_data[i].hash = 0;
+		}
+	}
 
 private:
 	TTEntry *m_data;
