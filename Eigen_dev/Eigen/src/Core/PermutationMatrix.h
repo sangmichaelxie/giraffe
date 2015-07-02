@@ -42,10 +42,6 @@ namespace Eigen {
 
 namespace internal {
 
-template<typename PermutationType, typename MatrixType, int Side, bool Transposed=false>
-struct permut_matrix_product_retval;
-template<typename PermutationType, typename MatrixType, int Side, bool Transposed=false>
-struct permut_sparsematrix_product_retval;
 enum PermPermProduct_t {PermPermProduct};
 
 } // end namespace internal
@@ -353,7 +349,7 @@ class PermutationMatrix : public PermutationBase<PermutationMatrix<SizeAtCompile
       * array's size.
       */
     template<typename Other>
-    explicit inline PermutationMatrix(const MatrixBase<Other>& a_indices) : m_indices(a_indices)
+    explicit inline PermutationMatrix(const MatrixBase<Other>& indices) : m_indices(indices)
     {}
 
     /** Convert the Transpositions \a tr to a permutation matrix */
@@ -401,12 +397,12 @@ class PermutationMatrix : public PermutationBase<PermutationMatrix<SizeAtCompile
 #ifndef EIGEN_PARSED_BY_DOXYGEN
     template<typename Other>
     PermutationMatrix(const Transpose<PermutationBase<Other> >& other)
-      : m_indices(other.nestedPermutation().size())
+      : m_indices(other.nestedExpression().size())
     {
       eigen_internal_assert(m_indices.size() <= NumTraits<StorageIndex>::highest());
       StorageIndex end = StorageIndex(m_indices.size());
       for (StorageIndex i=0; i<end;++i)
-        m_indices.coeffRef(other.nestedPermutation().indices().coeff(i)) = i;
+        m_indices.coeffRef(other.nestedExpression().indices().coeff(i)) = i;
     }
     template<typename Lhs,typename Rhs>
     PermutationMatrix(internal::PermPermProduct_t, const Lhs& lhs, const Rhs& rhs)
@@ -527,8 +523,8 @@ class PermutationWrapper : public PermutationBase<PermutationWrapper<_IndicesTyp
     typedef typename Traits::IndicesType IndicesType;
     #endif
 
-    inline PermutationWrapper(const IndicesType& a_indices)
-      : m_indices(a_indices)
+    inline PermutationWrapper(const IndicesType& indices)
+      : m_indices(indices)
     {}
 
     /** const version of indices(). */
@@ -541,18 +537,15 @@ class PermutationWrapper : public PermutationBase<PermutationWrapper<_IndicesTyp
 };
 
 
-// TODO: Do we need to define these operator* functions? Would it be better to have them inherited
-// from MatrixBase?
-
 /** \returns the matrix with the permutation applied to the columns.
   */
 template<typename MatrixDerived, typename PermutationDerived>
 EIGEN_DEVICE_FUNC
-const Product<MatrixDerived, PermutationDerived, DefaultProduct>
+const Product<MatrixDerived, PermutationDerived, AliasFreeProduct>
 operator*(const MatrixBase<MatrixDerived> &matrix,
           const PermutationBase<PermutationDerived>& permutation)
 {
-  return Product<MatrixDerived, PermutationDerived, DefaultProduct>
+  return Product<MatrixDerived, PermutationDerived, AliasFreeProduct>
             (matrix.derived(), permutation.derived());
 }
 
@@ -560,88 +553,15 @@ operator*(const MatrixBase<MatrixDerived> &matrix,
   */
 template<typename PermutationDerived, typename MatrixDerived>
 EIGEN_DEVICE_FUNC
-const Product<PermutationDerived, MatrixDerived, DefaultProduct>
+const Product<PermutationDerived, MatrixDerived, AliasFreeProduct>
 operator*(const PermutationBase<PermutationDerived> &permutation,
           const MatrixBase<MatrixDerived>& matrix)
 {
-  return Product<PermutationDerived, MatrixDerived, DefaultProduct>
+  return Product<PermutationDerived, MatrixDerived, AliasFreeProduct>
             (permutation.derived(), matrix.derived());
 }
 
 namespace internal {
-
-template<typename PermutationType, typename MatrixType, int Side, bool Transposed>
-struct traits<permut_matrix_product_retval<PermutationType, MatrixType, Side, Transposed> >
-  : traits<typename MatrixType::PlainObject>
-{
-  typedef typename MatrixType::PlainObject ReturnType;
-};
-
-template<typename PermutationType, typename MatrixType, int Side, bool Transposed>
-struct permut_matrix_product_retval
- : public ReturnByValue<permut_matrix_product_retval<PermutationType, MatrixType, Side, Transposed> >
-{
-    typedef typename remove_all<typename MatrixType::Nested>::type MatrixTypeNestedCleaned;
-    typedef typename MatrixType::StorageIndex StorageIndex;
-
-    permut_matrix_product_retval(const PermutationType& perm, const MatrixType& matrix)
-      : m_permutation(perm), m_matrix(matrix)
-    {}
-
-    inline Index rows() const { return m_matrix.rows(); }
-    inline Index cols() const { return m_matrix.cols(); }
-
-    template<typename Dest> inline void evalTo(Dest& dst) const
-    {
-      const Index n = Side==OnTheLeft ? rows() : cols();
-      // FIXME we need an is_same for expression that is not sensitive to constness. For instance
-      // is_same_xpr<Block<const Matrix>, Block<Matrix> >::value should be true.
-      if(is_same<MatrixTypeNestedCleaned,Dest>::value && extract_data(dst) == extract_data(m_matrix))
-      {
-        // apply the permutation inplace
-        Matrix<bool,PermutationType::RowsAtCompileTime,1,0,PermutationType::MaxRowsAtCompileTime> mask(m_permutation.size());
-        mask.fill(false);
-        Index r = 0;
-        while(r < m_permutation.size())
-        {
-          // search for the next seed
-          while(r<m_permutation.size() && mask[r]) r++;
-          if(r>=m_permutation.size())
-            break;
-          // we got one, let's follow it until we are back to the seed
-          Index k0 = r++;
-          Index kPrev = k0;
-          mask.coeffRef(k0) = true;
-          for(Index k=m_permutation.indices().coeff(k0); k!=k0; k=m_permutation.indices().coeff(k))
-          {
-                  Block<Dest, Side==OnTheLeft ? 1 : Dest::RowsAtCompileTime, Side==OnTheRight ? 1 : Dest::ColsAtCompileTime>(dst, k)
-            .swap(Block<Dest, Side==OnTheLeft ? 1 : Dest::RowsAtCompileTime, Side==OnTheRight ? 1 : Dest::ColsAtCompileTime>
-                       (dst,((Side==OnTheLeft) ^ Transposed) ? k0 : kPrev));
-
-            mask.coeffRef(k) = true;
-            kPrev = k;
-          }
-        }
-      }
-      else
-      {
-        for(Index i = 0; i < n; ++i)
-        {
-          Block<Dest, Side==OnTheLeft ? 1 : Dest::RowsAtCompileTime, Side==OnTheRight ? 1 : Dest::ColsAtCompileTime>
-               (dst, ((Side==OnTheLeft) ^ Transposed) ? m_permutation.indices().coeff(i) : i)
-
-          =
-
-          Block<const MatrixTypeNestedCleaned,Side==OnTheLeft ? 1 : MatrixType::RowsAtCompileTime,Side==OnTheRight ? 1 : MatrixType::ColsAtCompileTime>
-               (m_matrix, ((Side==OnTheRight) ^ Transposed) ? m_permutation.indices().coeff(i) : i);
-        }
-      }
-    }
-
-  protected:
-    const PermutationType& m_permutation;
-    typename MatrixType::Nested m_matrix;
-};
 
 /* Template partial specialization for transposed/inverse permutations */
 
@@ -700,22 +620,22 @@ class Transpose<PermutationBase<Derived> >
     /** \returns the matrix with the inverse permutation applied to the columns.
       */
     template<typename OtherDerived> friend
-    const Product<OtherDerived, Transpose, DefaultProduct>
+    const Product<OtherDerived, Transpose, AliasFreeProduct>
     operator*(const MatrixBase<OtherDerived>& matrix, const Transpose& trPerm)
     {
-      return Product<OtherDerived, Transpose, DefaultProduct>(matrix.derived(), trPerm.derived());
+      return Product<OtherDerived, Transpose, AliasFreeProduct>(matrix.derived(), trPerm.derived());
     }
 
     /** \returns the matrix with the inverse permutation applied to the rows.
       */
     template<typename OtherDerived>
-    const Product<Transpose, OtherDerived, DefaultProduct>
+    const Product<Transpose, OtherDerived, AliasFreeProduct>
     operator*(const MatrixBase<OtherDerived>& matrix) const
     {
-      return Product<Transpose, OtherDerived, DefaultProduct>(*this, matrix.derived());
+      return Product<Transpose, OtherDerived, AliasFreeProduct>(*this, matrix.derived());
     }
 
-    const PermutationType& nestedPermutation() const { return m_permutation; }
+    const PermutationType& nestedExpression() const { return m_permutation; }
 
   protected:
     const PermutationType& m_permutation;
@@ -728,32 +648,6 @@ const PermutationWrapper<const Derived> MatrixBase<Derived>::asPermutation() con
 }
 
 namespace internal {
-  
-// TODO currently a permutation matrix expression has the form PermutationMatrix or PermutationWrapper
-//      or their transpose; in the future shape should be defined by the expression traits
-template<int SizeAtCompileTime, int MaxSizeAtCompileTime, typename IndexType>
-struct evaluator_traits<PermutationMatrix<SizeAtCompileTime, MaxSizeAtCompileTime, IndexType> >
-{
-  typedef typename storage_kind_to_evaluator_kind<Dense>::Kind Kind;
-  typedef PermutationShape Shape;
-  static const int AssumeAliasing = 0;
-};
-
-template<typename IndicesType>
-struct evaluator_traits<PermutationWrapper<IndicesType> >
-{
-  typedef typename storage_kind_to_evaluator_kind<Dense>::Kind Kind;
-  typedef PermutationShape Shape;
-  static const int AssumeAliasing = 0;
-};
-
-template<typename Derived>
-struct evaluator_traits<Transpose<PermutationBase<Derived> > >
-{
-  typedef typename storage_kind_to_evaluator_kind<Dense>::Kind Kind;
-  typedef PermutationShape Shape;
-  static const int AssumeAliasing = 0;
-};
 
 template<> struct AssignmentKind<DenseShape,PermutationShape> { typedef EigenBase2EigenBase Kind; };
 

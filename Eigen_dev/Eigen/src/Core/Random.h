@@ -53,7 +53,7 @@ struct functor_traits<scalar_random_op<Scalar> >
   * \sa DenseBase::setRandom(), DenseBase::Random(Index), DenseBase::Random()
   */
 template<typename Derived>
-inline const CwiseNullaryOp<internal::scalar_random_op<typename internal::traits<Derived>::Scalar>, Derived>
+inline const typename DenseBase<Derived>::RandomReturnType
 DenseBase<Derived>::Random(Index rows, Index cols)
 {
   return NullaryExpr(rows, cols, internal::scalar_random_op<Scalar>());
@@ -84,7 +84,7 @@ DenseBase<Derived>::Random(Index rows, Index cols)
   * \sa DenseBase::setRandom(), DenseBase::Random(Index,Index), DenseBase::Random()
   */
 template<typename Derived>
-inline const CwiseNullaryOp<internal::scalar_random_op<typename internal::traits<Derived>::Scalar>, Derived>
+inline const typename DenseBase<Derived>::RandomReturnType
 DenseBase<Derived>::Random(Index size)
 {
   return NullaryExpr(size, internal::scalar_random_op<Scalar>());
@@ -110,7 +110,7 @@ DenseBase<Derived>::Random(Index size)
   * \sa DenseBase::setRandom(), DenseBase::Random(Index,Index), DenseBase::Random(Index)
   */
 template<typename Derived>
-inline const CwiseNullaryOp<internal::scalar_random_op<typename internal::traits<Derived>::Scalar>, Derived>
+inline const typename DenseBase<Derived>::RandomReturnType
 DenseBase<Derived>::Random()
 {
   return NullaryExpr(RowsAtCompileTime, ColsAtCompileTime, internal::scalar_random_op<Scalar>());
@@ -162,8 +162,8 @@ PlainObjectBase<Derived>::setRandom(Index newSize)
   *
   * \not_reentrant
   * 
-  * \param nbRows the new number of rows
-  * \param nbCols the new number of columns
+  * \param rows the new number of rows
+  * \param cols the new number of columns
   *
   * Example: \include Matrix_setRandom_int_int.cpp
   * Output: \verbinclude Matrix_setRandom_int_int.out
@@ -172,9 +172,9 @@ PlainObjectBase<Derived>::setRandom(Index newSize)
   */
 template<typename Derived>
 EIGEN_STRONG_INLINE Derived&
-PlainObjectBase<Derived>::setRandom(Index nbRows, Index nbCols)
+PlainObjectBase<Derived>::setRandom(Index rows, Index cols)
 {
-  resize(nbRows, nbCols);
+  resize(rows, cols);
   return setRandom();
 }
 

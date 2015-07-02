@@ -41,7 +41,7 @@ struct traits<PartialReduxExpr<MatrixType, MemberOp, Direction> >
   typedef typename traits<MatrixType>::StorageKind StorageKind;
   typedef typename traits<MatrixType>::XprKind XprKind;
   typedef typename MatrixType::Scalar InputScalar;
-  typedef typename nested<MatrixType>::type MatrixTypeNested;
+  typedef typename ref_selector<MatrixType>::type MatrixTypeNested;
   typedef typename remove_all<MatrixTypeNested>::type _MatrixTypeNested;
   enum {
     RowsAtCompileTime = Direction==Vertical   ? 1 : MatrixType::RowsAtCompileTime,
@@ -160,8 +160,7 @@ template<typename ExpressionType, int Direction> class VectorwiseOp
     typedef typename ExpressionType::Scalar Scalar;
     typedef typename ExpressionType::RealScalar RealScalar;
     typedef Eigen::Index Index; ///< \deprecated since Eigen 3.3
-    typedef typename internal::conditional<internal::must_nest_by_value<ExpressionType>::ret,
-        ExpressionType, ExpressionType&>::type ExpressionTypeNested;
+    typedef typename internal::ref_selector<ExpressionType>::non_const_type ExpressionTypeNested;
     typedef typename internal::remove_all<ExpressionTypeNested>::type ExpressionTypeNestedCleaned;
 
     template<template<typename _Scalar> class Functor,

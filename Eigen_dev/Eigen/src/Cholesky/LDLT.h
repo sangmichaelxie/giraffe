@@ -314,9 +314,9 @@ template<> struct ldlt_inplace<Lower>
       }
       
       // In some previous versions of Eigen (e.g., 3.2.1), the scaling was omitted if the pivot
-      // was smaller than the cutoff value. However, soince LDLT is not rank-revealing
-      // we should only make sure we do not introduce INF or NaN values.
-      // LAPACK also uses 0 as the cutoff value.
+      // was smaller than the cutoff value. However, since LDLT is not rank-revealing
+      // we should only make sure that we do not introduce INF or NaN values.
+      // Remark that LAPACK also uses 0 as the cutoff value.
       RealScalar realAkk = numext::real(mat.coeffRef(k,k));
       if((rs>0) && (abs(realAkk) > RealScalar(0)))
         A21 /= realAkk;
@@ -497,9 +497,9 @@ void LDLT<_MatrixType,_UpLo>::_solve_impl(const RhsType &rhs, DstType &dst) cons
   const typename Diagonal<const MatrixType>::RealReturnType vecD(vectorD());
   // In some previous versions, tolerance was set to the max of 1/highest and the maximal diagonal entry * epsilon
   // as motivated by LAPACK's xGELSS:
-  // RealScalar tolerance = numext::maxi(vectorD.array().abs().maxCoeff() *NumTraits<RealScalar>::epsilon(),RealScalar(1) / NumTraits<RealScalar>::highest());
+  // RealScalar tolerance = numext::maxi(vecD.array().abs().maxCoeff() * NumTraits<RealScalar>::epsilon(),RealScalar(1) / NumTraits<RealScalar>::highest());
   // However, LDLT is not rank revealing, and so adjusting the tolerance wrt to the highest
-  // diagonal element is not well justified and to numerical issues in some cases.
+  // diagonal element is not well justified and leads to numerical issues in some cases.
   // Moreover, Lapack's xSYTRS routines use 0 for the tolerance.
   RealScalar tolerance = RealScalar(1) / NumTraits<RealScalar>::highest();
   

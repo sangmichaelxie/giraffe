@@ -30,23 +30,48 @@ struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, t
   typedef typename internal::remove_all<DenseRhsType>::type Rhs;
   typedef typename internal::remove_all<DenseResType>::type Res;
   typedef typename evaluator<Lhs>::InnerIterator LhsInnerIterator;
+  typedef typename evaluator<Lhs>::type LhsEval;
   static void run(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res, const typename Res::Scalar& alpha)
   {
-    typename evaluator<Lhs>::type lhsEval(lhs);
+    LhsEval lhsEval(lhs);
+    
+    Index n = lhs.outerSize();
+#ifdef EIGEN_HAS_OPENMP
+    Eigen::initParallel();
+    Index threads = Eigen::nbThreads();
+#endif
+    
     for(Index c=0; c<rhs.cols(); ++c)
     {
-      Index n = lhs.outerSize();
-      for(Index j=0; j<n; ++j)
+#ifdef EIGEN_HAS_OPENMP
+      // This 20000 threshold has been found experimentally on 2D and 3D Poisson problems.
+      // It basically represents the minimal amount of work to be done to be worth it.
+      if(threads>1 && lhs.nonZeros() > 20000)
       {
-        typename Res::Scalar tmp(0);
-        for(LhsInnerIterator it(lhsEval,j); it ;++it)
-          tmp += it.value() * rhs.coeff(it.index(),c);
-        res.coeffRef(j,c) = alpha * tmp;
+        #pragma omp parallel for schedule(static) num_threads(threads)
+        for(Index i=0; i<n; ++i)
+          processRow(lhsEval,rhs,res,alpha,i,c);
+      }
+      else
+#endif
+      {
+        for(Index i=0; i<n; ++i)
+          processRow(lhsEval,rhs,res,alpha,i,c);
       }
     }
   }
+  
+  static void processRow(const LhsEval& lhsEval, const DenseRhsType& rhs, DenseResType& res, const typename Res::Scalar& alpha, Index i, Index col)
+  {
+    typename Res::Scalar tmp(0);
+    for(LhsInnerIterator it(lhsEval,i); it ;++it)
+      tmp += it.value() * rhs.coeff(it.index(),col);
+    res.coeffRef(i,col) += alpha * tmp;
+  }
+  
 };
 
+// FIXME: what is the purpose of the following specialization? Is it for the BlockedSparse format?
 template<typename T1, typename T2/*, int _Options, typename _StrideType*/>
 struct scalar_product_traits<T1, Ref<T2/*, _Options, _StrideType*/> >
 {
@@ -128,17 +153,18 @@ namespace internal {
 
 template<typename Lhs, typename Rhs, int ProductType>
 struct generic_product_impl<Lhs, Rhs, SparseShape, DenseShape, ProductType>
+ : generic_product_impl_base<Lhs,Rhs,generic_product_impl<Lhs,Rhs,SparseShape,DenseShape,ProductType> >
 {
+  typedef typename Product<Lhs,Rhs>::Scalar Scalar;
+  
   template<typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs)
+  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha)
   {
     typedef typename nested_eval<Lhs,Dynamic>::type LhsNested;
     typedef typename nested_eval<Rhs,Dynamic>::type RhsNested;
     LhsNested lhsNested(lhs);
     RhsNested rhsNested(rhs);
-    
-    dst.setZero();
-    internal::sparse_time_dense_product(lhsNested, rhsNested, dst, typename Dest::Scalar(1));
+    internal::sparse_time_dense_product(lhsNested, rhsNested, dst, alpha);
   }
 };
 
@@ -149,19 +175,21 @@ struct generic_product_impl<Lhs, Rhs, SparseTriangularShape, DenseShape, Product
 
 template<typename Lhs, typename Rhs, int ProductType>
 struct generic_product_impl<Lhs, Rhs, DenseShape, SparseShape, ProductType>
+  : generic_product_impl_base<Lhs,Rhs,generic_product_impl<Lhs,Rhs,DenseShape,SparseShape,ProductType> >
 {
-  template<typename Dest>
-  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs)
+  typedef typename Product<Lhs,Rhs>::Scalar Scalar;
+  
+  template<typename Dst>
+  static void scaleAndAddTo(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha)
   {
     typedef typename nested_eval<Lhs,Dynamic>::type LhsNested;
     typedef typename nested_eval<Rhs,Dynamic>::type RhsNested;
     LhsNested lhsNested(lhs);
     RhsNested rhsNested(rhs);
     
-    dst.setZero();
     // transpose everything
-    Transpose<Dest> dstT(dst);
-    internal::sparse_time_dense_product(rhsNested.transpose(), lhsNested.transpose(), dstT, typename Dest::Scalar(1));
+    Transpose<Dst> dstT(dst);
+    internal::sparse_time_dense_product(rhsNested.transpose(), lhsNested.transpose(), dstT, alpha);
   }
 };
 

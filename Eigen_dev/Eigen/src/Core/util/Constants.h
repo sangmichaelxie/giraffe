@@ -452,8 +452,8 @@ namespace Architecture
 }
 
 /** \internal \ingroup enums
-  * Enum used as template parameter in GeneralProduct. */
-enum { DefaultProduct=0, CoeffBasedProductMode, LazyCoeffBasedProductMode, LazyProduct, OuterProduct, InnerProduct, GemvProduct, GemmProduct };
+  * Enum used as template parameter in Product and product evalautors. */
+enum { DefaultProduct=0, LazyProduct, AliasFreeProduct, CoeffBasedProductMode, LazyCoeffBasedProductMode, OuterProduct, InnerProduct, GemvProduct, GemmProduct };
 
 /** \internal \ingroup enums
   * Enum used in experimental parallel implementation. */
@@ -467,6 +467,9 @@ struct Sparse {};
 
 /** The type used to identify a permutation storage. */
 struct PermutationStorage {};
+
+/** The type used to identify a permutation storage. */
+struct TranspositionsStorage {};
 
 /** The type used to identify a matrix expression */
 struct MatrixXpr {};
@@ -482,6 +485,7 @@ struct BandShape              { static std::string debugName() { return "BandSha
 struct TriangularShape        { static std::string debugName() { return "TriangularShape"; } };
 struct SelfAdjointShape       { static std::string debugName() { return "SelfAdjointShape"; } };
 struct PermutationShape       { static std::string debugName() { return "PermutationShape"; } };
+struct TranspositionsShape    { static std::string debugName() { return "TranspositionsShape"; } };
 struct SparseShape            { static std::string debugName() { return "SparseShape"; } };
 
 namespace internal {
@@ -492,6 +496,16 @@ struct IndexBased {};
 // evaluator based on iterators to access coefficients. 
 struct IteratorBased {};
 
+/** \internal
+ * Constants for comparison functors
+ */
+enum ComparisonName {
+  cmp_EQ = 0,
+  cmp_LT = 1,
+  cmp_LE = 2,
+  cmp_UNORD = 3,
+  cmp_NEQ = 4
+};
 } // end namespace internal
 
 } // end namespace Eigen

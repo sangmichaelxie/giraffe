@@ -10,6 +10,9 @@
 #ifndef EIGEN_MATHFUNCTIONS_H
 #define EIGEN_MATHFUNCTIONS_H
 
+// source: http://www.geom.uiuc.edu/~huberty/math5337/groupe/digits.html
+#define EIGEN_PI 3.141592653589793238462643383279502884197169399375105820974944592307816406
+
 namespace Eigen {
 
 // On WINCE, std::abs is defined for int only, so let's defined our own overloads:
@@ -346,6 +349,7 @@ struct hypot_retval
 template<typename OldType, typename NewType>
 struct cast_impl
 {
+  EIGEN_DEVICE_FUNC
   static inline NewType run(const OldType& x)
   {
     return static_cast<NewType>(x);
@@ -357,11 +361,91 @@ struct cast_impl
 template<typename OldType, typename NewType>
 inline NewType cast(const OldType& x)
 {
+  EIGEN_DEVICE_FUNC
   return cast_impl<OldType, NewType>::run(x);
 }
 
 /****************************************************************************
-* Implementation of logp1                                                *
+* Implementation of round                                                   *
+****************************************************************************/
+
+#if EIGEN_HAS_CXX11_MATH
+  template<typename Scalar>
+  struct round_impl {
+    static inline Scalar run(const Scalar& x)
+    {
+      EIGEN_STATIC_ASSERT((!NumTraits<Scalar>::IsComplex), NUMERIC_TYPE_MUST_BE_REAL)
+      using std::round;
+      return round(x);
+    }
+  };
+#else
+  template<typename Scalar>
+  struct round_impl
+  {
+    static inline Scalar run(const Scalar& x)
+    {
+      EIGEN_STATIC_ASSERT((!NumTraits<Scalar>::IsComplex), NUMERIC_TYPE_MUST_BE_REAL)
+      using std::floor;
+      using std::ceil;
+      return (x > 0.0) ? floor(x + 0.5) : ceil(x - 0.5);
+    }
+  };
+#endif
+
+template<typename Scalar>
+struct round_retval
+{
+  typedef Scalar type;
+};
+
+/****************************************************************************
+* Implementation of arg                                                     *
+****************************************************************************/
+
+#if EIGEN_HAS_CXX11_MATH
+  template<typename Scalar>
+  struct arg_impl {
+    static inline Scalar run(const Scalar& x)
+    {
+      using std::arg;
+      return arg(x);
+    }
+  };
+#else
+  template<typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+  struct arg_default_impl
+  {
+    typedef typename NumTraits<Scalar>::Real RealScalar;
+    EIGEN_DEVICE_FUNC
+    static inline RealScalar run(const Scalar& x)
+    {
+      return (x < 0.0) ? EIGEN_PI : 0.0; }
+  };
+
+  template<typename Scalar>
+  struct arg_default_impl<Scalar,true>
+  {
+    typedef typename NumTraits<Scalar>::Real RealScalar;
+    EIGEN_DEVICE_FUNC
+    static inline RealScalar run(const Scalar& x)
+    {
+      using std::arg;
+      return arg(x);
+    }
+  };
+
+  template<typename Scalar> struct arg_impl : arg_default_impl<Scalar> {};
+#endif
+
+template<typename Scalar>
+struct arg_retval
+{
+  typedef typename NumTraits<Scalar>::Real type;
+};
+
+/****************************************************************************
+* Implementation of log1p                                                   *
 ****************************************************************************/
 template<typename Scalar, bool isComplex = NumTraits<Scalar>::IsComplex >
 struct log1p_impl
@@ -375,10 +459,8 @@ struct log1p_impl
     return ( x1p == Scalar(1) ) ? x : x * ( log(x1p) / (x1p - RealScalar(1)) );
   }
 };
-// In C++11 we can specialize log1p_impl for real Scalars
-// Let's be conservative and enable the default C++11 implementation only if we are sure it exists
-#if (__cplusplus >= 201103L) && (EIGEN_COMP_GNUC_STRICT || EIGEN_COMP_CLANG || EIGEN_COMP_MSVC || EIGEN_COMP_ICC)  \
-    && (EIGEN_ARCH_i386_OR_x86_64) && (EIGEN_OS_GNULINUX || EIGEN_OS_WIN_STRICT || EIGEN_OS_MAC)
+
+#if EIGEN_HAS_CXX11_MATH
 template<typename Scalar>
 struct log1p_impl<Scalar, false> {
   static inline Scalar run(const Scalar& x)
@@ -588,7 +670,7 @@ inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random()
 } // end namespace internal
 
 /****************************************************************************
-* Generic math function                                                    *
+* Generic math functions                                                    *
 ****************************************************************************/
 
 namespace numext {
@@ -635,6 +717,13 @@ EIGEN_DEVICE_FUNC
 inline EIGEN_MATHFUNC_RETVAL(imag, Scalar) imag(const Scalar& x)
 {
   return EIGEN_MATHFUNC_IMPL(imag, Scalar)::run(x);
+}
+
+template<typename Scalar>
+EIGEN_DEVICE_FUNC
+inline EIGEN_MATHFUNC_RETVAL(arg, Scalar) arg(const Scalar& x)
+{
+  return EIGEN_MATHFUNC_IMPL(arg, Scalar)::run(x);
 }
 
 template<typename Scalar>
@@ -693,22 +782,84 @@ inline EIGEN_MATHFUNC_RETVAL(pow, Scalar) pow(const Scalar& x, const Scalar& y)
   return EIGEN_MATHFUNC_IMPL(pow, Scalar)::run(x, y);
 }
 
-// std::isfinite is non standard, so let's define our own version,
-// even though it is not very efficient.
 template<typename T>
 EIGEN_DEVICE_FUNC
 bool (isfinite)(const T& x)
 {
-  return x<NumTraits<T>::highest() && x>NumTraits<T>::lowest();
+  #if EIGEN_HAS_CXX11_MATH
+    using std::isfinite;
+    return isfinite(x);
+  #else
+    return x<NumTraits<T>::highest() && x>NumTraits<T>::lowest();
+  #endif
 }
 
 template<typename T>
 EIGEN_DEVICE_FUNC
 bool (isfinite)(const std::complex<T>& x)
 {
-  using std::real;
-  using std::imag;
-  return isfinite(real(x)) && isfinite(imag(x));
+  return numext::isfinite(numext::real(x)) && numext::isfinite(numext::imag(x));
+}
+
+template<typename T>
+EIGEN_DEVICE_FUNC
+bool (isnan)(const T& x)
+{
+  #if EIGEN_HAS_CXX11_MATH
+    using std::isnan;
+    return isnan(x);
+  #else
+    return x != x;
+  #endif
+}
+
+template<typename T>
+EIGEN_DEVICE_FUNC
+bool (isnan)(const std::complex<T>& x)
+{
+  return numext::isnan(numext::real(x)) || numext::isnan(numext::imag(x));
+}
+
+template<typename T>
+EIGEN_DEVICE_FUNC
+bool (isinf)(const T& x)
+{
+  #if EIGEN_HAS_CXX11_MATH
+    using std::isinf;
+    return isinf(x);
+  #else
+    return x>NumTraits<T>::highest() || x<NumTraits<T>::lowest();
+  #endif
+}
+
+template<typename T>
+EIGEN_DEVICE_FUNC
+bool (isinf)(const std::complex<T>& x)
+{
+  return (numext::isinf(numext::real(x)) || numext::isinf(numext::imag(x))) && (!numext::isnan(x));
+}
+
+template<typename Scalar>
+EIGEN_DEVICE_FUNC
+inline EIGEN_MATHFUNC_RETVAL(round, Scalar) round(const Scalar& x)
+{
+  return EIGEN_MATHFUNC_IMPL(round, Scalar)::run(x);
+}
+
+template<typename T>
+EIGEN_DEVICE_FUNC
+T (floor)(const T& x)
+{
+  using std::floor;
+  return floor(x);
+}
+
+template<typename T>
+EIGEN_DEVICE_FUNC
+T (ceil)(const T& x)
+{
+  using std::ceil;
+  return ceil(x);
 }
 
 // Log base 2 for 32 bits positive integers.

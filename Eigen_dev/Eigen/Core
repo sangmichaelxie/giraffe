@@ -178,7 +178,7 @@
     #undef bool
     #undef vector
     #undef pixel
-  #elif defined  __ARM_NEON
+  #elif (defined  __ARM_NEON) || (defined __ARM_NEON__)
     #define EIGEN_VECTORIZE
     #define EIGEN_VECTORIZE_NEON
     #include <arm_neon.h>
@@ -310,7 +310,6 @@ using std::ptrdiff_t;
   #include "src/Core/arch/NEON/PacketMath.h"
   #include "src/Core/arch/NEON/MathFunctions.h"
   #include "src/Core/arch/NEON/Complex.h"
-  #include "src/Core/arch/NEON/BlockingSizesLookupTables.h"
 #endif
 
 #if defined EIGEN_VECTORIZE_CUDA
@@ -378,13 +377,11 @@ using std::ptrdiff_t;
 #include "src/Core/IO.h"
 #include "src/Core/Swap.h"
 #include "src/Core/CommaInitializer.h"
-#include "src/Core/ProductBase.h"
 #include "src/Core/GeneralProduct.h"
 #include "src/Core/Solve.h"
 #include "src/Core/Inverse.h"
 #include "src/Core/TriangularMatrix.h"
 #include "src/Core/SelfAdjointView.h"
-#include "src/Core/products/LookupBlockingSizesTable.h"
 #include "src/Core/products/GeneralBlockPanelKernel.h"
 #include "src/Core/products/Parallelizer.h"
 #include "src/Core/ProductEvaluators.h"

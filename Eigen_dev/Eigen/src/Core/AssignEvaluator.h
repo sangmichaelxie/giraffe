@@ -471,18 +471,25 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling>
 {
   EIGEN_DEVICE_FUNC static inline void run(Kernel &kernel)
   {
-    typedef packet_traits<typename Kernel::Scalar> PacketTraits;
+    typedef typename Kernel::Scalar Scalar;
+    typedef packet_traits<Scalar> PacketTraits;
     enum {
       packetSize = PacketTraits::size,
       alignable = PacketTraits::AlignedOnScalar,
-      dstAlignment = alignable ? Aligned : int(Kernel::AssignmentTraits::DstIsAligned)
+      dstIsAligned = Kernel::AssignmentTraits::DstIsAligned,
+      dstAlignment = alignable ? Aligned : int(dstIsAligned)
     };
+    const Scalar *dst_ptr = &kernel.dstEvaluator().coeffRef(0,0);
+    if((!bool(dstIsAligned)) && (Index(dst_ptr) % sizeof(Scalar))>0)
+    {
+      // the pointer is not aligend-on scalar, so alignment is not possible
+      return dense_assignment_loop<Kernel,DefaultTraversal,NoUnrolling>::run(kernel);
+    }
     const Index packetAlignedMask = packetSize - 1;
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
     const Index alignedStep = alignable ? (packetSize - kernel.outerStride() % packetSize) & packetAlignedMask : 0;
-    Index alignedStart = ((!alignable) || Kernel::AssignmentTraits::DstIsAligned) ? 0
-                       : internal::first_aligned(&kernel.dstEvaluator().coeffRef(0,0), innerSize);
+    Index alignedStart = ((!alignable) || bool(dstIsAligned)) ? 0 : internal::first_aligned(dst_ptr, innerSize);
 
     for(Index outer = 0; outer < outerSize; ++outer)
     {
@@ -749,6 +756,26 @@ EIGEN_DEVICE_FUNC void call_assignment_no_alias(Dst& dst, const Src& src)
   call_assignment_no_alias(dst, src, internal::assign_op<typename Dst::Scalar>());
 }
 
+template<typename Dst, typename Src, typename Func>
+EIGEN_DEVICE_FUNC void call_assignment_no_alias_no_transpose(Dst& dst, const Src& src, const Func& func)
+{
+  Index dstRows = src.rows();
+  Index dstCols = src.cols();
+  if((dst.rows()!=dstRows) || (dst.cols()!=dstCols))
+    dst.resize(dstRows, dstCols);
+  
+  // TODO check whether this is the right place to perform these checks:
+  EIGEN_STATIC_ASSERT_LVALUE(Dst)
+  EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Dst,Src)
+  
+  Assignment<Dst,Src,Func>::run(dst, src, func);
+}
+template<typename Dst, typename Src>
+EIGEN_DEVICE_FUNC void call_assignment_no_alias_no_transpose(Dst& dst, const Src& src)
+{
+  call_assignment_no_alias_no_transpose(dst, src, internal::assign_op<typename Dst::Scalar>());
+}
+
 // forward declaration
 template<typename Dst, typename Src> void check_for_aliasing(const Dst &dst, const Src &src);
 
@@ -776,7 +803,6 @@ struct Assignment<DstXprType, SrcXprType, Functor, EigenBase2EigenBase, Scalar>
   EIGEN_DEVICE_FUNC static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar> &/*func*/)
   {
     eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
-    
     src.evalTo(dst);
   }
 };

@@ -312,9 +312,6 @@ template<typename T> struct plain_matrix_type_row_major
           > type;
 };
 
-// we should be able to get rid of this one too
-template<typename T> struct must_nest_by_value { enum { ret = false }; };
-
 /** \internal The reference selector for template expressions. The idea is that we don't
   * need to use references for expressions since they are light weight proxy
   * objects which should generate no copying overhead. */
@@ -326,6 +323,12 @@ struct ref_selector
     T const&,
     const T
   >::type type;
+  
+  typedef typename conditional<
+    bool(traits<T>::Flags & NestByRefBit),
+    T &,
+    T
+  >::type non_const_type;
 };
 
 /** \internal Adds the const qualifier on the value-type of T2 if and only if T1 is a const type */
@@ -339,13 +342,6 @@ struct transfer_constness
   >::type type;
 };
 
-
-// When using evaluators, we never evaluate when assembling the expression!!
-// TODO: get rid of this nested class since it's just an alias for ref_selector.
-template<typename T, int n=1, typename PlainObject = void> struct nested
-{
-  typedef typename ref_selector<T>::type type;
-};
 
 // However, we still need a mechanism to detect whether an expression which is evaluated multiple time
 // has to be evaluated into a temporary.
@@ -431,7 +427,9 @@ struct special_scalar_op_base : public DenseCoeffsBase<Derived>
 {
   // dummy operator* so that the
   // "using special_scalar_op_base::operator*" compiles
-  void operator*() const;
+  struct dummy {};
+  void operator*(dummy) const;
+  void operator/(dummy) const;
 };
 
 template<typename Derived,typename Scalar,typename OtherScalar>
@@ -454,6 +452,16 @@ struct special_scalar_op_base<Derived,Scalar,OtherScalar,true>  : public DenseCo
     EIGEN_SPECIAL_SCALAR_MULTIPLE_PLUGIN
 #endif
     return static_cast<const special_scalar_op_base&>(matrix).operator*(scalar);
+  }
+  
+  const CwiseUnaryOp<scalar_quotient2_op<Scalar,OtherScalar>, Derived>
+  operator/(const OtherScalar& scalar) const
+  {
+#ifdef EIGEN_SPECIAL_SCALAR_MULTIPLE_PLUGIN
+    EIGEN_SPECIAL_SCALAR_MULTIPLE_PLUGIN
+#endif
+    return CwiseUnaryOp<scalar_quotient2_op<Scalar,OtherScalar>, Derived>
+      (*static_cast<const Derived*>(this), scalar_quotient2_op<Scalar,OtherScalar>(scalar));
   }
 };
 
@@ -605,6 +613,18 @@ template<typename T, int S> struct is_diagonal<DiagonalMatrix<T,S> >
 
 template<typename S1, typename S2> struct glue_shapes;
 template<> struct glue_shapes<DenseShape,TriangularShape> { typedef TriangularShape type;  };
+
+template<typename T1, typename T2>
+bool is_same_dense(const T1 &mat1, const T2 &mat2, typename enable_if<has_direct_access<T1>::ret&&has_direct_access<T2>::ret, T1>::type * = 0)
+{
+  return (mat1.data()==mat2.data()) && (mat1.innerStride()==mat2.innerStride()) && (mat1.outerStride()==mat2.outerStride());
+}
+
+template<typename T1, typename T2>
+bool is_same_dense(const T1 &, const T2 &, typename enable_if<!(has_direct_access<T1>::ret&&has_direct_access<T2>::ret), T1>::type * = 0)
+{
+  return false;
+}
 
 } // end namespace internal
 

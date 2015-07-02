@@ -90,18 +90,25 @@ struct evaluator_traits<Product<Lhs, Rhs, DefaultProduct> >
   enum { AssumeAliasing = 1 };
 };
 
+template<typename Lhs, typename Rhs>
+struct evaluator_traits<Product<Lhs, Rhs, AliasFreeProduct> > 
+ : evaluator_traits_base<Product<Lhs, Rhs, AliasFreeProduct> >
+{
+  enum { AssumeAliasing = 0 };
+};
+
 // This is the default evaluator implementation for products:
 // It creates a temporary and call generic_product_impl
-template<typename Lhs, typename Rhs, int ProductTag, typename LhsShape, typename RhsShape>
-struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, LhsShape, RhsShape, typename traits<Lhs>::Scalar, typename traits<Rhs>::Scalar> 
-  : public evaluator<typename Product<Lhs, Rhs, DefaultProduct>::PlainObject>::type
+template<typename Lhs, typename Rhs, int Options, int ProductTag, typename LhsShape, typename RhsShape>
+struct product_evaluator<Product<Lhs, Rhs, Options>, ProductTag, LhsShape, RhsShape, typename traits<Lhs>::Scalar, typename traits<Rhs>::Scalar,
+  EnableIf<(Options==DefaultProduct || Options==AliasFreeProduct)> >
+  : public evaluator<typename Product<Lhs, Rhs, Options>::PlainObject>::type
 {
-  typedef Product<Lhs, Rhs, DefaultProduct> XprType;
+  typedef Product<Lhs, Rhs, Options> XprType;
   typedef typename XprType::PlainObject PlainObject;
   typedef typename evaluator<PlainObject>::type Base;
   enum {
     Flags = Base::Flags | EvalBeforeNestingBit
-//     CoeffReadCost = 0 // FIXME why is it needed? (this was already the case before the evaluators, see traits<ProductBase>)
   };
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
@@ -109,7 +116,8 @@ struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, LhsShape
   {
     ::new (static_cast<Base*>(this)) Base(m_result);
     
-// FIXME shall we handle nested_eval here?
+// FIXME shall we handle nested_eval here?,
+// if so, then we must take care at removing the call to nested_eval in the specializations (e.g., in permutation_matrix_product, transposition_matrix_product, etc.)
 //     typedef typename internal::nested_eval<Lhs,Rhs::ColsAtCompileTime>::type LhsNested;
 //     typedef typename internal::nested_eval<Rhs,Lhs::RowsAtCompileTime>::type RhsNested;
 //     typedef typename internal::remove_all<LhsNested>::type LhsNestedCleaned;
@@ -128,10 +136,11 @@ protected:
 };
 
 // Dense = Product
-template< typename DstXprType, typename Lhs, typename Rhs, typename Scalar>
-struct Assignment<DstXprType, Product<Lhs,Rhs,DefaultProduct>, internal::assign_op<Scalar>, Dense2Dense, Scalar>
+template< typename DstXprType, typename Lhs, typename Rhs, int Options, typename Scalar>
+struct Assignment<DstXprType, Product<Lhs,Rhs,Options>, internal::assign_op<Scalar>, Dense2Dense,
+  typename enable_if<(Options==DefaultProduct || Options==AliasFreeProduct),Scalar>::type>
 {
-  typedef Product<Lhs,Rhs,DefaultProduct> SrcXprType;
+  typedef Product<Lhs,Rhs,Options> SrcXprType;
   static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar> &)
   {
     // FIXME shall we handle nested_eval here?
@@ -140,10 +149,11 @@ struct Assignment<DstXprType, Product<Lhs,Rhs,DefaultProduct>, internal::assign_
 };
 
 // Dense += Product
-template< typename DstXprType, typename Lhs, typename Rhs, typename Scalar>
-struct Assignment<DstXprType, Product<Lhs,Rhs,DefaultProduct>, internal::add_assign_op<Scalar>, Dense2Dense, Scalar>
+template< typename DstXprType, typename Lhs, typename Rhs, int Options, typename Scalar>
+struct Assignment<DstXprType, Product<Lhs,Rhs,Options>, internal::add_assign_op<Scalar>, Dense2Dense,
+  typename enable_if<(Options==DefaultProduct || Options==AliasFreeProduct),Scalar>::type>
 {
-  typedef Product<Lhs,Rhs,DefaultProduct> SrcXprType;
+  typedef Product<Lhs,Rhs,Options> SrcXprType;
   static void run(DstXprType &dst, const SrcXprType &src, const internal::add_assign_op<Scalar> &)
   {
     // FIXME shall we handle nested_eval here?
@@ -152,10 +162,11 @@ struct Assignment<DstXprType, Product<Lhs,Rhs,DefaultProduct>, internal::add_ass
 };
 
 // Dense -= Product
-template< typename DstXprType, typename Lhs, typename Rhs, typename Scalar>
-struct Assignment<DstXprType, Product<Lhs,Rhs,DefaultProduct>, internal::sub_assign_op<Scalar>, Dense2Dense, Scalar>
+template< typename DstXprType, typename Lhs, typename Rhs, int Options, typename Scalar>
+struct Assignment<DstXprType, Product<Lhs,Rhs,Options>, internal::sub_assign_op<Scalar>, Dense2Dense,
+  typename enable_if<(Options==DefaultProduct || Options==AliasFreeProduct),Scalar>::type>
 {
-  typedef Product<Lhs,Rhs,DefaultProduct> SrcXprType;
+  typedef Product<Lhs,Rhs,Options> SrcXprType;
   static void run(DstXprType &dst, const SrcXprType &src, const internal::sub_assign_op<Scalar> &)
   {
     // FIXME shall we handle nested_eval here?
@@ -740,7 +751,6 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   using Base::m_diagImpl;
   using Base::m_matImpl;
   using Base::coeff;
-  using Base::packet_impl;
   typedef typename Base::Scalar Scalar;
   typedef typename Base::PacketScalar PacketScalar;
   
@@ -765,7 +775,8 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   template<int LoadMode>
   EIGEN_STRONG_INLINE PacketScalar packet(Index row, Index col) const
   {
-    // NVCC complains about template keyword, so we disable this function in CUDA mode
+    // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
+    // See also similar calls below.
     return this->template packet_impl<LoadMode>(row,col, row,
                                  typename internal::conditional<int(StorageOrder)==RowMajor, internal::true_type, internal::false_type>::type());
   }
@@ -787,7 +798,6 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   using Base::m_diagImpl;
   using Base::m_matImpl;
   using Base::coeff;
-  using Base::packet_impl;
   typedef typename Base::Scalar Scalar;
   typedef typename Base::PacketScalar PacketScalar;
   
@@ -825,48 +835,187 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
 /***************************************************************************
 * Products with permutation matrices
 ***************************************************************************/
-  
-template<typename Lhs, typename Rhs, int ProductTag>
-struct generic_product_impl<Lhs, Rhs, PermutationShape, DenseShape, ProductTag>
+
+/** \internal
+  * \class permutation_matrix_product
+  * Internal helper class implementing the product between a permutation matrix and a matrix.
+  * This class is specialized for DenseShape below and for SparseShape in SparseCore/SparsePermutation.h
+  */
+template<typename ExpressionType, int Side, bool Transposed, typename ExpressionShape>
+struct permutation_matrix_product;
+
+template<typename ExpressionType, int Side, bool Transposed>
+struct permutation_matrix_product<ExpressionType, Side, Transposed, DenseShape>
+{
+    typedef typename nested_eval<ExpressionType, 1>::type MatrixType;
+    typedef typename remove_all<MatrixType>::type MatrixTypeCleaned;
+
+    template<typename Dest, typename PermutationType>
+    static inline void run(Dest& dst, const PermutationType& perm, const ExpressionType& xpr)
+    {
+      MatrixType mat(xpr);
+      const Index n = Side==OnTheLeft ? mat.rows() : mat.cols();
+      // FIXME we need an is_same for expression that is not sensitive to constness. For instance
+      // is_same_xpr<Block<const Matrix>, Block<Matrix> >::value should be true.
+      //if(is_same<MatrixTypeCleaned,Dest>::value && extract_data(dst) == extract_data(mat))
+      if(is_same_dense(dst, mat))
+      {
+        // apply the permutation inplace
+        Matrix<bool,PermutationType::RowsAtCompileTime,1,0,PermutationType::MaxRowsAtCompileTime> mask(perm.size());
+        mask.fill(false);
+        Index r = 0;
+        while(r < perm.size())
+        {
+          // search for the next seed
+          while(r<perm.size() && mask[r]) r++;
+          if(r>=perm.size())
+            break;
+          // we got one, let's follow it until we are back to the seed
+          Index k0 = r++;
+          Index kPrev = k0;
+          mask.coeffRef(k0) = true;
+          for(Index k=perm.indices().coeff(k0); k!=k0; k=perm.indices().coeff(k))
+          {
+                  Block<Dest, Side==OnTheLeft ? 1 : Dest::RowsAtCompileTime, Side==OnTheRight ? 1 : Dest::ColsAtCompileTime>(dst, k)
+            .swap(Block<Dest, Side==OnTheLeft ? 1 : Dest::RowsAtCompileTime, Side==OnTheRight ? 1 : Dest::ColsAtCompileTime>
+                       (dst,((Side==OnTheLeft) ^ Transposed) ? k0 : kPrev));
+
+            mask.coeffRef(k) = true;
+            kPrev = k;
+          }
+        }
+      }
+      else
+      {
+        for(Index i = 0; i < n; ++i)
+        {
+          Block<Dest, Side==OnTheLeft ? 1 : Dest::RowsAtCompileTime, Side==OnTheRight ? 1 : Dest::ColsAtCompileTime>
+               (dst, ((Side==OnTheLeft) ^ Transposed) ? perm.indices().coeff(i) : i)
+
+          =
+
+          Block<const MatrixTypeCleaned,Side==OnTheLeft ? 1 : MatrixTypeCleaned::RowsAtCompileTime,Side==OnTheRight ? 1 : MatrixTypeCleaned::ColsAtCompileTime>
+               (mat, ((Side==OnTheRight) ^ Transposed) ? perm.indices().coeff(i) : i);
+        }
+      }
+    }
+};
+
+template<typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
+struct generic_product_impl<Lhs, Rhs, PermutationShape, MatrixShape, ProductTag>
 {
   template<typename Dest>
   static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs)
   {
-    permut_matrix_product_retval<Lhs, Rhs, OnTheLeft, false> pmpr(lhs, rhs);
-    pmpr.evalTo(dst);
+    permutation_matrix_product<Rhs, OnTheLeft, false, MatrixShape>::run(dst, lhs, rhs);
   }
 };
 
-template<typename Lhs, typename Rhs, int ProductTag>
-struct generic_product_impl<Lhs, Rhs, DenseShape, PermutationShape, ProductTag>
+template<typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
+struct generic_product_impl<Lhs, Rhs, MatrixShape, PermutationShape, ProductTag>
 {
   template<typename Dest>
   static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs)
   {
-    permut_matrix_product_retval<Rhs, Lhs, OnTheRight, false> pmpr(rhs, lhs);
-    pmpr.evalTo(dst);
+    permutation_matrix_product<Lhs, OnTheRight, false, MatrixShape>::run(dst, rhs, lhs);
   }
 };
 
-template<typename Lhs, typename Rhs, int ProductTag>
-struct generic_product_impl<Transpose<Lhs>, Rhs, PermutationShape, DenseShape, ProductTag>
+template<typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
+struct generic_product_impl<Transpose<Lhs>, Rhs, PermutationShape, MatrixShape, ProductTag>
 {
   template<typename Dest>
   static void evalTo(Dest& dst, const Transpose<Lhs>& lhs, const Rhs& rhs)
   {
-    permut_matrix_product_retval<Lhs, Rhs, OnTheLeft, true> pmpr(lhs.nestedPermutation(), rhs);
-    pmpr.evalTo(dst);
+    permutation_matrix_product<Rhs, OnTheLeft, true, MatrixShape>::run(dst, lhs.nestedExpression(), rhs);
   }
 };
 
-template<typename Lhs, typename Rhs, int ProductTag>
-struct generic_product_impl<Lhs, Transpose<Rhs>, DenseShape, PermutationShape, ProductTag>
+template<typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
+struct generic_product_impl<Lhs, Transpose<Rhs>, MatrixShape, PermutationShape, ProductTag>
 {
   template<typename Dest>
   static void evalTo(Dest& dst, const Lhs& lhs, const Transpose<Rhs>& rhs)
   {
-    permut_matrix_product_retval<Rhs, Lhs, OnTheRight, true> pmpr(rhs.nestedPermutation(), lhs);
-    pmpr.evalTo(dst);
+    permutation_matrix_product<Lhs, OnTheRight, true, MatrixShape>::run(dst, rhs.nestedExpression(), lhs);
+  }
+};
+
+
+/***************************************************************************
+* Products with transpositions matrices
+***************************************************************************/
+
+// FIXME could we unify Transpositions and Permutation into a single "shape"??
+
+/** \internal
+  * \class transposition_matrix_product
+  * Internal helper class implementing the product between a permutation matrix and a matrix.
+  */
+template<typename ExpressionType, int Side, bool Transposed, typename ExpressionShape>
+struct transposition_matrix_product
+{
+  typedef typename nested_eval<ExpressionType, 1>::type MatrixType;
+  typedef typename remove_all<MatrixType>::type MatrixTypeCleaned;
+  
+  template<typename Dest, typename TranspositionType>
+  static inline void run(Dest& dst, const TranspositionType& tr, const ExpressionType& xpr)
+  {
+    MatrixType mat(xpr);
+    typedef typename TranspositionType::StorageIndex StorageIndex;
+    const Index size = tr.size();
+    StorageIndex j = 0;
+
+    if(!(is_same<MatrixTypeCleaned,Dest>::value && extract_data(dst) == extract_data(mat)))
+      dst = mat;
+
+    for(Index k=(Transposed?size-1:0) ; Transposed?k>=0:k<size ; Transposed?--k:++k)
+      if(Index(j=tr.coeff(k))!=k)
+      {
+        if(Side==OnTheLeft)        dst.row(k).swap(dst.row(j));
+        else if(Side==OnTheRight)  dst.col(k).swap(dst.col(j));
+      }
+  }
+};
+
+template<typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
+struct generic_product_impl<Lhs, Rhs, TranspositionsShape, MatrixShape, ProductTag>
+{
+  template<typename Dest>
+  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs)
+  {
+    transposition_matrix_product<Rhs, OnTheLeft, false, MatrixShape>::run(dst, lhs, rhs);
+  }
+};
+
+template<typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
+struct generic_product_impl<Lhs, Rhs, MatrixShape, TranspositionsShape, ProductTag>
+{
+  template<typename Dest>
+  static void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs)
+  {
+    transposition_matrix_product<Lhs, OnTheRight, false, MatrixShape>::run(dst, rhs, lhs);
+  }
+};
+
+
+template<typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
+struct generic_product_impl<Transpose<Lhs>, Rhs, TranspositionsShape, MatrixShape, ProductTag>
+{
+  template<typename Dest>
+  static void evalTo(Dest& dst, const Transpose<Lhs>& lhs, const Rhs& rhs)
+  {
+    transposition_matrix_product<Rhs, OnTheLeft, true, MatrixShape>::run(dst, lhs.nestedExpression(), rhs);
+  }
+};
+
+template<typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
+struct generic_product_impl<Lhs, Transpose<Rhs>, MatrixShape, TranspositionsShape, ProductTag>
+{
+  template<typename Dest>
+  static void evalTo(Dest& dst, const Lhs& lhs, const Transpose<Rhs>& rhs)
+  {
+    transposition_matrix_product<Lhs, OnTheRight, true, MatrixShape>::run(dst, rhs.nestedExpression(), lhs);
   }
 };
 
