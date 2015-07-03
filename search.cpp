@@ -606,11 +606,9 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	{
 #ifdef DEBUG
 		Score seeScoreCalculated = StaticExchangeEvaluation(board, mv);
-#endif
 		// extract the SEE score
-		//Score seeScore = GetScoreBiased(mv);
+		Score seeScore = GetScoreBiased(mv);
 
-#ifdef DEBUG
 		assert(seeScore == seeScoreCalculated);
 #endif
 
