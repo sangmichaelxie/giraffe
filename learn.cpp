@@ -197,7 +197,7 @@ void TDL(const std::string &positionsFilename)
 					if (omp_get_thread_num() == 0)
 					{
 						float timeSinceLastPrint = CurrentTime() - timeLastPrint;
-						if (timeSinceLastPrint > 5.0f)
+						if (timeSinceLastPrint > 15.0f)
 						{
 							double timeElapsed = CurrentTime() - timeStart;
 							std::cout << "Processed: " << positionsProcessed << " Positions/s: " << (positionsProcessed / timeElapsed) << std::endl;
