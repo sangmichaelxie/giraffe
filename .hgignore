@@ -21,3 +21,10 @@ targets/y_unstoppable
 x_5M
 x_5M.features
 ccrl4040_shuffled_5M.epd
+training/unique_starts/start9.epd
+*.features
+training/*
+*.dump
+*.pyc
+engine_log.txt
+*.DS_Store
