@@ -21,7 +21,7 @@ namespace Search
 
 typedef int32_t Depth;
 
-static const bool ENABLE_NULL_MOVE_HEURISTICS = false;
+static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
 static const bool ENABLE_ADAPTIVE_NULL_MOVE = false;
 
 static const bool NM_REDUCE_INSTEAD_OF_PRUNE = false;
