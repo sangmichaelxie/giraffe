@@ -594,15 +594,13 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	MovePicker::MovePickerStage moveStage;
 
 	// now we start searching
-	MovePicker movePicker(board, 0, *(context.killer), true, ply);
+	MovePicker movePicker(board, tEntry ? tEntry->bestMove : 0, *(context.killer), true, ply);
 
 	Move mv = 0;
 
 	size_t i = 0;
 
 	std::vector<Move> subPv;
-
-	bool alphaRaised = false;
 
 	while ((mv = movePicker.GetNextMove(moveStage)))
 	{
@@ -649,32 +647,15 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 				pv.clear();
 				pv.push_back(ClearScore(mv));
 				pv.insert(pv.end(), subPv.begin(), subPv.end());
-				alphaRaised = true;
 			}
 
 			if (score >= beta)
 			{
-				if (ENABLE_TT)
-				{
-					context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, 0, LOWERBOUND);
-				}
 				return score;
 			}
 		}
 
 		++i;
-	}
-
-	if (ENABLE_TT)
-	{
-		if (alphaRaised)
-		{
-			context.transpositionTable->Store(board.GetHash(), pv[0], alpha, 0, EXACT);
-		}
-		else
-		{
-			context.transpositionTable->Store(board.GetHash(), 0, alpha, 0, UPPERBOUND);
-		}
 	}
 
 	return alpha;
