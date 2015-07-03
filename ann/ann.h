@@ -31,8 +31,10 @@ inline void ErrorFunc(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &out)
 {
 	for (int32_t i = 0; i < in.rows(); ++i)
 	{
-		out(i, 0) = fabs(in(i, 0));
-		//out(i, 0) = in(i, 0) * in(i, 0);
+		for (int32_t j = 0; j < in.cols(); ++j)
+		{
+			out(i, j) = fabs(in(i, j));
+		}
 	}
 }
 
@@ -41,8 +43,10 @@ inline void ErrorFuncDeri(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &
 {
 	for (int32_t i = 0; i < in.rows(); ++i)
 	{
-		out(i, 0) = (in(i, 0) > 0.0f) ? 1.0f : -1.0f;
-		//out(i, 0) = in(i, 0);
+		for (int32_t j = 0; j < in.cols(); ++j)
+		{
+			out(i, j) = (in(i, j) > 0.0f) ? 1.0f : -1.0f;
+		}
 	}
 }
 
@@ -103,7 +107,7 @@ public:
 	template <typename Derived>
 	NNMatrixRM ForwardPropagateFast(const MatrixBase<Derived> &in);
 
-	// special case for 1 board - this is used in gameplay (NOT REENTRANT!!)
+	// special case for 1 board and single-valued output - this is used in gameplay (NOT REENTRANT!!)
 	template <typename Derived>
 	float ForwardPropagateSingle(const MatrixBase<Derived> &vec);
 
@@ -126,6 +130,8 @@ public:
 	std::vector<BiasType> &Biases() { return m_params.outputBias; }
 	std::vector<WeightType> &Weights() { return m_params.weights; }
 	std::vector<WeightMaskType> &WeightMasks() { return m_params.weightMasks; }
+
+	int64_t OutputCols() const { return m_params.weights[m_params.weights.size() - 1].cols(); }
 
 private:
 	template <typename Derived>

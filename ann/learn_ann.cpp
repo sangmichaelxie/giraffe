@@ -228,7 +228,7 @@ void Train(
 
 		trainingErrorAccum += nn.TrainGDM(
 			xTrain.block(begin, 0, BatchSize, xTrain.cols()),
-			yTrain.block(begin, 0, BatchSize, 1),
+			yTrain.block(begin, 0, BatchSize, yTrain.cols()),
 			0.000001f);
 
 		if (iter % IterationsPerCheck == 0)
@@ -278,7 +278,7 @@ NNMatrix EvalNet(T &nn, NNMatrixRM &x)
 	// how many examples to evaluate at a time (memory restriction)
 	const static int64_t ExamplesPerBatch = 2048;
 
-	NNMatrix ret(x.rows(), 1);
+	NNMatrix ret(x.rows(), nn.OutputCols());
 
 	for (int64_t i = 0; i < x.rows();)
 	{
@@ -399,7 +399,7 @@ ANN TrainANN(
 	std::cout << "Test: " << xTest.rows() << std::endl;
 	std::cout << "Features: " << xTrain.cols() << std::endl;
 
-	ANN nn(77, xTrain.cols(), 1, hiddenLayersConfig, connMatrices);
+	ANN nn(77, xTrain.cols(), yTrain.cols(), hiddenLayersConfig, connMatrices);
 
 	//std::ifstream netfIn("net.dump");
 	//ANN nn = DeserializeNet(netfIn);
