@@ -28,3 +28,4 @@ training/*
 *.pyc
 engine_log.txt
 *.DS_Store
+ann/ann.h.autosave
