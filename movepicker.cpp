@@ -31,7 +31,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 	switch (m_stage)
 	{
 	case HASH_MOVE:
-		if (m_hashMove && m_board.CheckPseudoLegal(m_hashMove))
+		if (m_hashMove && m_board.CheckPseudoLegal(m_hashMove) && (!m_isQS || m_board.IsViolent(m_hashMove)))
 		{
 			// we have to exit stage here because we are not clearing m_hashMove
 			// we cannot get back in here again otherwise we'll return the hash move again
