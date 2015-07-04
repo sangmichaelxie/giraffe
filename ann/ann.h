@@ -23,7 +23,8 @@ enum ActivationFunc
 {
 	Linear,
 	Tanh,
-	Relu
+	Relu,
+	Softmax
 };
 
 template <typename Derived1, typename Derived2>
@@ -50,7 +51,7 @@ inline void ErrorFuncDeri(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &
 	}
 }
 
-template <ActivationFunc ACTF>
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 class FCANN
 {
 public:
@@ -195,7 +196,7 @@ private:
 	std::mt19937 m_mersenneTwister;
 };
 
-typedef FCANN<Relu> ANN;
+typedef FCANN<Relu, Linear> ANN;
 
 void SerializeNet(ANN &net, std::ostream &s);
 

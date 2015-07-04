@@ -18,8 +18,8 @@ void EnableNanInterrupt()
 	_MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
 }
 
-template <ActivationFunc ACTF>
-FCANN<ACTF>::FCANN(
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+FCANN<ACTF, ACTFLast>::FCANN(
 	int randomSeed,
 	size_t inputs,
 	size_t outputs,
@@ -124,8 +124,8 @@ FCANN<ACTF>::FCANN(
 	m_params.evalSingleTmp.resize(hiddenLayers.size() + 2);
 }
 
-template <ActivationFunc ACTF>
-void FCANN<ACTF>::InitializeActivations(Activations &act)
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+void FCANN<ACTF, ACTFLast>::InitializeActivations(Activations &act)
 {
 	assert(m_params.weights.size() == m_params.outputBias.size());
 
@@ -145,8 +145,8 @@ void FCANN<ACTF>::InitializeActivations(Activations &act)
 	act.actIn.push_back(NNVector::Zero(1, m_params.weights[m_params.weights.size() - 1].cols()));
 }
 
-template <ActivationFunc ACTF>
-void FCANN<ACTF>::InitializeGradients(Gradients &grad)
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+void FCANN<ACTF, ACTFLast>::InitializeGradients(Gradients &grad)
 {
 	assert(m_params.weights.size() == m_params.outputBias.size());
 
@@ -160,9 +160,9 @@ void FCANN<ACTF>::InitializeGradients(Gradients &grad)
 	}
 }
 
-template <ActivationFunc ACTF>
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-NNMatrixRM FCANN<ACTF>::ForwardPropagate(const MatrixBase<Derived> &in, Activations &act)
+NNMatrixRM FCANN<ACTF, ACTFLast>::ForwardPropagate(const MatrixBase<Derived> &in, Activations &act)
 {
 	assert(act.act.size() == m_params.weights.size() + 1);
 	assert(act.actIn.size() == m_params.weights.size() + 1);
@@ -195,9 +195,9 @@ NNMatrixRM FCANN<ACTF>::ForwardPropagate(const MatrixBase<Derived> &in, Activati
 	return x;
 }
 
-template <ActivationFunc ACTF>
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-NNMatrixRM FCANN<ACTF>::ForwardPropagateFast(const MatrixBase<Derived> &in)
+NNMatrixRM FCANN<ACTF, ACTFLast>::ForwardPropagateFast(const MatrixBase<Derived> &in)
 {
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
@@ -221,9 +221,9 @@ NNMatrixRM FCANN<ACTF>::ForwardPropagateFast(const MatrixBase<Derived> &in)
 	return m_params.evalTmp[m_params.weights.size() - 1];
 }
 
-template <ActivationFunc ACTF>
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-float FCANN<ACTF>::ForwardPropagateSingle(const MatrixBase<Derived> &vec)
+float FCANN<ACTF, ACTFLast>::ForwardPropagateSingle(const MatrixBase<Derived> &vec)
 {
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
@@ -247,9 +247,9 @@ float FCANN<ACTF>::ForwardPropagateSingle(const MatrixBase<Derived> &vec)
 	return m_params.evalSingleTmp[m_params.weights.size() - 1](0, 0);
 }
 
-template <ActivationFunc ACTF>
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad)
+void FCANN<ACTF, ACTFLast>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad)
 {
 	assert(grad.weightGradients.size() == m_params.weights.size());
 	assert(grad.biasGradients.size() == m_params.outputBias.size());
@@ -288,9 +288,9 @@ void FCANN<ACTF>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, c
 	}
 }
 
-template <ActivationFunc ACTF>
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived1, typename Derived2>
-float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg)
+float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg)
 {
 	static std::vector<Gradients> gradLocal;
 	static std::vector<Activations> actLocal;
@@ -359,8 +359,8 @@ float FCANN<ACTF>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Deri
 	return errors.sum() / x.rows();
 }
 
-template <ActivationFunc ACTF>
-void FCANN<ACTF>::ApplyWeightUpdates(const Gradients &grad, float reg)
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float reg)
 {
 	assert(grad.weightGradients.size() == m_params.weights.size());
 	assert(grad.biasGradients.size() == m_params.outputBias.size());
@@ -476,8 +476,8 @@ void FCANN<ACTF>::ApplyWeightUpdates(const Gradients &grad, float reg)
 	}
 }
 
-template <ActivationFunc ACTF>
-float FCANN<ACTF>::GetSparsity()
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+float FCANN<ACTF, ACTFLast>::GetSparsity()
 {
 	uint64_t zCount = 0;
 	uint64_t totalCount = 0;
@@ -498,9 +498,9 @@ float FCANN<ACTF>::GetSparsity()
 	return static_cast<float>(zCount) / totalCount;
 }
 
-template <ActivationFunc ACTF>
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-void FCANN<ACTF>::Activate_(MatrixBase<Derived> &x) const
+void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x) const
 {
 	// these will all be optimized to just be a single case, since
 	// ACTF is a template parameter
@@ -525,9 +525,9 @@ void FCANN<ACTF>::Activate_(MatrixBase<Derived> &x) const
 	else assert(false);
 }
 
-template <ActivationFunc ACTF>
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-void FCANN<ACTF>::ActivateDerivative_(MatrixBase<Derived> &x) const
+void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x) const
 {
 	// these will all be optimized to just be a single case, since
 	// ACTF is a template parameter
