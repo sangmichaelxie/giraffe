@@ -500,15 +500,17 @@ float FCANN<ACTF, ACTFLast>::GetSparsity()
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x) const
+void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x, bool last) const
 {
+	ActivationFunc actf = last ? ACTFLast : ACTF;
+
 	// these will all be optimized to just be a single case, since
 	// ACTF is a template parameter
-	if (ACTF == Linear)
+	if (actf == Linear)
 	{
 		return; // nothing to do here
 	}
-	else if (ACTF == Tanh)
+	else if (actf == Tanh)
 	{
 		for (int32_t i = 0; i < x.cols(); ++i)
 		{
@@ -518,7 +520,7 @@ void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x) const
 			}
 		}
 	}
-	else if (ACTF == Relu)
+	else if (actf == Relu)
 	{
 		x = x.array().max(NNMatrix::Zero(x.rows(), x.cols()).array());
 	}
@@ -527,15 +529,17 @@ void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x) const
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x) const
+void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x, bool last) const
 {
+	ActivationFunc actf = last ? ACTFLast : ACTF;
+
 	// these will all be optimized to just be a single case, since
 	// ACTF is a template parameter
-	if (ACTF == Linear)
+	if (actf == Linear)
 	{
 		x = NNMatrixRM::Ones(x.rows(), x.cols());
 	}
-	else if (ACTF == Tanh)
+	else if (actf == Tanh)
 	{
 		for (int32_t i = 0; i < x.cols(); ++i)
 		{
@@ -546,7 +550,7 @@ void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x) const
 			}
 		}
 	}
-	else if (ACTF == Relu)
+	else if (actf == Relu)
 	{
 		x.array() = (x.array() > NNMatrixRM::Zero(x.rows(), x.cols()).array());
 	}
