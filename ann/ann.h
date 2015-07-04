@@ -27,30 +27,6 @@ enum ActivationFunc
 	Softmax
 };
 
-template <typename Derived1, typename Derived2>
-inline void ErrorFunc(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &out)
-{
-	for (int32_t i = 0; i < in.rows(); ++i)
-	{
-		for (int32_t j = 0; j < in.cols(); ++j)
-		{
-			out(i, j) = fabs(in(i, j));
-		}
-	}
-}
-
-template <typename Derived1, typename Derived2>
-inline void ErrorFuncDeri(const MatrixBase<Derived1> &in, MatrixBase<Derived2> &out)
-{
-	for (int32_t i = 0; i < in.rows(); ++i)
-	{
-		for (int32_t j = 0; j < in.cols(); ++j)
-		{
-			out(i, j) = (in(i, j) > 0.0f) ? 1.0f : -1.0f;
-		}
-	}
-}
-
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 class FCANN
 {
@@ -134,9 +110,15 @@ public:
 
 	int64_t OutputCols() const { return m_params.weights[m_params.weights.size() - 1].cols(); }
 
+	template <typename Derived1, typename Derived2>
+	NNMatrixRM ErrorFunc(const MatrixBase<Derived1> &pred, const MatrixBase<Derived2> &targets) const;
+
+	template <typename Derived1, typename Derived2>
+	NNMatrixRM ErrorFuncDerivative(const MatrixBase<Derived1> &pred, const MatrixBase<Derived2> &targets) const;
+
 private:
 	template <typename Derived>
-	void Activate_(MatrixBase<Derived> &x) const;
+	void Activate_(MatrixBase<Derived> &x, bool last) const;
 
 	template <typename Derived>
 	void ActivateDerivative_(MatrixBase<Derived> &x) const;

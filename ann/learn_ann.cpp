@@ -235,10 +235,7 @@ void Train(
 		{
 			NNMatrix pred = nn.ForwardPropagateFast(xVal);
 
-			NNMatrix eVal = pred - yVal;
-			NNMatrix errors = eVal;
-
-			ErrorFunc(eVal, errors);
+			NNMatrix errors = nn.ErrorFunc(pred, yVal);
 
 			FP valScore = errors.sum() / xVal.rows();
 
@@ -299,10 +296,7 @@ void PrintTestStats(T &nn, Eigen::MatrixBase<Derived1> &x, Eigen::MatrixBase<Der
 {
 	NNMatrix pred = nn.ForwardPropagateFast(x);
 
-	NNMatrix eDiff = pred - y;
-	NNMatrix errors = eDiff; // create a matrix of the same size
-
-	ErrorFunc(eDiff, errors);
+	NNMatrix errors = nn.ErrorFunc(pred, y);
 
 	std::cout << "\n\nStatistics:" << std::endl;
 

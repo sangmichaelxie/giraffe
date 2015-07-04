@@ -184,10 +184,7 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ForwardPropagate(const MatrixBase<Derived> &in
 
 		act.actIn[layer + 1] = x;
 
-		if (layer != (m_params.weights.size() - 1))
-		{
-			Activate_(x);
-		}
+		Activate_(x, layer == (m_params.weights.size() - 1));
 
 		act.act[layer + 1] = x;
 	}
@@ -212,10 +209,7 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ForwardPropagateFast(const MatrixBase<Derived>
 
 		m_params.evalTmp[layer].rowwise() += m_params.outputBias[layer];
 
-		if (layer != (m_params.weights.size() - 1))
-		{
-			Activate_(m_params.evalTmp[layer]);
-		}
+		Activate_(m_params.evalTmp[layer], layer == (m_params.weights.size() - 1));
 	}
 
 	return m_params.evalTmp[m_params.weights.size() - 1];
@@ -238,10 +232,7 @@ float FCANN<ACTF, ACTFLast>::ForwardPropagateSingle(const MatrixBase<Derived> &v
 
 		m_params.evalSingleTmp[layer] += m_params.outputBias[layer];
 
-		if (layer != (m_params.weights.size() - 1))
-		{
-			Activate_(m_params.evalSingleTmp[layer]);
-		}
+		Activate_(m_params.evalSingleTmp[layer], layer == (m_params.weights.size() - 1));
 	}
 
 	return m_params.evalSingleTmp[m_params.weights.size() - 1](0, 0);
@@ -256,7 +247,6 @@ void FCANN<ACTF, ACTFLast>::BackwardPropagateComputeGrad(const MatrixBase<Derive
 	assert(grad.weightGradients.size() == grad.biasGradients.size());
 
 	// currError are the errorTerms of the next layer
-	// for the output layer it's simply the network error (since activation is linear)
 	NNMatrixRM errorTerms = err;
 
 	for (int32_t layer = (m_params.weights.size() - 1); layer >= 0; --layer)
@@ -328,17 +318,11 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 
 		auto pred = ForwardPropagate(x.block(begin, 0, numRows, x.cols()), actLocal[threadId]);
 
-		// these are the errors for propagation
-		NNMatrixRM errorsPropagate(pred.rows(), pred.cols());
+		errorsMeasureTotal.block(begin, 0, numRows, errorsMeasureTotal.cols()) = ErrorFunc(pred, y.block(begin, 0, numRows, y.cols()));
 
-		auto errorsMeasure = pred - y.block(begin, 0, numRows, y.cols());
+		NNMatrixRM errorsDerivative = ErrorFuncDerivative(pred, y.block(begin, 0, numRows, y.cols()));
 
-		ErrorFuncDeri(errorsMeasure, errorsPropagate);
-
-		BackwardPropagateComputeGrad(errorsPropagate, actLocal[threadId], gradLocal[threadId]);
-
-		errorsMeasureTotal.block(begin, 0, numRows, errorsMeasureTotal.cols())
-				= errorsMeasure;
+		BackwardPropagateComputeGrad(errorsDerivative, actLocal[threadId], gradLocal[threadId]);
 
 		// reduce all the local gradients into total, using log(n) steps
 		for (size_t skip = 2; skip <= numThreads; skip *= 2)
@@ -353,10 +337,7 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 
 	ApplyWeightUpdates(gradLocal[0], reg);
 
-	NNMatrixRM errors = NNMatrixRM::Zero(errorsMeasureTotal.rows(), errorsMeasureTotal.cols());
-	ErrorFunc(errorsMeasureTotal, errors);
-
-	return errors.sum() / x.rows();
+	return errorsMeasureTotal.sum() / x.rows();
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
@@ -499,6 +480,80 @@ float FCANN<ACTF, ACTFLast>::GetSparsity()
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+template <typename Derived1, typename Derived2>
+NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFunc(
+	const MatrixBase<Derived1> &pred,
+	const MatrixBase<Derived2> &targets) const
+{
+	NNMatrixRM ret;
+
+	// for linear output we use MAE
+	if (ACTFLast == Linear)
+	{
+		ret = (pred - targets).array().abs().matrix();
+	}
+	// for softmax output we use cross-entropy
+	else if (ACTFLast == Softmax)
+	{
+		// note that for cross-entropy, output is a vector no matter how many classes we have
+		ret.resize(pred.rows(), 1);
+
+		for (int64_t i = 0; i < pred.rows(); ++i)
+		{
+			float e = 0.0f;
+
+			for (int64_t j = 0; j < pred.cols(); ++j)
+			{
+				if (targets(i, j) == 1.0f)
+				{
+					e += -log(pred(i, j));
+				}
+			}
+
+			ret(i, 0) = e;
+		}
+	}
+	else assert(false);
+
+	return ret;
+}
+
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+template <typename Derived1, typename Derived2>
+NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFuncDerivative(
+	const MatrixBase<Derived1> &pred,
+	const MatrixBase<Derived2> &targets) const
+{
+	NNMatrixRM ret;
+
+	if (ACTFLast == Linear)
+	{
+		NNMatrixRM err = pred - targets;
+
+		ret.resize(err.rows(), err.cols());
+
+		// MAE
+		for (int64_t i = 0; i < err.rows(); ++i)
+		{
+			for (int64_t j = 0; j < err.cols(); ++j)
+			{
+				ret(i, j) = (err(i, j) > 0.0f) ? 1.0f : -1.0f;
+			}
+		}
+	}
+	else if (ACTFLast == Softmax)
+	{
+		// cross-entropy
+		// curiously,
+		// http://www.willamette.edu/~gorr/classes/cs449/classify.html
+		ret = pred - targets;
+	}
+	else assert(false);
+
+	return ret;
+}
+
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
 void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x, bool last) const
 {
@@ -524,22 +579,31 @@ void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x, bool last) const
 	{
 		x = x.array().max(NNMatrix::Zero(x.rows(), x.cols()).array());
 	}
+	else if (actf == Softmax)
+	{
+		// first compute element-wise exp
+		x = x.array().exp().matrix();
+
+		// then compute the normalization denominator for each row
+		Eigen::Matrix<FP, Eigen::Dynamic, 1> norm = x.rowwise().sum();
+
+		// then normalize all the elements
+		x.array().colwise() /= norm.array();
+	}
 	else assert(false);
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
-void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x, bool last) const
+void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x) const
 {
-	ActivationFunc actf = last ? ACTFLast : ACTF;
-
 	// these will all be optimized to just be a single case, since
 	// ACTF is a template parameter
-	if (actf == Linear)
+	if (ACTF == Linear)
 	{
 		x = NNMatrixRM::Ones(x.rows(), x.cols());
 	}
-	else if (actf == Tanh)
+	else if (ACTF == Tanh)
 	{
 		for (int32_t i = 0; i < x.cols(); ++i)
 		{
@@ -550,7 +614,7 @@ void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x, bool las
 			}
 		}
 	}
-	else if (actf == Relu)
+	else if (ACTF == Relu)
 	{
 		x.array() = (x.array() > NNMatrixRM::Zero(x.rows(), x.cols()).array());
 	}
