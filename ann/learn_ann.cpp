@@ -166,10 +166,9 @@ struct Rows
 	int64_t num;
 };
 
-template <typename Derived1, typename Derived2>
+template <typename Derived1>
 void SplitDataset(
 	const Eigen::MatrixBase<Derived1> &x,
-	const Eigen::MatrixBase<Derived2> &y,
 	Rows &train,
 	Rows &val,
 	Rows &test)
@@ -199,9 +198,8 @@ void Train(
 	Eigen::MatrixBase<Derived2> &yTrain,
 	Eigen::MatrixBase<Derived1> &xVal,
 	Eigen::MatrixBase<Derived2> &yVal,
-	Eigen::MatrixBase<Derived1> &xTest,
-	Eigen::MatrixBase<Derived2> &yTest,
-	std::mt19937 &mt)
+	Eigen::MatrixBase<Derived1> &/*xTest*/,
+	Eigen::MatrixBase<Derived2> &/*yTest*/)
 {
 	size_t iter = 0;
 
@@ -379,7 +377,7 @@ ANN TrainANN(
 	BuildLayers(featuresFilename, hiddenLayersConfig, connMatrices, mersenneTwister);
 
 	Rows trainRows, valRows, testRows;
-	SplitDataset(x, y, trainRows, valRows, testRows);
+	SplitDataset(x, trainRows, valRows, testRows);
 
 	auto xTrain = x.block(trainRows.begin, 0, trainRows.num, x.cols());
 	auto yTrain = y.block(trainRows.begin, 0, trainRows.num, y.cols());
@@ -399,7 +397,7 @@ ANN TrainANN(
 	//ANN nn = DeserializeNet(netfIn);
 
 	std::cout << "Beginning training..." << std::endl;
-	Train(nn, xTrain, yTrain, xVal, yVal, xTest, yTest, mersenneTwister);
+	Train(nn, xTrain, yTrain, xVal, yVal, xTest, yTest);
 
 	// compute test performance and statistics
 	PrintTestStats(nn, xTest, yTest);

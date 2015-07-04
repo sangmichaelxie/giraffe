@@ -37,7 +37,7 @@ public:
 		m_evalHash.resize(EvalHashSize);
 	}
 
-	Score EvaluateForWhiteImpl(const Board &b, Score lowerBound, Score upperBound) override
+	Score EvaluateForWhiteImpl(const Board &b, Score /*lowerBound*/, Score /*upperBound*/) override
 	{
 		uint64_t hash = b.GetHash();
 		EvalHashEntry *entry = &m_evalHash[hash % EvalHashSize];

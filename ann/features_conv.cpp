@@ -19,7 +19,7 @@ float NormalizeCount(int x, int typicalMaxCount)
 }
 
 template <typename T> void PushGlobalBool(std::vector<T> &ret, bool x, int32_t group);
-template<> void PushGlobalBool<float>(std::vector<float> &ret, bool x, int32_t group)
+template<> void PushGlobalBool<float>(std::vector<float> &ret, bool x, int32_t /*group*/)
 {
 	if (x)
 	{
@@ -31,7 +31,7 @@ template<> void PushGlobalBool<float>(std::vector<float> &ret, bool x, int32_t g
 	}
 }
 
-template<> void PushGlobalBool<FeatureDescription>(std::vector<FeatureDescription> &ret, bool x, int32_t group)
+template<> void PushGlobalBool<FeatureDescription>(std::vector<FeatureDescription> &ret, bool /*x*/, int32_t group)
 {
 	FeatureDescription fd;
 	fd.featureType = FeatureDescription::FeatureType_global;
@@ -40,12 +40,12 @@ template<> void PushGlobalBool<FeatureDescription>(std::vector<FeatureDescriptio
 }
 
 template <typename T> void PushGlobalFloat(std::vector<T> &ret, float x, int32_t group);
-template<> void PushGlobalFloat<float>(std::vector<float> &ret, float x, int32_t group)
+template<> void PushGlobalFloat<float>(std::vector<float> &ret, float x, int32_t /*group*/)
 {
 	ret.push_back(x);
 }
 
-template<> void PushGlobalFloat<FeatureDescription>(std::vector<FeatureDescription> &ret, float x, int32_t group)
+template<> void PushGlobalFloat<FeatureDescription>(std::vector<FeatureDescription> &ret, float /*x*/, int32_t group)
 {
 	FeatureDescription fd;
 	fd.featureType = FeatureDescription::FeatureType_global;
@@ -85,7 +85,7 @@ void PushGlobalCoords(std::vector<T> &ret, bool exists, Square sq, int32_t group
 }
 
 template <typename T> void PushPosPieceType(std::vector<T> &ret, Square pos, PieceType pt, bool x);
-template<> void PushPosPieceType<float>(std::vector<float> &ret, Square pos, PieceType pt, bool x)
+template<> void PushPosPieceType<float>(std::vector<float> &ret, Square /*pos*/, PieceType /*pt*/, bool x)
 {
 	if (x)
 	{
@@ -97,7 +97,7 @@ template<> void PushPosPieceType<float>(std::vector<float> &ret, Square pos, Pie
 	}
 }
 
-template<> void PushPosPieceType<FeatureDescription>(std::vector<FeatureDescription> &ret, Square sq, PieceType pt, bool x)
+template<> void PushPosPieceType<FeatureDescription>(std::vector<FeatureDescription> &ret, Square sq, PieceType pt, bool /*x*/)
 {
 	FeatureDescription fd;
 	fd.featureType = FeatureDescription::FeatureType_posPieceType;
@@ -116,12 +116,12 @@ template <typename T> void PushPosMobility(
 		int32_t group);
 template<> void PushPosMobility<float>(
 		std::vector<float> &ret,
-		bool isGlobal,
-		Square sq,
+		bool /*isGlobal*/,
+		Square /*sq*/,
 		float mob,
-		int32_t dirXOffset,
-		int32_t dirYOffset,
-		int32_t group)
+		int32_t /*dirXOffset*/,
+		int32_t /*dirYOffset*/,
+		int32_t /*group*/)
 {
 	ret.push_back(mob);
 }
@@ -130,7 +130,7 @@ template<> void PushPosMobility<FeatureDescription>(
 		std::vector<FeatureDescription> &ret,
 		bool isGlobal,
 		Square sq,
-		float mob,
+		float /*mob*/,
 		int32_t dirXOffset,
 		int32_t dirYOffset,
 		int32_t group)
@@ -154,12 +154,12 @@ template<> void PushPosMobility<FeatureDescription>(
 }
 
 template <typename T> void PushPosFloat(std::vector<T> &ret, Square pos, float x);
-template<> void PushPosFloat<float>(std::vector<float> &ret, Square pos, float x)
+template<> void PushPosFloat<float>(std::vector<float> &ret, Square /*pos*/, float x)
 {
 	ret.push_back(x);
 }
 
-template<> void PushPosFloat<FeatureDescription>(std::vector<FeatureDescription> &ret, Square pos, float x)
+template<> void PushPosFloat<FeatureDescription>(std::vector<FeatureDescription> &ret, Square pos, float /*x*/)
 {
 	FeatureDescription fd;
 	fd.featureType = FeatureDescription::FeatureType_pos;

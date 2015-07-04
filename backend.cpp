@@ -238,7 +238,7 @@ void Backend::Force_(std::lock_guard<std::mutex> &lock)
 	m_mode = EngineMode_force;
 }
 
-void Backend::StopSearch_(std::lock_guard<std::mutex> &lock)
+void Backend::StopSearch_(std::lock_guard<std::mutex> &/*lock*/)
 {
 	if (m_searchInProgress)
 	{

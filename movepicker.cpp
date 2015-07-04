@@ -23,7 +23,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 {
 	if (m_firstMoveInStage)
 	{
-		EnterStage_(m_stage);
+		EnterStage_();
 	}
 
 	Move ret;
@@ -35,14 +35,14 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 		{
 			// we have to exit stage here because we are not clearing m_hashMove
 			// we cannot get back in here again otherwise we'll return the hash move again
-			ExitStage_(m_stage);
+			ExitStage_();
 			ret = m_hashMove;
 			Score seeScore = StaticExchangeEvaluation(m_board, ret);
 			SetScoreBiased(ret, seeScore);
 			stage = LIKELY;
 			return ret;
 		}
-		ExitStage_(m_stage);
+		ExitStage_();
 		return GetNextMove();
 		break;
 	case QUEEN_PROMOTIONS:
@@ -72,7 +72,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 				}
 			}
 		}
-		ExitStage_(m_stage);
+		ExitStage_();
 		return GetNextMove();
 		break;
 	case WINNING_EQUAL_CAPTURES:
@@ -101,7 +101,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 			}
 		}
 
-		ExitStage_(m_stage);
+		ExitStage_();
 
 		if (m_isQS)
 		{
@@ -154,7 +154,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 				}
 			}
 		}
-		ExitStage_(m_stage);
+		ExitStage_();
 		return GetNextMove();
 		break;
 	case OTHER_NON_CAPTURES:
@@ -193,7 +193,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 				return ret;
 			}
 		}
-		ExitStage_(m_stage);
+		ExitStage_();
 		return GetNextMove();
 		break;
 	case LOSING_CAPTURES:
@@ -214,7 +214,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 				return ret;
 			}
 		}
-		ExitStage_(m_stage);
+		ExitStage_();
 		// all done!
 		return 0;
 		break;
@@ -225,7 +225,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 	}
 }
 
-void MovePicker::EnterStage_(Stage stage)
+void MovePicker::EnterStage_()
 {
 	m_firstMoveInStage = false;
 
@@ -258,7 +258,7 @@ void MovePicker::EnterStage_(Stage stage)
 	}
 }
 
-void MovePicker::ExitStage_(Stage stage)
+void MovePicker::ExitStage_()
 {
 	m_firstMoveInStage = true;
 

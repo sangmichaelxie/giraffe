@@ -38,8 +38,8 @@ private:
 		LOSING_CAPTURES // this stage actually includes losing non-captures, and under-promos as well
 	};
 
-	void EnterStage_(Stage stage);
-	void ExitStage_(Stage stage);
+	void EnterStage_();
+	void ExitStage_();
 
 	void AssignSeeScores_(MoveList &ml);
 	void RemoveScores_(MoveList &ml);
