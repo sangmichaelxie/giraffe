@@ -14,7 +14,11 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+
+#ifndef _WIN32
 #include <sys/mman.h>
+#endif
+
 #include <fcntl.h>
 
 #include "ann.h"
@@ -40,6 +44,7 @@ class MMappedMatrix
 public:
 	MMappedMatrix(const std::string &filename)
 	{
+#ifndef _WIN32
 		m_fd = open(filename.c_str(), O_RDONLY);
 
 		if (m_fd == -1)
@@ -75,6 +80,9 @@ public:
 		madvise(m_mappedAddress, m_mapSize, MADV_SEQUENTIAL);
 
 		m_matrixStartAddress = reinterpret_cast<float*>(reinterpret_cast<char*>(m_mappedAddress) + 8);
+#else
+		assert(false && "MMappedMatrix not implemented on Windows!");
+#endif
 	}
 
 	Eigen::Map<NNMatrixRM> GetMap() { return Eigen::Map<NNMatrixRM>(m_matrixStartAddress, m_rows, m_cols); }
@@ -82,7 +90,12 @@ public:
 	MMappedMatrix(const MMappedMatrix &) = delete;
 	MMappedMatrix &operator=(const MMappedMatrix &) = delete;
 
-	~MMappedMatrix() { munmap(m_mappedAddress, m_mapSize); }
+	~MMappedMatrix()
+	{
+#ifndef _WIN32		
+		munmap(m_mappedAddress, m_mapSize); 
+#endif
+	}
 
 private:
 	int m_fd;

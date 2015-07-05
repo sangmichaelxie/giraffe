@@ -28,3 +28,6 @@ gpu_osx:
 
 gpu:
 	$(CXX) $(CXXFLAGS_RELEASE) -march=native -lOpenCL -DVIENNACL_WITH_OPENCL giraffe.cpp -o giraffe
+	
+windows:
+	g++ $(CXXFLAGS_COMMON) -O3 giraffe.cpp -o giraffe
