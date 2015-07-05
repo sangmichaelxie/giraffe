@@ -304,7 +304,7 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 		initialized = true;
 	}
 
-	NNMatrixRM errorsMeasureTotal = NNMatrixRM::Zero(x.rows(), y.cols());
+	float errorsMeasureTotal = 0.0f;
 
 	#pragma omp parallel
 	{
@@ -318,7 +318,7 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 
 		auto pred = ForwardPropagate(x.block(begin, 0, numRows, x.cols()), actLocal[threadId]);
 
-		errorsMeasureTotal.block(begin, 0, numRows, errorsMeasureTotal.cols()) = ErrorFunc(pred, y.block(begin, 0, numRows, y.cols()));
+		errorsMeasureTotal += ErrorFunc(pred, y.block(begin, 0, numRows, y.cols())).sum();
 
 		NNMatrixRM errorsDerivative = ErrorFuncDerivative(pred, y.block(begin, 0, numRows, y.cols()));
 
@@ -337,7 +337,7 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 
 	ApplyWeightUpdates(gradLocal[0], reg);
 
-	return errorsMeasureTotal.sum() / x.rows();
+	return errorsMeasureTotal / x.rows();
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
@@ -581,7 +581,16 @@ void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x, bool last) const
 	}
 	else if (actf == Softmax)
 	{
-		// first compute element-wise exp
+		// the naive implementation is likely to overflow, so we do some shifting first
+		// since we are in log space, and dividing in x is subtracting in log(x)
+		// dividing all values won't change the distribution
+
+		// we find the max component in each row, and subtract that from each component
+		Eigen::Matrix<FP, Eigen::Dynamic, 1> maxElems = x.rowwise().maxCoeff();
+
+		x.colwise() -= maxElems;
+
+		// compute element-wise exp
 		x = x.array().exp().matrix();
 
 		// then compute the normalization denominator for each row
