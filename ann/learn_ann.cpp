@@ -34,7 +34,7 @@ const size_t MaxMemory = 32ULL*1024*1024*1024; // limit dataset size if we have 
 
 const size_t IterationsPerCheck = 500000 / BatchSize;
 
-const int64_t ExamplesLimit = 50000000LL;
+const int64_t ExamplesLimit = 25600000LL;
 
 const float ExclusionFactor = 0.99f; // when computing test performance, ignore 1% of outliers
 

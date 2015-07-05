@@ -51,7 +51,7 @@ void TDL(const std::string &positionsFilename)
 
 	std::cout << "Reading FENs..." << std::endl;
 
-	while (std::getline(positionsFile, fen) && rootPositions.size() < MaxTrainingPositions)
+	while (std::getline(positionsFile, fen))
 	{
 		rootPositions.push_back(fen);
 	}
@@ -60,7 +60,7 @@ void TDL(const std::string &positionsFilename)
 
 	// these are the leaf positions used in training
 	// they are initialized to root positions, but will change in second iteration
-	std::vector<std::string> trainingPositions = rootPositions;
+	std::vector<std::string> trainingPositions(PositionsPerBatch);
 
 	NNMatrixRM trainingTargets(trainingPositions.size(), 1);
 
@@ -70,7 +70,7 @@ void TDL(const std::string &positionsFilename)
 
 	FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
 
-	NNMatrixRM boardsInFeatureRepresentation(static_cast<int64_t>(trainingPositions.size()), static_cast<int64_t>(featureDescriptions.size()));
+	NNMatrixRM boardsInFeatureRepresentation(static_cast<int64_t>(PositionsPerBatch), static_cast<int64_t>(featureDescriptions.size()));
 
 	int64_t iter = 0;
 
@@ -102,16 +102,19 @@ void TDL(const std::string &positionsFilename)
 	{
 		std::cout << "======= Iteration: " << iter << " =======" << std::endl;
 
+		std::random_shuffle(rootPositions.begin(), rootPositions.end());
+
 		// first we generate new labels
 		// if this is the first iteration, we use static material labels
 		if (iter == 0)
 		{
 			std::cout << "Labelling using static evaluation..." << std::endl;
 			#pragma omp parallel for
-			for (size_t i = 0; i < trainingPositions.size(); ++i)
+			for (size_t i = 0; i < PositionsPerBatch; ++i)
 			{
-				Board b(trainingPositions[i]);
+				Board b(rootPositions[i]);
 				Score val = Eval::gStaticEvaluator.EvaluateForWhite(b, SCORE_MIN, SCORE_MAX);
+				trainingPositions[i] = rootPositions[i];
 				trainingTargets(i, 0) = val;
 			}
 		}
@@ -137,7 +140,7 @@ void TDL(const std::string &positionsFilename)
 				ANNEvaluator thread_annEvaluator = annEvaluator;
 
 				#pragma omp for schedule(dynamic, 256) // 256 positions takes about 10 seconds on one thread
-				for (size_t i = 0; i < rootPositions.size(); ++i)
+				for (size_t i = 0; i < PositionsPerBatch; ++i)
 				{
 					thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
 
