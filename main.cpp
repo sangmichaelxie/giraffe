@@ -34,7 +34,7 @@ void Initialize()
 	// makes managing number of threads easier
 	omp_set_nested(0);
 
-	std::cout << "Using " << omp_get_max_threads() << " thread(s)" << std::endl;
+	std::cout << "# Using " << omp_get_max_threads() << " OpenMP thread(s)" << std::endl;
 
 	// turn off IO buffering
 	std::cout.setf(std::ios::unitbuf);
