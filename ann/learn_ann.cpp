@@ -34,7 +34,7 @@ const size_t MaxMemory = 32ULL*1024*1024*1024; // limit dataset size if we have 
 
 const size_t IterationsPerCheck = 500000 / BatchSize;
 
-const int64_t EpochsLimit = 30;
+const int64_t ExamplesLimit = 50000000LL;
 
 const float ExclusionFactor = 0.99f; // when computing test performance, ignore 1% of outliers
 
@@ -228,7 +228,7 @@ void Train(
 
 	int64_t epoch = 0;
 
-	while (!done && epoch < EpochsLimit)
+	while (!done && (iter * BatchSize) < ExamplesLimit)
 	{
 		size_t batchNum = iter % NumBatches;
 
