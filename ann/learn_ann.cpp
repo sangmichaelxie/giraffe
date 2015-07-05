@@ -34,8 +34,7 @@ const size_t MaxMemory = 32ULL*1024*1024*1024; // limit dataset size if we have 
 
 const size_t IterationsPerCheck = 500000 / BatchSize;
 
-// how many examples to see (this is 30 epochs for 5M examples)
-const int64_t ExamplesLimit = 150000000LL;
+const int64_t EpochsLimit = 30;
 
 const float ExclusionFactor = 0.99f; // when computing test performance, ignore 1% of outliers
 
@@ -92,8 +91,8 @@ public:
 
 	~MMappedMatrix()
 	{
-#ifndef _WIN32		
-		munmap(m_mappedAddress, m_mapSize); 
+#ifndef _WIN32
+		munmap(m_mappedAddress, m_mapSize);
 #endif
 	}
 
@@ -229,7 +228,7 @@ void Train(
 
 	int64_t epoch = 0;
 
-	while (!done && (iter * BatchSize) < ExamplesLimit)
+	while (!done && epoch < EpochsLimit)
 	{
 		size_t batchNum = iter % NumBatches;
 
