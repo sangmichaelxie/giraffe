@@ -494,7 +494,8 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFunc(
 	}
 	else if (ACTFLast == Tanh)
 	{
-		ret = (pred - targets).array().abs().matrix();
+		//ret = (pred - targets).array().abs().matrix();
+		ret = ((pred - targets).array() * (pred - targets).array()).matrix();
 	}
 	// for softmax output we use cross-entropy
 	else if (ACTFLast == Softmax)
@@ -547,19 +548,16 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFuncDerivative(
 	}
 	else if (ACTFLast == Tanh)
 	{
-		NNMatrixRM err = pred - targets;
+		ret = pred - targets;
 
-		ret.resize(err.rows(), err.cols());
-
-		// MAE
-		for (int64_t i = 0; i < err.rows(); ++i)
+		// now we have to multiply every element by the derivative at that point
+		// derivative of tanh is 1-tanh^2(x)
+		// coincidentally, we have tanh(x) already! (pred)
+		for (int64_t i = 0; i < ret.rows(); ++i)
 		{
-			for (int64_t j = 0; j < err.cols(); ++j)
+			for (int64_t j = 0; j < ret.cols(); ++j)
 			{
-				FP coshx = cosh(pred(i, j));
-				FP derivative = (fabs(pred(i, j)) > 20.0f) ? 0.0f : 1/(coshx * coshx);
-
-				ret(i, j) = (err(i, j) > 0.0f) ? derivative : -derivative;
+				ret(i, j) *= 1 - (pred(i, j) * pred(i, j));
 			}
 		}
 	}
@@ -636,12 +634,14 @@ void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x) const
 	}
 	else if (ACTF == Tanh)
 	{
+		// derivative of tanh is 1-tanh^2(x)
+
 		for (int32_t i = 0; i < x.cols(); ++i)
 		{
 			for (int32_t j = 0; j < x.rows(); ++j)
 			{
-				FP coshx = cosh(x(j, i));
-				x(j, i) = (fabs(x(j, i)) > 20.0f) ? 0.0f : 1/(coshx * coshx);
+				FP tanhx = tanh(x(j, i));
+				x(j, i) = 1 - (tanhx * tanhx);
 			}
 		}
 	}
