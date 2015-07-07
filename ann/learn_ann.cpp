@@ -28,11 +28,11 @@ namespace
 {
 const int64_t KMeanNumIterations = 1;
 
-const size_t BatchSize = 256;
+const size_t MaxBatchSize = 256;
 
 const size_t MaxMemory = 32ULL*1024*1024*1024; // limit dataset size if we have many features
 
-const size_t MaxIterationsPerCheck = 500000 / BatchSize;
+const size_t MaxIterationsPerCheck = 500000 / MaxBatchSize;
 
 const float ExclusionFactor = 0.99f; // when computing test performance, ignore 1% of outliers
 
@@ -223,27 +223,38 @@ void Train(
 
 	bool done = false;
 
-	size_t NumBatches = xTrain.rows() / BatchSize;
+	size_t NumBatches = xTrain.rows() / MaxBatchSize;
+
+	if ((xTrain.rows() % MaxBatchSize) != 0)
+	{
+		++NumBatches;
+	}
 
 	int64_t epoch = 0;
 
 	// we want to check at least once per epoch
-	size_t iterationsPerCheck = std::min(MaxIterationsPerCheck, xTrain.rows() / BatchSize);
+	size_t iterationsPerCheck = std::min(MaxIterationsPerCheck, NumBatches);
+
+	size_t examplesSeen = 0;
 
 	while (!done && epoch < epochs)
 	{
 		size_t batchNum = iter % NumBatches;
 
-		size_t begin = batchNum * BatchSize;
+		size_t begin = batchNum * MaxBatchSize;
 
-		epoch = iter * BatchSize / xTrain.rows();
+		size_t batchSize = std::min(MaxBatchSize, xTrain.rows() - begin);
+
+		examplesSeen += batchSize;
+
+		epoch = examplesSeen / xTrain.rows();
 
 		trainingErrorAccum += nn.TrainGDM(
-			xTrain.block(begin, 0, BatchSize, xTrain.cols()),
-			yTrain.block(begin, 0, BatchSize, yTrain.cols()),
+			xTrain.block(begin, 0, batchSize, xTrain.cols()),
+			yTrain.block(begin, 0, batchSize, yTrain.cols()),
 			0.000001f);
 
-		if (iter % iterationsPerCheck == 0)
+		if ((iter % iterationsPerCheck) == 0)
 		{
 			NNMatrix pred = nn.ForwardPropagateFast(xVal);
 
