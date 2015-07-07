@@ -622,7 +622,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 		if ((staticEval + capturedValue + promoVal + Eval::MAX_POSITIONAL_SCORE) <= alpha)
 		{
-			continue;
+			//continue;
 		}
 
 
