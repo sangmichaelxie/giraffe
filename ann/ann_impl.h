@@ -487,8 +487,12 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFunc(
 {
 	NNMatrixRM ret;
 
-	// for linear output we use MAE
+	// for linear and tanh output we use MAE
 	if (ACTFLast == Linear)
+	{
+		ret = (pred - targets).array().abs().matrix();
+	}
+	else if (ACTFLast == Tanh)
 	{
 		ret = (pred - targets).array().abs().matrix();
 	}
@@ -538,6 +542,24 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFuncDerivative(
 			for (int64_t j = 0; j < err.cols(); ++j)
 			{
 				ret(i, j) = (err(i, j) > 0.0f) ? 1.0f : -1.0f;
+			}
+		}
+	}
+	else if (ACTFLast == Tanh)
+	{
+		NNMatrixRM err = pred - targets;
+
+		ret.resize(err.rows(), err.cols());
+
+		// MAE
+		for (int64_t i = 0; i < err.rows(); ++i)
+		{
+			for (int64_t j = 0; j < err.cols(); ++j)
+			{
+				FP coshx = cosh(pred(i, j));
+				FP derivative = (fabs(pred(i, j)) > 20.0f) ? 0.0f : 1/(coshx * coshx);
+
+				ret(i, j) = (err(i, j) > 0.0f) ? derivative : -derivative;
 			}
 		}
 	}
@@ -685,7 +707,7 @@ NNMatrix ReadMatrix(std::istream &s)
 
 }
 
-void SerializeNet(ANN &net, std::ostream &s)
+void SerializeNet(EvalNet &net, std::ostream &s)
 {
 	auto weights = net.Weights();
 	auto biases = net.Biases();
@@ -710,11 +732,11 @@ void SerializeNet(ANN &net, std::ostream &s)
 	}
 }
 
-ANN DeserializeNet(std::istream &s)
+EvalNet DeserializeNet(std::istream &s)
 {
-	std::vector<typename ANN::WeightType> weights;
-	std::vector<typename ANN::BiasType> biases;
-	std::vector<typename ANN::WeightMaskType> weightMasks;
+	std::vector<typename EvalNet::WeightType> weights;
+	std::vector<typename EvalNet::BiasType> biases;
+	std::vector<typename EvalNet::WeightMaskType> weightMasks;
 
 	int64_t numLayers;
 
@@ -741,7 +763,7 @@ ANN DeserializeNet(std::istream &s)
 	// overwrite the connection matrices anyways
 	std::vector<std::vector<Eigen::Triplet<FP> > > connections(hiddenLayerSizes.size() + 1);
 
-	ANN ret(42, din, dout, hiddenLayerSizes, connections);
+	EvalNet ret(42, din, dout, hiddenLayerSizes, connections);
 
 	ret.Weights() = weights;
 	ret.Biases() = biases;

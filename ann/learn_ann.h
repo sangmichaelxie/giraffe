@@ -9,15 +9,19 @@ namespace LearnAnn
 {
 
 template <typename Derived1, typename Derived2>
-ANN TrainANN(
+EvalNet TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
 	const Eigen::MatrixBase<Derived2> &y,
-	const std::string &featuresFilename);
+	const std::string &featuresFilename,
+	EvalNet *start,
+	int64_t epochs);
 
-ANN TrainANNFromFile(
+EvalNet TrainANNFromFile(
 	const std::string &xFilename,
 	const std::string &yFilename,
-	const std::string &featuresFilename);
+	const std::string &featuresFilename,
+	EvalNet *start,
+	int64_t epochs);
 
 }
 

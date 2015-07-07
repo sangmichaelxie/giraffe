@@ -11,13 +11,17 @@
 namespace Learn
 {
 
-const static int64_t NumIterations = 30;
-const static float Lambda = 0.85f;
+const static int64_t NumIterations = 1;
+const static float Lambda = 0.7f;
 const static int64_t HalfMovesToMake = 10;
-const static size_t PositionsPerBatch = 250000;
-const static float MaxError = 250.0f;
+const static size_t PositionsPerBatch = 20000;
+const static float MaxError = 1000.0f;
+const static int64_t SearchDepth = 1;
+const static int64_t GamesPerIteration = 1; // each game produce about 150 positions
+const static int64_t GamesFirstIteration = 1; // each game produce about 150 positions
+const static size_t MaxHalfmovesPerGame = 200;
 
-void TDL(const std::string &positionsFilename);
+void TDL();
 
 }
 

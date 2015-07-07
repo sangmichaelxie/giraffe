@@ -11,6 +11,8 @@ const static Score SCORE_MIN = std::numeric_limits<Score>::lowest() + 1000;
 class EvaluatorIface
 {
 public:
+	constexpr static float EvalFullScale = 10000.0f;
+
 	// return score for side to move
 	Score EvaluateForSTM(const Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
 	{
@@ -27,6 +29,16 @@ public:
 	Score EvaluateForWhite(const Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
 	{
 		return EvaluateForWhiteImpl(b, lowerBound, upperBound);
+	}
+
+	float UnScale(float x)
+	{
+		float ret = x / EvalFullScale;
+
+		ret = std::max(ret, -1.0f);
+		ret = std::min(ret, 1.0f);
+
+		return ret;
 	}
 
 	// this is the only function evaluators need to implement

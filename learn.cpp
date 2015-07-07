@@ -3,6 +3,10 @@
 #include <stdexcept>
 #include <vector>
 #include <sstream>
+#include <algorithm>
+#include <random>
+
+#include <cmath>
 
 #include <omp.h>
 
@@ -19,6 +23,8 @@
 namespace
 {
 
+using namespace Learn;
+
 std::string getFilename(int64_t iter)
 {
 	std::stringstream filenameSs;
@@ -28,12 +34,304 @@ std::string getFilename(int64_t iter)
 	return filenameSs.str();
 }
 
+// plays a game from start position, and store the leaves of each position in leaves, and the scores in whiteScores
+void playGame(std::vector<Board> &leaves, std::vector<float> &whiteScores, EvaluatorIface *evaluatorPtr, Killer &killer, TTable &ttable, std::mt19937 &mt)
+{
+	Board board;
+
+	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+	auto drawFunc = [&mt, &dist]() -> float { return dist(mt); };
+
+	// this is a fast clear that just increments age of the table
+	ttable.ClearTable();
+
+	while (board.GetGameStatus() == Board::ONGOING && leaves.size() < MaxHalfmovesPerGame)
+	{
+		// first generate all legal moves from this position
+		std::vector<Move> legalMoves;
+
+		MoveList ml;
+		board.GenerateAllLegalMovesSlow<Board::ALL>(ml);
+
+		for (size_t i = 0; i < ml.GetSize(); ++i)
+		{
+			legalMoves.push_back(ml[i]);
+		}
+
+		// search results after making each move (scores are from opponent's POV!)
+		std::vector<Search::SearchResult> results(legalMoves.size());
+
+		// do a fixed depth search on each possible move, and record score
+		for (size_t moveNum = 0; moveNum < legalMoves.size(); ++moveNum)
+		{
+			board.ApplyMove(legalMoves[moveNum]);
+
+			results[moveNum] = Search::SyncSearchDepthLimited(board, SearchDepth, evaluatorPtr, &killer, &ttable);
+
+			board.UndoMove();
+		}
+
+		// now we pick a move based on how much worse they are than the best move
+		float bestScoreSTM = std::numeric_limits<float>::lowest();
+
+		for (size_t moveNum = 0; moveNum < legalMoves.size(); ++moveNum)
+		{
+			bestScoreSTM = std::max(bestScoreSTM, results[moveNum].score * -1.0f); // -1 because it's from opponent's POV
+		}
+
+		std::vector<float> moveProbabilities(legalMoves.size());
+
+		for (size_t moveNum = 0; moveNum < legalMoves.size(); ++moveNum)
+		{
+			float scoreSTM = results[moveNum].score * -1.0f;
+
+			moveProbabilities[moveNum] = pow(0.98f, (bestScoreSTM - scoreSTM));
+		}
+
+		std::vector<float> vS = moveProbabilities;
+		std::sort(vS.begin(), vS.end());
+
+		for (const auto &x : vS)
+		{
+			std::cout << x << ' ';
+		}
+		std::cout << std::endl;
+
+		// normalize the probabilities
+		float sum = 0.0f;
+		sum = std::accumulate(moveProbabilities.begin(), moveProbabilities.end(), 0.0f);
+
+		std::for_each(moveProbabilities.begin(), moveProbabilities.end(), [sum](float &x) { x /= sum; });
+
+		// draw a move to make
+		float numDrawn = drawFunc();
+
+		size_t moveToMake = 0;
+
+		float cumProb = 0.0f;
+
+		for (size_t moveNum = 0; moveNum < legalMoves.size(); ++moveNum)
+		{
+			cumProb += moveProbabilities[moveNum];
+
+			if (cumProb >= numDrawn)
+			{
+				moveToMake = moveNum;
+				break;
+			}
+		}
+
+		// make the move, and store the leaf position and score
+		board.ApplyMove(legalMoves[moveToMake]);
+
+		Board leaf = board;
+		leaf.ApplyVariation(results[moveToMake].pv);
+
+		float whiteScore = results[moveToMake].score * (board.GetSideToMove() == WHITE ? 1.0f : -1.0f);
+
+		whiteScore = evaluatorPtr->UnScale(whiteScore);
+
+		leaves.push_back(leaf);
+		whiteScores.push_back(whiteScore); // no need to flip here
+
+		killer.MoveMade();
+		ttable.AgeTable();
+	}
+}
+
 }
 
 namespace Learn
 {
 
-void TDL(const std::string &positionsFilename)
+void TDL()
+{
+	std::cout << "Starting TDL training..." << std::endl;
+
+	std::mt19937 mtMaster(42);
+
+	// get feature descriptions
+	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
+
+	FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
+
+	ANNEvaluator annEvaluator;
+
+	int64_t iter = 0;
+
+	// try to read existing dumps to continue where we left off
+	for (; iter < NumIterations; ++iter)
+	{
+		std::string filename = getFilename(iter);
+
+		std::ifstream dump(filename);
+
+		if (dump.is_open())
+		{
+			EvalNet newAnn = DeserializeNet(dump);
+			annEvaluator.GetANN() = newAnn;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if (iter != 0)
+	{
+		std::cout << "Continuing from iteration " << iter << std::endl;
+	}
+
+	for (; iter < NumIterations; ++iter)
+	{
+		std::cout << "======= Iteration: " << iter << " =======" << std::endl;
+
+		std::cout << "Generating training set for this iteration..." << std::endl;
+
+		std::vector<std::string> trainingPositions; // store as FEN to save memory
+		std::vector<float> trainingTargets;
+
+		size_t gamesPlayed = 0;
+		double timeStart = CurrentTime();
+		double timeLastPrint = CurrentTime();
+
+		//#pragma omp parallel
+		{
+			Killer killer;
+			TTable ttable(256*KB);
+
+			ttable.InvalidateAllEntries();
+
+			std::mt19937 thread_mt(mtMaster);
+
+			#pragma omp critical(threadRngSeed)
+			{
+				thread_mt.seed(mtMaster());
+			}
+
+			// we have to make a copy of the evaluator because it's not re-entrant (due to caching)
+			ANNEvaluator thread_evaluator = annEvaluator;
+
+			EvaluatorIface *evaluator = (iter == 0) ? static_cast<EvaluatorIface *>(&Eval::gStaticEvaluator) : static_cast<EvaluatorIface *>(&thread_evaluator);
+
+			// first generate the training set by playing a bunch of games
+			#pragma omp for schedule(dynamic, 1)
+			for (int64_t game = 0; game < ((iter == 0) ? GamesFirstIteration : GamesPerIteration); ++game)
+			{
+				std::vector<Board> leaves;
+				std::vector<float> whiteScores;
+
+				playGame(leaves, whiteScores, evaluator, killer, ttable, thread_mt);
+
+				std::vector<float> differences(leaves.size() - 1);
+
+				// compute the differences between each adjacent score
+				for (size_t i = 0; i < differences.size(); ++i)
+				{
+					differences[i] = whiteScores[i + 1] - whiteScores[i];
+				}
+
+				// apply the TD equation to get errors for each position, and compute training target
+				// we store them locally first to minimize time in critical section
+				std::vector<std::string> trainingPositionsFromThisGame;
+				std::vector<float> trainingTargetsFromThisGame;
+
+				for (size_t i = 0; i < leaves.size() ; ++i)
+				{
+					// only add to training set if the leaf eval is the same as position eval (not mates, etc)
+					auto staticEval = evaluator->UnScale(evaluator->EvaluateForWhite(leaves[i]));
+					if (staticEval != whiteScores[i])
+					{
+						continue;
+					}
+
+					float totalError = 0.0f;
+					float discountFactor = 1.0f;
+
+					for (size_t j = i; j < differences.size(); ++j)
+					{
+						totalError += differences[j] * discountFactor;
+						discountFactor *= Lambda;
+					}
+
+					trainingPositionsFromThisGame.push_back(leaves[i].GetFen());
+					trainingTargetsFromThisGame.push_back(staticEval + totalError);
+
+					std::cout << leaves[i].GetFen() << std::endl;
+					std::cout << staticEval << " + " << totalError << std::endl;
+				}
+
+				#pragma omp critical(trainingPositionsInsert)
+				{
+					trainingPositions.insert(trainingPositions.end(), trainingPositionsFromThisGame.begin(), trainingPositionsFromThisGame.end());
+					trainingTargets.insert(trainingTargets.end(), trainingTargetsFromThisGame.begin(), trainingTargetsFromThisGame.end());
+				}
+
+				if (omp_get_thread_num() == 0)
+				{
+					float timeSinceLastPrint = CurrentTime() - timeLastPrint;
+					if (timeSinceLastPrint > 15.0f)
+					{
+						double timeElapsed = CurrentTime() - timeStart;
+						std::cout << "Games played: " << gamesPlayed << " Games/s: " << (gamesPlayed / timeElapsed) << std::endl;
+						timeLastPrint = CurrentTime();
+					}
+				}
+
+				#pragma omp atomic
+				++gamesPlayed;
+			}
+		}
+
+		std::cout << "Num training positions: " << trainingPositions.size() << std::endl;
+
+		// now we can convert the boards to neural network representation
+		NNMatrixRM boardsInFeatureRepresentation(static_cast<int64_t>(trainingPositions.size()), static_cast<int64_t>(featureDescriptions.size()));
+		NNMatrixRM trainingTargetsNN(static_cast<int64_t>(trainingPositions.size()), 1);
+
+		std::cout << "Converting boards to features..." << std::endl;
+
+		{
+			ScopedThreadLimiter tlim(8);
+
+			#pragma omp parallel
+			{
+				std::vector<float> features; // each thread reuses a vector to avoid needless allocation/deallocation
+
+				for (size_t i = 0; i < trainingPositions.size(); ++i)
+				{
+					FeaturesConv::ConvertBoardToNN(Board(trainingPositions[i]), features);
+
+					if (features.size() != featureDescriptions.size())
+					{
+						std::stringstream msg;
+
+						msg << "Wrong feature vector size! " << features.size() << " (Expecting: " << featureDescriptions.size() << ")";
+
+						throw std::runtime_error(msg.str());
+					}
+
+					boardsInFeatureRepresentation.row(i) = Eigen::Map<NNMatrixRM>(&features[0], 1, static_cast<int64_t>(features.size()));
+					trainingTargetsNN(i, 0) = trainingTargets[i];
+				}
+			}
+		}
+
+		std::cout << "Generating training set took " << (CurrentTime() - timeStart) << " seconds" << std::endl;
+
+		EvalNet newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargetsNN, std::string("x_5M_nodiag.features"), (iter == 0) ? nullptr : &annEvaluator.GetANN(), (iter == 0) ? 30 : 15);
+
+		std::ofstream annOut(getFilename(iter));
+
+		SerializeNet(newAnn, annOut);
+
+		annEvaluator.GetANN() = newAnn;
+
+		std::cout << "Iteration took " << (CurrentTime() - timeStart) << " seconds" << std::endl;
+	}
+}
+
+void TDLold(const std::string &positionsFilename)
 {
 	std::cout << "Starting TDL training..." << std::endl;
 
@@ -83,9 +381,8 @@ void TDL(const std::string &positionsFilename)
 
 		if (dump.is_open())
 		{
-			ANN newAnn = DeserializeNet(dump);
+			EvalNet newAnn = DeserializeNet(dump);
 			annEvaluator.GetANN() = newAnn;
-			annEvaluator.Calibrate();
 		}
 		else
 		{
@@ -145,16 +442,18 @@ void TDL(const std::string &positionsFilename)
 					thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
 
 					Board rootPos(rootPositions[i]);
-					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, 2, &thread_annEvaluator, &thread_killer, &thread_ttable);
+					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
 					Board leafPos = rootPos;
 					leafPos.ApplyVariation(rootResult.pv);
 
 					float leafScore = thread_annEvaluator.EvaluateForWhite(leafPos); // this should theoretically be the same as the search result, except for mates, etc
 
+					float rootScoreWhite = rootResult.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f);
+
 					trainingPositions[i] = leafPos.GetFen();
 
-					if (rootResult.pv.size() > 0)
+					if (rootResult.pv.size() > 0 && (leafScore == rootScoreWhite))
 					{
 						rootPos.ApplyMove(rootResult.pv[0]);
 						thread_killer.MoveMade();
@@ -167,7 +466,7 @@ void TDL(const std::string &positionsFilename)
 
 						for (int64_t m = 0; m < HalfMovesToMake; ++m)
 						{
-							Search::SearchResult result = Search::SyncSearchDepthLimited(rootPos, 2, &thread_annEvaluator, &thread_killer, &thread_ttable);
+							Search::SearchResult result = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
 							float scoreWhite = result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f);
 
@@ -193,7 +492,7 @@ void TDL(const std::string &positionsFilename)
 					}
 					else
 					{
-						// if PV is empty, this is an end position, and we don't need to train it
+						// if PV is empty or leaf score is not the same as search score, this is an end position, and we don't need to train it
 						trainingTargets(i, 0) = leafScore;
 					}
 
@@ -242,14 +541,13 @@ void TDL(const std::string &positionsFilename)
 			}
 		}
 
-		ANN newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargets, std::string("x_5M_nodiag.features"));
+		EvalNet newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargets, std::string("x_5M_nodiag.features"), &annEvaluator.GetANN(), 5);
 
 		std::ofstream annOut(getFilename(iter));
 
 		SerializeNet(newAnn, annOut);
 
 		annEvaluator.GetANN() = newAnn;
-		annEvaluator.Calibrate();
 	}
 }
 

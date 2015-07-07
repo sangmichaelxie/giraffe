@@ -178,11 +178,11 @@ private:
 	std::mt19937 m_mersenneTwister;
 };
 
-typedef FCANN<Relu, Linear> ANN;
+typedef FCANN<Relu, Tanh> EvalNet;
 
-void SerializeNet(ANN &net, std::ostream &s);
+void SerializeNet(EvalNet &net, std::ostream &s);
 
-ANN DeserializeNet(std::istream &s);
+EvalNet DeserializeNet(std::istream &s);
 
 #include "ann_impl.h"
 

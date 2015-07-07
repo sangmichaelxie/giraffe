@@ -32,9 +32,7 @@ const size_t BatchSize = 256;
 
 const size_t MaxMemory = 32ULL*1024*1024*1024; // limit dataset size if we have many features
 
-const size_t IterationsPerCheck = 500000 / BatchSize;
-
-const int64_t ExamplesLimit = 25600000LL;
+const size_t MaxIterationsPerCheck = 500000 / BatchSize;
 
 const float ExclusionFactor = 0.99f; // when computing test performance, ignore 1% of outliers
 
@@ -162,7 +160,7 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 	layerSizes.push_back(256);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
-	layerSizes.push_back(32);
+	layerSizes.push_back(64);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 	// fully connected output layer
@@ -206,6 +204,7 @@ void SplitDataset(
 template <typename T, typename Derived1, typename Derived2>
 void Train(
 	T &nn,
+	int64_t epochs,
 	Eigen::MatrixBase<Derived1> &xTrain,
 	Eigen::MatrixBase<Derived2> &yTrain,
 	Eigen::MatrixBase<Derived1> &xVal,
@@ -228,7 +227,10 @@ void Train(
 
 	int64_t epoch = 0;
 
-	while (!done && (iter * BatchSize) < ExamplesLimit)
+	// we want to check at least once per epoch
+	size_t iterationsPerCheck = std::min(MaxIterationsPerCheck, xTrain.rows() / BatchSize);
+
+	while (!done && epoch < epochs)
 	{
 		size_t batchNum = iter % NumBatches;
 
@@ -241,7 +243,7 @@ void Train(
 			yTrain.block(begin, 0, BatchSize, yTrain.cols()),
 			0.000001f);
 
-		if (iter % IterationsPerCheck == 0)
+		if (iter % iterationsPerCheck == 0)
 		{
 			NNMatrix pred = nn.ForwardPropagateFast(xVal);
 
@@ -261,7 +263,7 @@ void Train(
 
 			std::cout << "Val: " << valScore << ", ";
 
-			std::cout << "Train: " << (trainingErrorAccum / std::min(iter + 1, IterationsPerCheck)) << ", ";
+			std::cout << "Train: " << (trainingErrorAccum / std::min(iter + 1, iterationsPerCheck)) << ", ";
 
 			std::chrono::seconds t = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - startTime);
 
@@ -280,7 +282,7 @@ void Train(
 }
 
 template <typename T>
-NNMatrix EvalNet(T &nn, NNMatrixRM &x)
+NNMatrix EvaluateNet(T &nn, NNMatrixRM &x)
 {
 	// how many examples to evaluate at a time (memory restriction)
 	const static int64_t ExamplesPerBatch = 2048;
@@ -376,17 +378,14 @@ namespace LearnAnn
 {
 
 template <typename Derived1, typename Derived2>
-ANN TrainANN(
+EvalNet TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
 	const Eigen::MatrixBase<Derived2> &y,
-	const std::string &featuresFilename)
+	const std::string &featuresFilename,
+	EvalNet *start,
+	int64_t epochs)
 {
 	std::mt19937 mersenneTwister(42);
-
-	std::vector<size_t> hiddenLayersConfig;
-	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
-
-	BuildLayers(featuresFilename, hiddenLayersConfig, connMatrices, mersenneTwister);
 
 	Rows trainRows, valRows, testRows;
 	SplitDataset(x, trainRows, valRows, testRows);
@@ -403,13 +402,20 @@ ANN TrainANN(
 	std::cout << "Test: " << xTest.rows() << std::endl;
 	std::cout << "Features: " << xTrain.cols() << std::endl;
 
-	ANN nn(77, xTrain.cols(), yTrain.cols(), hiddenLayersConfig, connMatrices);
+	std::vector<size_t> hiddenLayersConfig;
+	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
 
-	//std::ifstream netfIn("net.dump");
-	//ANN nn = DeserializeNet(netfIn);
+	BuildLayers(featuresFilename, hiddenLayersConfig, connMatrices, mersenneTwister);
+
+	EvalNet nn(77, xTrain.cols(), yTrain.cols(), hiddenLayersConfig, connMatrices);
+
+	if (start)
+	{
+		nn = *start;
+	}
 
 	std::cout << "Beginning training..." << std::endl;
-	Train(nn, xTrain, yTrain, xVal, yVal, xTest, yTest);
+	Train(nn, epochs, xTrain, yTrain, xVal, yVal, xTest, yTest);
 
 	// compute test performance and statistics
 	PrintTestStats(nn, xTest, yTest);
@@ -418,12 +424,14 @@ ANN TrainANN(
 }
 
 // here we have to list all instantiations used (except for in this file)
-template ANN TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, const std::string&);
+template EvalNet TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, const std::string&, EvalNet *, int64_t);
 
-ANN TrainANNFromFile(
+EvalNet TrainANNFromFile(
 	const std::string &xFilename,
 	const std::string &yFilename,
-	const std::string &featuresFilename)
+	const std::string &featuresFilename,
+	EvalNet *start,
+	int64_t epochs)
 {
 	MMappedMatrix xMap(xFilename);
 	MMappedMatrix yMap(yFilename);
@@ -431,6 +439,6 @@ ANN TrainANNFromFile(
 	auto x = xMap.GetMap();
 	auto y = yMap.GetMap();
 
-	return TrainANN(x, y, featuresFilename);
+	return TrainANN(x, y, featuresFilename, start, epochs);
 }
 }

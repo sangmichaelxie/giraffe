@@ -159,19 +159,13 @@ int main(int argc, char **argv)
 		std::string yFilename = argv[3];
 		std::string featuresFilename = argv[4];
 
-		LearnAnn::TrainANNFromFile(xFilename, yFilename, featuresFilename);
+		LearnAnn::TrainANNFromFile(xFilename, yFilename, featuresFilename, nullptr, 30);
 
 		return 0;
 	}
 	else if (argc >= 2 && std::string(argv[1]) == "tdl")
 	{
-		if (argc < 3)
-		{
-			std::cout << "Usage: " << argv[0] << " fen_filename" << std::endl;
-			return 1;
-		}
-
-		Learn::TDL(argv[2]);
+		Learn::TDL();
 
 		return 0;
 	}
@@ -183,9 +177,6 @@ int main(int argc, char **argv)
 #endif
 
 	ANNEvaluator evaluator("net.dump");
-
-	evaluator.Calibrate();
-
 	backend.SetEvaluator(&evaluator);
 
 	while (true)

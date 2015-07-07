@@ -2,6 +2,9 @@
 #include "types.h"
 #include "bit_ops.h"
 #include "magic_moves.h"
+#include "evaluator.h"
+
+#include <cmath>
 
 namespace Eval
 {
@@ -290,7 +293,7 @@ Score EvaluateMaterial(const Board &b)
 	ret -= BNCount * ScalePhase(MAT[0][WN], MAT[1][WN], phase);
 	ret -= BPCount * ScalePhase(MAT[0][WP], MAT[1][WP], phase);
 
-	return ret;
+	return EvaluatorIface::EvalFullScale * tanh(1e-3f * ret);
 }
 
 }
