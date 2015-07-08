@@ -29,6 +29,8 @@ void Backend::NewGame()
 	m_currentBoard = Board();
 
 	m_tTable.ClearTable();
+
+	m_mode = EngineMode_playingBlack;
 }
 
 void Backend::Force()
