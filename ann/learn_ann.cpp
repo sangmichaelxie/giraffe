@@ -133,7 +133,7 @@ void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, s
 	std::vector<Eigen::Triplet<float> > connections;
 
 	// build first layer
-	const size_t FirstHiddenLayerNodes = 256;
+	const size_t FirstHiddenLayerNodes = 512;
 	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
 	connections.clear();
 

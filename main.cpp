@@ -165,7 +165,12 @@ int main(int argc, char **argv)
 	}
 	else if (argc >= 2 && std::string(argv[1]) == "tdl")
 	{
-		Learn::TDL();
+		if (argc < 3)
+		{
+			std::cout << "Usage: " << argv[0] << " tdl positions" << std::endl;
+		}
+
+		Learn::TDL(argv[2]);
 
 		return 0;
 	}
@@ -176,7 +181,7 @@ int main(int argc, char **argv)
 	std::cout << "# Running in release mode" << std::endl;
 #endif
 
-	ANNEvaluator evaluator("net.dump");
+	ANNEvaluator evaluator("eval.net");
 	backend.SetEvaluator(&evaluator);
 
 	while (true)

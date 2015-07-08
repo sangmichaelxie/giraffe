@@ -29,7 +29,7 @@ std::string getFilename(int64_t iter)
 {
 	std::stringstream filenameSs;
 
-	filenameSs << "trainingResults/net" << iter << ".dump";
+	filenameSs << "trainingResults/eval" << iter << ".net";
 
 	return filenameSs.str();
 }
@@ -85,17 +85,18 @@ void playGame(std::vector<Board> &leaves, std::vector<float> &whiteScores, Evalu
 		{
 			float scoreSTM = results[moveNum].score * -1.0f;
 
-			moveProbabilities[moveNum] = pow(0.98f, (bestScoreSTM - scoreSTM));
+			// with the new scaling, a pawn is about 2000
+			moveProbabilities[moveNum] = pow(0.98f, (bestScoreSTM - scoreSTM) / 20.0f);
 		}
 
-		std::vector<float> vS = moveProbabilities;
-		std::sort(vS.begin(), vS.end());
-
-		for (const auto &x : vS)
+		/*
+		std::cout << board.GetFen() << std::endl;
+		for (size_t i = 0; i < moveProbabilities.size(); ++i)
 		{
-			std::cout << x << ' ';
+			std::cout << board.MoveToAlg(legalMoves[i]) << ' ' << moveProbabilities[i] << std::endl;
 		}
 		std::cout << std::endl;
+		*/
 
 		// normalize the probabilities
 		float sum = 0.0f;
@@ -144,7 +145,7 @@ void playGame(std::vector<Board> &leaves, std::vector<float> &whiteScores, Evalu
 namespace Learn
 {
 
-void TDL()
+void TDLSelfPlay()
 {
 	std::cout << "Starting TDL training..." << std::endl;
 
@@ -195,7 +196,7 @@ void TDL()
 		double timeStart = CurrentTime();
 		double timeLastPrint = CurrentTime();
 
-		//#pragma omp parallel
+		#pragma omp parallel
 		{
 			Killer killer;
 			TTable ttable(256*KB);
@@ -255,10 +256,7 @@ void TDL()
 					}
 
 					trainingPositionsFromThisGame.push_back(leaves[i].GetFen());
-					trainingTargetsFromThisGame.push_back(staticEval + totalError);
-
-					std::cout << leaves[i].GetFen() << std::endl;
-					std::cout << staticEval << " + " << totalError << std::endl;
+					trainingTargetsFromThisGame.push_back(staticEval + totalError * LearningRate);
 				}
 
 				#pragma omp critical(trainingPositionsInsert)
@@ -319,19 +317,36 @@ void TDL()
 
 		std::cout << "Generating training set took " << (CurrentTime() - timeStart) << " seconds" << std::endl;
 
-		EvalNet newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargetsNN, std::string("x_5M_nodiag.features"), (iter == 0) ? nullptr : &annEvaluator.GetANN(), (iter == 0) ? 30 : 15);
+		std::cout << "Updating weights..." << std::endl;
+
+		if (iter == 0)
+		{
+			EvalNet newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargetsNN, std::string("x_5M_nodiag.features"), (iter == 0) ? nullptr : &annEvaluator.GetANN(), (iter == 0) ? 30 : 15);
+
+			annEvaluator.GetANN() = newAnn;
+		}
+		else
+		{
+			annEvaluator.GetANN().TrainGDM(boardsInFeatureRepresentation, trainingTargetsNN, 0.0f);
+		}
 
 		std::ofstream annOut(getFilename(iter));
 
-		SerializeNet(newAnn, annOut);
+		SerializeNet(annEvaluator.GetANN(), annOut);
 
-		annEvaluator.GetANN() = newAnn;
+		/*
+		for (size_t i = 0; i < trainingPositions.size(); ++i)
+		{
+			std::cout << trainingPositions[i] << std::endl;
+			std::cout << trainingTargets[i] << " " << annEvaluator.UnScale(annEvaluator.EvaluateForWhite(Board(trainingPositions[i]))) << std::endl;
+		}
+		*/
 
 		std::cout << "Iteration took " << (CurrentTime() - timeStart) << " seconds" << std::endl;
 	}
 }
 
-void TDLold(const std::string &positionsFilename)
+void TDL(const std::string &positionsFilename)
 {
 	std::cout << "Starting TDL training..." << std::endl;
 
@@ -406,13 +421,17 @@ void TDLold(const std::string &positionsFilename)
 		if (iter == 0)
 		{
 			std::cout << "Labelling using static evaluation..." << std::endl;
+
+			trainingPositions.resize(PositionsFirstBatch);
+			trainingTargets.resize(trainingPositions.size(), 1);
+
 			#pragma omp parallel for
-			for (size_t i = 0; i < PositionsPerBatch; ++i)
+			for (size_t i = 0; i < PositionsFirstBatch; ++i)
 			{
 				Board b(rootPositions[i]);
 				Score val = Eval::gStaticEvaluator.EvaluateForWhite(b, SCORE_MIN, SCORE_MAX);
 				trainingPositions[i] = rootPositions[i];
-				trainingTargets(i, 0) = val;
+				trainingTargets(i, 0) = Eval::gStaticEvaluator.UnScale(val);
 			}
 		}
 		else
@@ -422,6 +441,9 @@ void TDLold(const std::string &positionsFilename)
 			size_t positionsProcessed = 0;
 			double timeStart = CurrentTime();
 			double timeLastPrint = CurrentTime();
+
+			trainingPositions.resize(PositionsPerBatch);
+			trainingTargets.resize(trainingPositions.size(), 1);
 
 			#pragma omp parallel
 			{
@@ -453,6 +475,8 @@ void TDLold(const std::string &positionsFilename)
 
 					trainingPositions[i] = leafPos.GetFen();
 
+					float leafScoreUnscaled = thread_annEvaluator.UnScale(leafScore);
+
 					if (rootResult.pv.size() > 0 && (leafScore == rootScoreWhite))
 					{
 						rootPos.ApplyMove(rootResult.pv[0]);
@@ -461,18 +485,18 @@ void TDLold(const std::string &positionsFilename)
 
 						// now we compute the error by making a few moves
 						float accumulatedError = 0.0f;
-						float lastScore = leafScore;
+						float lastScore = leafScoreUnscaled;
 						float discount = 1.0f;
 
 						for (int64_t m = 0; m < HalfMovesToMake; ++m)
 						{
 							Search::SearchResult result = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
-							float scoreWhite = result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f);
+							float scoreWhiteUnscaled = thread_annEvaluator.UnScale(result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f));
 
 							// compute error contribution
-							accumulatedError += discount * (scoreWhite - lastScore);
-							lastScore = scoreWhite;
+							accumulatedError += discount * (scoreWhiteUnscaled - lastScore);
+							lastScore = scoreWhiteUnscaled;
 							discount *= Lambda;
 
 							if ((rootPos.GetGameStatus() != Board::ONGOING) || (result.pv.size() == 0))
@@ -488,12 +512,12 @@ void TDLold(const std::string &positionsFilename)
 						accumulatedError = std::max(accumulatedError, -MaxError);
 						accumulatedError = std::min(accumulatedError, MaxError);
 
-						trainingTargets(i, 0) = leafScore + accumulatedError;
+						trainingTargets(i, 0) = leafScoreUnscaled + LearningRate * accumulatedError;
 					}
 					else
 					{
 						// if PV is empty or leaf score is not the same as search score, this is an end position, and we don't need to train it
-						trainingTargets(i, 0) = leafScore;
+						trainingTargets(i, 0) = thread_annEvaluator.UnScale(leafScore);
 					}
 
 					if (omp_get_thread_num() == 0)
@@ -514,6 +538,8 @@ void TDLold(const std::string &positionsFilename)
 		}
 
 		std::cout << "Converting boards to features..." << std::endl;
+
+		boardsInFeatureRepresentation.resize(static_cast<int64_t>(trainingPositions.size()), featureDescriptions.size());
 
 		{
 			ScopedThreadLimiter tlim(8);
@@ -541,13 +567,20 @@ void TDLold(const std::string &positionsFilename)
 			}
 		}
 
-		EvalNet newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargets, std::string("x_5M_nodiag.features"), &annEvaluator.GetANN(), 5);
+		if (iter == 0)
+		{
+			EvalNet newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargets, std::string("x_5M_nodiag.features"), nullptr, 3);
+
+			annEvaluator.GetANN() = newAnn;
+		}
+		else
+		{
+			annEvaluator.GetANN().TrainGDM(boardsInFeatureRepresentation, trainingTargets, 0.0f);
+		}
 
 		std::ofstream annOut(getFilename(iter));
 
-		SerializeNet(newAnn, annOut);
-
-		annEvaluator.GetANN() = newAnn;
+		SerializeNet(annEvaluator.GetANN(), annOut);
 	}
 }
 
