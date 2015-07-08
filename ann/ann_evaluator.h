@@ -24,17 +24,14 @@ public:
 
 	const static size_t EvalHashSize = 1*MB / sizeof(EvalHashEntry);
 
-	ANNEvaluator() : m_evalHash(EvalHashSize)
-	{
-	}
+	ANNEvaluator() : m_evalHash(EvalHashSize) {}
 
-	ANNEvaluator(const EvalNet &ann) : m_ann(ann), m_evalHash(EvalHashSize)
-	{
-	}
+	ANNEvaluator(const EvalNet &ann) : m_ann(ann), m_evalHash(EvalHashSize)	{}
 
 	ANNEvaluator(const std::string &filename) : m_evalHash(EvalHashSize)
 	{
 		std::ifstream netfIn(filename);
+
 		DeserializeNet(m_ann, netfIn);
 	}
 
@@ -43,15 +40,14 @@ public:
 		m_ann = LearnAnn::BuildEvalNet(featureFilename, inputDims);
 	}
 
-	EvalNet& GetANN()
+	void Serialize(std::ostream &os)
 	{
-		InvalidateCache_();
-		return m_ann;
+		SerializeNet(m_ann, os);
 	}
 
-	const EvalNet& GetANN() const
+	void Deserialize(std::istream &is)
 	{
-		return m_ann;
+		DeserializeNet(m_ann, is);
 	}
 
 	void Train(const NNMatrixRM &x, const NNMatrixRM &y)

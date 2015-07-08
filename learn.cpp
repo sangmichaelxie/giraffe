@@ -169,7 +169,7 @@ void TDLSelfPlay()
 
 		if (dump.is_open())
 		{
-			DeserializeNet(annEvaluator.GetANN(), dump);
+			annEvaluator.Deserialize(dump);
 		}
 		else
 		{
@@ -326,7 +326,7 @@ void TDLSelfPlay()
 
 		std::ofstream annOut(getFilename(iter));
 
-		SerializeNet(annEvaluator.GetANN(), annOut);
+		annEvaluator.Serialize(annOut);
 
 		/*
 		for (size_t i = 0; i < trainingPositions.size(); ++i)
@@ -390,7 +390,7 @@ void TDL(const std::string &positionsFilename)
 
 		if (dump.is_open())
 		{
-			DeserializeNet(annEvaluator.GetANN(), dump);
+			annEvaluator.Deserialize(dump);
 		}
 		else
 		{
@@ -575,7 +575,7 @@ void TDL(const std::string &positionsFilename)
 
 		std::ofstream annOut(getFilename(iter));
 
-		SerializeNet(annEvaluator.GetANN(), annOut);
+		annEvaluator.Serialize(annOut);
 	}
 }
 
