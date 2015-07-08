@@ -89,9 +89,6 @@ void Backend::Usermove(std::string move)
 
 	if (m_mode == EngineMode_playingWhite || m_mode == EngineMode_playingBlack)
 	{
-		MoveList legalMoves;
-		m_currentBoard.GenerateAllLegalMovesSlow<Board::ALL>(legalMoves);
-
 		StartSearch_(Search::SearchType_makeMove);
 
 		if (m_mode == EngineMode_playingWhite)
@@ -228,6 +225,13 @@ void Backend::Quit()
 	std::lock_guard<std::mutex> lock(m_mutex);
 
 	StopSearch_(lock);
+}
+
+bool Backend::IsAMove(const std::string &s)
+{
+	Move parsedMove = m_currentBoard.ParseMove(s);
+
+	return (parsedMove != 0);
 }
 
 void Backend::Force_(std::lock_guard<std::mutex> &lock)

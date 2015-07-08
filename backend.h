@@ -59,6 +59,8 @@ public:
 
 	void Quit();
 
+	bool IsAMove(const std::string &s);
+
 private:
 	// these 2 functions take a lock_guard to remind the caller that m_mutex should be locked when calling
 	// these functions, since these functions will temporarily unlock the mutex while waiting for search

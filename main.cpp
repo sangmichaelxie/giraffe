@@ -392,6 +392,10 @@ int main(int argc, char **argv)
 			DebugRunPerftTests();
 			std::cout << "All passed!" << std::endl;
 		}
+		else if (backend.IsAMove(cmd))
+		{
+			backend.Usermove(cmd);
+		}
 		else
 		{
 			std::cout << "Error (unknown command): " << cmd << std::endl;
