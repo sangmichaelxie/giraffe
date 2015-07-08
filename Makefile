@@ -31,5 +31,5 @@ gpu:
 	$(CXX) $(CXXFLAGS_RELEASE) -march=native -lOpenCL -DVIENNACL_WITH_OPENCL giraffe.cpp -o giraffe
 	
 windows:
-	g++ $(CXXFLAGS_COMMON) -O3 giraffe.cpp -o giraffe
+	g++ $(CXXFLAGS_COMMON) -O3 -static giraffe.cpp -o giraffe
 	strip -g -s giraffe.exe
