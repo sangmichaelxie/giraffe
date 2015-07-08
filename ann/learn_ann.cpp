@@ -324,7 +324,7 @@ EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
 	// fully connected output layer
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
-	return EvalNet(mt(), inputDims, 1, layerSizes, connMatrices);
+	return EvalNet(inputDims, 1, layerSizes, connMatrices);
 }
 
 template <typename Derived1, typename Derived2>

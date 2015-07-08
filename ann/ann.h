@@ -35,7 +35,6 @@ public:
 
 	// initialize with random weights
 	FCANN(
-		int randomSeed,
 		size_t inputs,
 		size_t outputs,
 		std::vector<size_t> hiddenLayers,
@@ -174,15 +173,16 @@ private:
 		std::vector<NNVector> outputBiasRMSd2;
 		std::vector<NNMatrix> weightsRMSd2;
 	} m_params;
-
-	std::mt19937 m_mersenneTwister;
 };
 
 typedef FCANN<Relu, Tanh> EvalNet;
+typedef FCANN<Relu, Softmax> MixingNet;
 
-void SerializeNet(EvalNet &net, std::ostream &s);
+template <typename T>
+void SerializeNet(T &net, std::ostream &s);
 
-EvalNet DeserializeNet(std::istream &s);
+template <typename T>
+void DeserializeNet(T &net, std::istream &s);
 
 #include "ann_impl.h"
 

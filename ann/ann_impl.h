@@ -12,6 +12,7 @@
 #include <xmmintrin.h>
 
 #include "omp_scoped_thread_limiter.h"
+#include "random_device.h"
 
 void EnableNanInterrupt()
 {
@@ -20,17 +21,17 @@ void EnableNanInterrupt()
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 FCANN<ACTF, ACTFLast>::FCANN(
-	int randomSeed,
 	size_t inputs,
 	size_t outputs,
 	std::vector<size_t> hiddenLayers,
 	std::vector<std::vector<Eigen::Triplet<FP> > > &connectionMatrices)
-	: m_mersenneTwister(randomSeed)
 {
 	if (connectionMatrices.size() != (hiddenLayers.size() + 1))
 	{
 		throw std::runtime_error("connectionMatrices.size() should be hiddenLayers.size() + 1");
 	}
+
+	auto mt = gRd.MakeMT();
 
 	// then we build the weight and bias vectors, and initialize them
 	for (size_t layer = 0; layer < (hiddenLayers.size() + 1); ++layer)
@@ -50,20 +51,20 @@ FCANN<ACTF, ACTFLast>::FCANN(
 		if (ACTF == Linear || layer == hiddenLayers.size())
 		{
 			std::uniform_real_distribution<FP> dist(-0.01f, 0.01f);
-			drawFunc = std::bind(dist, m_mersenneTwister);
+			drawFunc = std::bind(dist, mt);
 		}
 		else if (ACTF == Tanh)
 		{
 			// for tanh, we use r = sqrt(6/(fan_in + fan_out)), (-r, r)
 			FP r = sqrt(6.0/(in_size + out_size));
 			std::uniform_real_distribution<FP> dist(-r, r);
-			drawFunc = std::bind(dist, m_mersenneTwister);
+			drawFunc = std::bind(dist, mt);
 		}
 		else if (ACTF == Relu)
 		{
 			// we use the scheme described here - http://arxiv.org/pdf/1502.01852v1.pdf
 			std::normal_distribution<FP> dist(0.0f, sqrt(2.0f/out_size));
-			drawFunc = std::bind(dist, m_mersenneTwister);
+			drawFunc = std::bind(dist, mt);
 		}
 		else
 		{
@@ -707,7 +708,8 @@ NNMatrix ReadMatrix(std::istream &s)
 
 }
 
-void SerializeNet(EvalNet &net, std::ostream &s)
+template <typename T>
+void SerializeNet(T &net, std::ostream &s)
 {
 	auto weights = net.Weights();
 	auto biases = net.Biases();
@@ -732,11 +734,12 @@ void SerializeNet(EvalNet &net, std::ostream &s)
 	}
 }
 
-EvalNet DeserializeNet(std::istream &s)
+template <typename T>
+void DeserializeNet(T &net, std::istream &s)
 {
-	std::vector<typename EvalNet::WeightType> weights;
-	std::vector<typename EvalNet::BiasType> biases;
-	std::vector<typename EvalNet::WeightMaskType> weightMasks;
+	std::vector<typename T::WeightType> weights;
+	std::vector<typename T::BiasType> biases;
+	std::vector<typename T::WeightMaskType> weightMasks;
 
 	int64_t numLayers;
 
@@ -763,11 +766,9 @@ EvalNet DeserializeNet(std::istream &s)
 	// overwrite the connection matrices anyways
 	std::vector<std::vector<Eigen::Triplet<FP> > > connections(hiddenLayerSizes.size() + 1);
 
-	EvalNet ret(42, din, dout, hiddenLayerSizes, connections);
+	net = T(din, dout, hiddenLayerSizes, connections);
 
-	ret.Weights() = weights;
-	ret.Biases() = biases;
-	ret.WeightMasks() = weightMasks;
-
-	return ret;
+	net.Weights() = weights;
+	net.Biases() = biases;
+	net.WeightMasks() = weightMasks;
 }

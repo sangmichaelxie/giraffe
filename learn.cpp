@@ -169,8 +169,7 @@ void TDLSelfPlay()
 
 		if (dump.is_open())
 		{
-			EvalNet newAnn = DeserializeNet(dump);
-			annEvaluator.GetANN() = newAnn;
+			DeserializeNet(annEvaluator.GetANN(), dump);
 		}
 		else
 		{
@@ -391,8 +390,7 @@ void TDL(const std::string &positionsFilename)
 
 		if (dump.is_open())
 		{
-			EvalNet newAnn = DeserializeNet(dump);
-			annEvaluator.GetANN() = newAnn;
+			DeserializeNet(annEvaluator.GetANN(), dump);
 		}
 		else
 		{

@@ -35,7 +35,7 @@ public:
 	ANNEvaluator(const std::string &filename) : m_evalHash(EvalHashSize)
 	{
 		std::ifstream netfIn(filename);
-		m_ann = DeserializeNet(netfIn);
+		DeserializeNet(m_ann, netfIn);
 	}
 
 	void BuildANN(const std::string &featureFilename, int64_t inputDims)
