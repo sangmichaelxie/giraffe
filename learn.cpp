@@ -357,6 +357,8 @@ void TDL(const std::string &positionsFilename)
 		throw std::runtime_error(std::string("Cannot open ") + positionsFilename + " for reading");
 	}
 
+	std::mt19937 mt(42);
+
 	// these are the root positions for training (they don't change)
 	std::vector<std::string> rootPositions;
 
@@ -569,9 +571,8 @@ void TDL(const std::string &positionsFilename)
 
 		if (iter == 0)
 		{
-			EvalNet newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargets, std::string("x_5M_nodiag.features"), nullptr, 3);
-
-			annEvaluator.GetANN() = newAnn;
+			// this will also create a new net
+			annEvaluator.GetANN() = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargets, std::string("x_5M_nodiag.features"), nullptr, 3);
 		}
 		else
 		{

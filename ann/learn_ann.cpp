@@ -105,68 +105,6 @@ private:
 	uint32_t m_cols;
 };
 
-void BuildLayers(const std::string &filename, std::vector<size_t> &layerSizes, std::vector<std::vector<Eigen::Triplet<float> > > &connMatrices, std::mt19937 &mt)
-{
-	std::vector<std::vector<int32_t> > featureGroups;
-
-	std::ifstream featureFile(filename);
-
-	char type;
-
-	int32_t feature = 0;
-
-	while (featureFile >> type)
-	{
-		int32_t group;
-		featureFile >> group;
-
-		if (static_cast<size_t>(group) >= featureGroups.size())
-		{
-			featureGroups.resize(group + 1);
-		}
-
-		featureGroups[group].push_back(feature);
-
-		++feature;
-	}
-
-	std::vector<Eigen::Triplet<float> > connections;
-
-	// build first layer
-	const size_t FirstHiddenLayerNodes = 512;
-	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
-	connections.clear();
-
-	std::uniform_int_distribution<> groupDist(0, featureGroups.size() - 1);
-
-	for (size_t node = 0; node < FirstHiddenLayerNodes; ++node)
-	{
-		for (size_t i = 0; i < FirstHiddenLayerNumGroupsPerNode; ++i)
-		{
-			// we can have duplicates, in which case we'll actually have less than 4 groups, and that's ok
-			size_t group = groupDist(mt);
-
-			// connect the node to all nodes in the group
-			for (const auto &feature : featureGroups[group])
-			{
-				connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
-			}
-		}
-	}
-
-	layerSizes.push_back(FirstHiddenLayerNodes);
-	connMatrices.push_back(connections);
-
-	layerSizes.push_back(256);
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
-
-	layerSizes.push_back(64);
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
-
-	// fully connected output layer
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
-}
-
 struct Rows
 {
 	Rows() {}
@@ -388,6 +326,73 @@ void PrintTestStats(T &nn, Eigen::MatrixBase<Derived1> &x, Eigen::MatrixBase<Der
 namespace LearnAnn
 {
 
+EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims, std::mt19937 &mt)
+{
+	std::vector<size_t> layerSizes;
+	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
+
+	std::vector<std::vector<int32_t> > featureGroups;
+
+	std::ifstream featureFile(featureFilename);
+
+	char type;
+
+	int32_t feature = 0;
+
+	while (featureFile >> type)
+	{
+		int32_t group;
+		featureFile >> group;
+
+		if (static_cast<size_t>(group) >= featureGroups.size())
+		{
+			featureGroups.resize(group + 1);
+		}
+
+		featureGroups[group].push_back(feature);
+
+		++feature;
+	}
+
+	std::vector<Eigen::Triplet<float> > connections;
+
+	// build first layer
+	const size_t FirstHiddenLayerNodes = 512;
+	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
+	connections.clear();
+
+	std::uniform_int_distribution<> groupDist(0, featureGroups.size() - 1);
+
+	for (size_t node = 0; node < FirstHiddenLayerNodes; ++node)
+	{
+		for (size_t i = 0; i < FirstHiddenLayerNumGroupsPerNode; ++i)
+		{
+			// we can have duplicates, in which case we'll actually have less than 4 groups, and that's ok
+			size_t group = groupDist(mt);
+
+			// connect the node to all nodes in the group
+			for (const auto &feature : featureGroups[group])
+			{
+				connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
+			}
+		}
+	}
+
+	layerSizes.push_back(FirstHiddenLayerNodes);
+	connMatrices.push_back(connections);
+
+	layerSizes.push_back(256);
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	layerSizes.push_back(64);
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	// fully connected output layer
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	return EvalNet(mt(), inputDims, 1, layerSizes, connMatrices);
+}
+
 template <typename Derived1, typename Derived2>
 EvalNet TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
@@ -413,12 +418,7 @@ EvalNet TrainANN(
 	std::cout << "Test: " << xTest.rows() << std::endl;
 	std::cout << "Features: " << xTrain.cols() << std::endl;
 
-	std::vector<size_t> hiddenLayersConfig;
-	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
-
-	BuildLayers(featuresFilename, hiddenLayersConfig, connMatrices, mersenneTwister);
-
-	EvalNet nn(77, xTrain.cols(), yTrain.cols(), hiddenLayersConfig, connMatrices);
+	EvalNet nn = BuildEvalNet(featuresFilename, xTrain.cols(), mersenneTwister);
 
 	if (start)
 	{

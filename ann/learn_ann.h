@@ -8,6 +8,8 @@
 namespace LearnAnn
 {
 
+EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims, std::mt19937 &mt);
+
 template <typename Derived1, typename Derived2>
 EvalNet TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
