@@ -29,3 +29,4 @@ training/*
 engine_log.txt
 *.DS_Store
 *.autosave
+*.net
