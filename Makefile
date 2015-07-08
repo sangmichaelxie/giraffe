@@ -31,3 +31,4 @@ gpu:
 	
 windows:
 	g++ $(CXXFLAGS_COMMON) -O3 giraffe.cpp -o giraffe
+	strip -g -s giraffe.exe
