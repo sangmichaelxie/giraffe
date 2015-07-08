@@ -26,7 +26,8 @@ SOURCES += main.cpp \
 	tools/gen_bitboard_consts.cpp \
 	ann/learn_ann.cpp \
 	ann/features_conv.cpp \
-    learn.cpp
+    learn.cpp \
+    random_device.cpp
 
 HEADERS += \
 	board_consts.h \
@@ -56,5 +57,6 @@ HEADERS += \
 	evaluator.h \
 	ann/ann_evaluator.h \
     learn.h \
-    omp_scoped_thread_limiter.h
+    omp_scoped_thread_limiter.h \
+    random_device.h
 
