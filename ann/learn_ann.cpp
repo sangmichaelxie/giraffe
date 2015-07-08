@@ -252,75 +252,6 @@ NNMatrix EvaluateNet(T &nn, NNMatrixRM &x)
 	return ret;
 }
 
-template <typename T, typename Derived1, typename Derived2>
-void PrintTestStats(T &nn, Eigen::MatrixBase<Derived1> &x, Eigen::MatrixBase<Derived2> &y)
-{
-	NNMatrix pred = nn.ForwardPropagateFast(x);
-
-	NNMatrix errors = nn.ErrorFunc(pred, y);
-
-	std::cout << "\n\nStatistics:" << std::endl;
-
-	std::vector<float> errorsVec;
-
-	for (int64_t i = 0; i < x.rows(); ++i)
-	{
-		errorsVec.push_back(errors(i, 0));
-	}
-
-	std::sort(errorsVec.begin(), errorsVec.end());
-
-	float score = 0;
-
-	for (size_t i = 0; i < (errorsVec.size() * ExclusionFactor); ++i)
-	{
-		score += errorsVec[i];
-	}
-
-	score /= (errorsVec.size() * ExclusionFactor);
-
-	std::cout << "Test perf (EF: " << ExclusionFactor << "): " << score << std::endl;
-
-	const float Bins[] = { 5.0f, 10.0f, 15.0f, 20.0f, 35.0f, 50.0f, 75.0f, 100.0f, 150.0f, 200.0f, 400.0f, 1000.0f, 0.0f /* catch all bin */ };
-	const size_t NumBins = sizeof(Bins) / sizeof(Bins[0]);
-	size_t binCounts[NumBins] = { 0 };
-
-	for (int64_t i = 0; i < x.rows(); ++i)
-	{
-		float e = errors(i, 0);
-
-		size_t bin = NumBins - 1;
-
-		for (size_t b = 0; b < NumBins; ++b)
-		{
-			if (e <= Bins[b])
-			{
-				bin = b;
-				break;
-			}
-		}
-
-		++binCounts[bin];
-	}
-
-	size_t cumulativeCount = 0;
-
-	for (size_t b = 0; b < NumBins; ++b)
-	{
-		if (b != (NumBins - 1))
-		{
-			std::cout << "<" << Bins[b] << ": ";
-		}
-		else
-		{
-			std::cout << ">=" << Bins[b-1] << ": ";
-		}
-
-		cumulativeCount += binCounts[b];
-
-		std::cout << binCounts[b] << " (" << ((100.0f * cumulativeCount) / errorsVec.size()) << "%)" <<  std::endl;
-	}
-}
 } // namespace
 
 namespace LearnAnn
@@ -427,9 +358,6 @@ EvalNet TrainANN(
 
 	std::cout << "Beginning training..." << std::endl;
 	Train(nn, epochs, xTrain, yTrain, xVal, yVal, xTest, yTest);
-
-	// compute test performance and statistics
-	PrintTestStats(nn, xTest, yTest);
 
 	return nn;
 }
