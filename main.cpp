@@ -56,6 +56,13 @@ void GetVersion()
 
 		std::cout << "# Version: " << gVersion << std::endl;
 	}
+#ifdef HGVERSION
+	else
+	{
+		gVersion = HGVERSION;
+		std::cout << "# Version: " << HGVERSION << std::endl;
+	}
+#endif
 }
 
 int main(int argc, char **argv)

@@ -1,5 +1,6 @@
 CXX=g++-4.9
-CXXFLAGS_COMMON=-Wall -Wextra -g -std=gnu++11 -mtune=native -Wa,-q -ffast-math -I. -IEigen_dev -pthread -fopenmp
+HGVERSION:= $(shell hg parents --template '{node|short}')
+CXXFLAGS_COMMON=-Wall -Wextra -g -std=gnu++11 -mtune=native -Wa,-q -ffast-math -I. -IEigen_dev -pthread -fopenmp -DHGVERSION="\"${HGVERSION}\""
 CXXFLAGS_RELEASE=$(CXXFLAGS_COMMON) -O3 -L. -ltcmalloc
 CXXFLAGS_PROFILE=$(CXXFLAGS_COMMON) -pg -Os
 CXXFLAGS_DEBUG=$(CXXFLAGS_COMMON)  -DDEBUG 
