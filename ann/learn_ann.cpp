@@ -23,6 +23,7 @@
 
 #include "ann.h"
 #include "types.h"
+#include "random_device.h"
 
 namespace
 {
@@ -257,10 +258,12 @@ NNMatrix EvaluateNet(T &nn, NNMatrixRM &x)
 namespace LearnAnn
 {
 
-EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims, std::mt19937 &mt)
+EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
 {
 	std::vector<size_t> layerSizes;
 	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
+
+	auto mt = gRd.MakeMT();
 
 	std::vector<std::vector<int32_t> > featureGroups;
 
@@ -325,15 +328,12 @@ EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims, std:
 }
 
 template <typename Derived1, typename Derived2>
-EvalNet TrainANN(
+void TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
 	const Eigen::MatrixBase<Derived2> &y,
-	const std::string &featuresFilename,
-	EvalNet *start,
+	EvalNet &nn,
 	int64_t epochs)
 {
-	std::mt19937 mersenneTwister(42);
-
 	Rows trainRows, valRows, testRows;
 	SplitDataset(x, trainRows, valRows, testRows);
 
@@ -349,27 +349,17 @@ EvalNet TrainANN(
 	std::cout << "Test: " << xTest.rows() << std::endl;
 	std::cout << "Features: " << xTrain.cols() << std::endl;
 
-	EvalNet nn = BuildEvalNet(featuresFilename, xTrain.cols(), mersenneTwister);
-
-	if (start)
-	{
-		nn = *start;
-	}
-
 	std::cout << "Beginning training..." << std::endl;
 	Train(nn, epochs, xTrain, yTrain, xVal, yVal, xTest, yTest);
-
-	return nn;
 }
 
 // here we have to list all instantiations used (except for in this file)
-template EvalNet TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, const std::string&, EvalNet *, int64_t);
+template void TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, EvalNet &, int64_t);
 
-EvalNet TrainANNFromFile(
+void TrainANNFromFile(
 	const std::string &xFilename,
 	const std::string &yFilename,
-	const std::string &featuresFilename,
-	EvalNet *start,
+	EvalNet &nn,
 	int64_t epochs)
 {
 	MMappedMatrix xMap(xFilename);
@@ -378,6 +368,6 @@ EvalNet TrainANNFromFile(
 	auto x = xMap.GetMap();
 	auto y = yMap.GetMap();
 
-	return TrainANN(x, y, featuresFilename, start, epochs);
+	TrainANN(x, y, nn, epochs);
 }
 }

@@ -11,6 +11,8 @@
 #include "ann/features_conv.h"
 #include "matrix_ops.h"
 
+#include "learn_ann.h"
+
 class ANNEvaluator : public EvaluatorIface
 {
 public:
@@ -22,21 +24,44 @@ public:
 
 	const static size_t EvalHashSize = 1*MB / sizeof(EvalHashEntry);
 
-	ANNEvaluator()
+	ANNEvaluator() : m_evalHash(EvalHashSize)
 	{
-		m_evalHash.resize(EvalHashSize);
 	}
 
-	ANNEvaluator(const EvalNet &ann) : m_ann(ann)
+	ANNEvaluator(const EvalNet &ann) : m_ann(ann), m_evalHash(EvalHashSize)
 	{
-		m_evalHash.resize(EvalHashSize);
 	}
 
-	ANNEvaluator(const std::string &filename)
+	ANNEvaluator(const std::string &filename) : m_evalHash(EvalHashSize)
 	{
 		std::ifstream netfIn(filename);
 		m_ann = DeserializeNet(netfIn);
-		m_evalHash.resize(EvalHashSize);
+	}
+
+	void BuildANN(const std::string &featureFilename, int64_t inputDims)
+	{
+		m_ann = LearnAnn::BuildEvalNet(featureFilename, inputDims);
+	}
+
+	EvalNet& GetANN()
+	{
+		InvalidateCache_();
+		return m_ann;
+	}
+
+	const EvalNet& GetANN() const
+	{
+		return m_ann;
+	}
+
+	void Train(const NNMatrixRM &x, const NNMatrixRM &y)
+	{
+		m_ann.TrainGDM(x, y, 0.0f);
+	}
+
+	void TrainLoop(const NNMatrixRM &x, const NNMatrixRM &y, int64_t epochs)
+	{
+		LearnAnn::TrainANN(x, y, m_ann, epochs);
 	}
 
 	Score EvaluateForWhiteImpl(const Board &b, Score /*lowerBound*/, Score /*upperBound*/) override
@@ -59,17 +84,6 @@ public:
 		entry->val = nnRet;
 
 		return nnRet;
-	}
-
-	EvalNet& GetANN()
-	{
-		InvalidateCache_();
-		return m_ann;
-	}
-
-	const EvalNet& GetANN() const
-	{
-		return m_ann;
 	}
 
 private:

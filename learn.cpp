@@ -19,6 +19,8 @@
 #include "search.h"
 #include "ttable.h"
 #include "killer.h"
+#include "random_device.h"
+#include "ann/ann_evaluator.h"
 
 namespace
 {
@@ -149,8 +151,6 @@ void TDLSelfPlay()
 {
 	std::cout << "Starting TDL training..." << std::endl;
 
-	std::mt19937 mtMaster(42);
-
 	// get feature descriptions
 	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
 
@@ -203,12 +203,7 @@ void TDLSelfPlay()
 
 			ttable.InvalidateAllEntries();
 
-			std::mt19937 thread_mt(mtMaster);
-
-			#pragma omp critical(threadRngSeed)
-			{
-				thread_mt.seed(mtMaster());
-			}
+			auto thread_mt = gRd.MakeMT();
 
 			// we have to make a copy of the evaluator because it's not re-entrant (due to caching)
 			ANNEvaluator thread_evaluator = annEvaluator;
@@ -321,13 +316,13 @@ void TDLSelfPlay()
 
 		if (iter == 0)
 		{
-			EvalNet newAnn = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargetsNN, std::string("x_5M_nodiag.features"), (iter == 0) ? nullptr : &annEvaluator.GetANN(), (iter == 0) ? 30 : 15);
+			annEvaluator.BuildANN(std::string("x_5M_nodiag.features"), featureDescriptions.size());
 
-			annEvaluator.GetANN() = newAnn;
+			annEvaluator.TrainLoop(boardsInFeatureRepresentation, trainingTargetsNN, 30);
 		}
 		else
 		{
-			annEvaluator.GetANN().TrainGDM(boardsInFeatureRepresentation, trainingTargetsNN, 0.0f);
+			annEvaluator.Train(boardsInFeatureRepresentation, trainingTargetsNN);
 		}
 
 		std::ofstream annOut(getFilename(iter));
@@ -356,8 +351,6 @@ void TDL(const std::string &positionsFilename)
 	{
 		throw std::runtime_error(std::string("Cannot open ") + positionsFilename + " for reading");
 	}
-
-	std::mt19937 mt(42);
 
 	// these are the root positions for training (they don't change)
 	std::vector<std::string> rootPositions;
@@ -569,14 +562,17 @@ void TDL(const std::string &positionsFilename)
 			}
 		}
 
+		std::cout << "Updating weights..." << std::endl;
+
 		if (iter == 0)
 		{
-			// this will also create a new net
-			annEvaluator.GetANN() = LearnAnn::TrainANN(boardsInFeatureRepresentation, trainingTargets, std::string("x_5M_nodiag.features"), nullptr, 3);
+			annEvaluator.BuildANN(std::string("x_5M_nodiag.features"), featureDescriptions.size());
+
+			annEvaluator.TrainLoop(boardsInFeatureRepresentation, trainingTargets, 3);
 		}
 		else
 		{
-			annEvaluator.GetANN().TrainGDM(boardsInFeatureRepresentation, trainingTargets, 0.0f);
+			annEvaluator.Train(boardsInFeatureRepresentation, trainingTargets);
 		}
 
 		std::ofstream annOut(getFilename(iter));

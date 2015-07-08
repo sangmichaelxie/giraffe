@@ -3,26 +3,24 @@
 
 #include "Eigen/Core"
 
-#include "ann_evaluator.h"
+#include "ann.h"
 
 namespace LearnAnn
 {
 
-EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims, std::mt19937 &mt);
+EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims);
 
 template <typename Derived1, typename Derived2>
-EvalNet TrainANN(
+void TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
 	const Eigen::MatrixBase<Derived2> &y,
-	const std::string &featuresFilename,
-	EvalNet *start,
+	EvalNet &nn,
 	int64_t epochs);
 
-EvalNet TrainANNFromFile(
+void TrainANNFromFile(
 	const std::string &xFilename,
 	const std::string &yFilename,
-	const std::string &featuresFilename,
-	EvalNet *start,
+	EvalNet &nn,
 	int64_t epochs);
 
 }
