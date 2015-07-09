@@ -10,16 +10,11 @@ namespace LearnAnn
 
 EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims);
 
-template <typename Derived1, typename Derived2>
+template <typename Derived1, typename Derived2, typename Derived3>
 void TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
 	const Eigen::MatrixBase<Derived2> &y,
-	EvalNet &nn,
-	int64_t epochs);
-
-void TrainANNFromFile(
-	const std::string &xFilename,
-	const std::string &yFilename,
+	const Eigen::MatrixBase<Derived3> &sampleWeights,
 	EvalNet &nn,
 	int64_t epochs);
 

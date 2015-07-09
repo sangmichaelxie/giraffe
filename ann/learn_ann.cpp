@@ -140,7 +140,7 @@ void SplitDataset(
 	train = Rows(testSize + valSize, trainSize);
 }
 
-template <typename T, typename Derived1, typename Derived2>
+template <typename T, typename Derived1, typename Derived2, typename Derived3>
 void Train(
 	T &nn,
 	int64_t epochs,
@@ -149,7 +149,8 @@ void Train(
 	Eigen::MatrixBase<Derived1> &xVal,
 	Eigen::MatrixBase<Derived2> &yVal,
 	Eigen::MatrixBase<Derived1> &/*xTest*/,
-	Eigen::MatrixBase<Derived2> &/*yTest*/)
+	Eigen::MatrixBase<Derived2> &/*yTest*/,
+	const Eigen::MatrixBase<Derived3> &sampleWeights)
 {
 	size_t iter = 0;
 
@@ -191,6 +192,7 @@ void Train(
 		trainingErrorAccum += nn.TrainGDM(
 			xTrain.block(begin, 0, batchSize, xTrain.cols()),
 			yTrain.block(begin, 0, batchSize, yTrain.cols()),
+			sampleWeights.block(begin, 0, batchSize, sampleWeights.cols()),
 			0.000001f);
 
 		if ((iter % iterationsPerCheck) == 0)
@@ -327,10 +329,11 @@ EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
 	return EvalNet(inputDims, 1, layerSizes, connMatrices);
 }
 
-template <typename Derived1, typename Derived2>
+template <typename Derived1, typename Derived2, typename Derived3>
 void TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
 	const Eigen::MatrixBase<Derived2> &y,
+	const Eigen::MatrixBase<Derived3> &sampleWeights,
 	EvalNet &nn,
 	int64_t epochs)
 {
@@ -344,30 +347,18 @@ void TrainANN(
 	auto xTest = x.block(testRows.begin, 0, testRows.num, x.cols());
 	auto yTest = y.block(testRows.begin, 0, testRows.num, y.cols());
 
+	auto sampleWeightsTrain = sampleWeights.block(trainRows.begin, 0, trainRows.num, sampleWeights.cols());
+
 	std::cout << "Train: " << xTrain.rows() << std::endl;
 	std::cout << "Val: " << xVal.rows() << std::endl;
 	std::cout << "Test: " << xTest.rows() << std::endl;
 	std::cout << "Features: " << xTrain.cols() << std::endl;
 
 	std::cout << "Beginning training..." << std::endl;
-	Train(nn, epochs, xTrain, yTrain, xVal, yVal, xTest, yTest);
+	Train(nn, epochs, xTrain, yTrain, xVal, yVal, xTest, yTest, sampleWeightsTrain);
 }
 
 // here we have to list all instantiations used (except for in this file)
-template void TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, EvalNet &, int64_t);
+template void TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, const Eigen::MatrixBase<NNMatrixRM>&, EvalNet &, int64_t);
 
-void TrainANNFromFile(
-	const std::string &xFilename,
-	const std::string &yFilename,
-	EvalNet &nn,
-	int64_t epochs)
-{
-	MMappedMatrix xMap(xFilename);
-	MMappedMatrix yMap(yFilename);
-
-	auto x = xMap.GetMap();
-	auto y = yMap.GetMap();
-
-	TrainANN(x, y, nn, epochs);
-}
 }

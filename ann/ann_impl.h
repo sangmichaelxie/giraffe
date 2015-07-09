@@ -280,9 +280,12 @@ void FCANN<ACTF, ACTFLast>::BackwardPropagateComputeGrad(const MatrixBase<Derive
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
-template <typename Derived1, typename Derived2>
-float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg)
+template <typename Derived1, typename Derived2, typename Derived3>
+float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, const MatrixBase<Derived3> &sampleWeights, float reg)
 {
+	assert(sampleWeights.rows() == x.rows());
+	assert(sampleWeights.cols() == 1);
+
 	static std::vector<Gradients> gradLocal;
 	static std::vector<Activations> actLocal;
 	static bool initialized = false;
@@ -322,6 +325,11 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 		errorsMeasureTotal += ErrorFunc(pred, y.block(begin, 0, numRows, y.cols())).sum();
 
 		NNMatrixRM errorsDerivative = ErrorFuncDerivative(pred, y.block(begin, 0, numRows, y.cols()));
+
+		for (int64_t row = 0; row < errorsDerivative.rows(); ++row)
+		{
+			errorsDerivative.row(row) *= sampleWeights(begin + row, 0);
+		}
 
 		BackwardPropagateComputeGrad(errorsDerivative, actLocal[threadId], gradLocal[threadId]);
 

@@ -278,36 +278,7 @@ void TDLSelfPlay()
 		std::cout << "Num training positions: " << trainingPositions.size() << std::endl;
 
 		// now we can convert the boards to neural network representation
-		NNMatrixRM boardsInFeatureRepresentation(static_cast<int64_t>(trainingPositions.size()), static_cast<int64_t>(featureDescriptions.size()));
 		NNMatrixRM trainingTargetsNN(static_cast<int64_t>(trainingPositions.size()), 1);
-
-		std::cout << "Converting boards to features..." << std::endl;
-
-		{
-			ScopedThreadLimiter tlim(8);
-
-			#pragma omp parallel
-			{
-				std::vector<float> features; // each thread reuses a vector to avoid needless allocation/deallocation
-
-				for (size_t i = 0; i < trainingPositions.size(); ++i)
-				{
-					FeaturesConv::ConvertBoardToNN(Board(trainingPositions[i]), features);
-
-					if (features.size() != featureDescriptions.size())
-					{
-						std::stringstream msg;
-
-						msg << "Wrong feature vector size! " << features.size() << " (Expecting: " << featureDescriptions.size() << ")";
-
-						throw std::runtime_error(msg.str());
-					}
-
-					boardsInFeatureRepresentation.row(i) = Eigen::Map<NNMatrixRM>(&features[0], 1, static_cast<int64_t>(features.size()));
-					trainingTargetsNN(i, 0) = trainingTargets[i];
-				}
-			}
-		}
 
 		std::cout << "Generating training set took " << (CurrentTime() - timeStart) << " seconds" << std::endl;
 
@@ -317,11 +288,11 @@ void TDLSelfPlay()
 		{
 			annEvaluator.BuildANN(std::string("x_5M_nodiag.features"), featureDescriptions.size());
 
-			annEvaluator.TrainLoop(boardsInFeatureRepresentation, trainingTargetsNN, 30);
+			annEvaluator.TrainLoop(trainingPositions, trainingTargetsNN, 30, featureDescriptions);
 		}
 		else
 		{
-			annEvaluator.Train(boardsInFeatureRepresentation, trainingTargetsNN);
+			annEvaluator.Train(trainingPositions, trainingTargetsNN, featureDescriptions);
 		}
 
 		std::ofstream annOut(getFilename(iter));
@@ -376,8 +347,6 @@ void TDL(const std::string &positionsFilename)
 	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
 
 	FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
-
-	NNMatrixRM boardsInFeatureRepresentation(static_cast<int64_t>(PositionsPerBatch), static_cast<int64_t>(featureDescriptions.size()));
 
 	int64_t iter = 0;
 
@@ -530,47 +499,17 @@ void TDL(const std::string &positionsFilename)
 			}
 		}
 
-		std::cout << "Converting boards to features..." << std::endl;
-
-		boardsInFeatureRepresentation.resize(static_cast<int64_t>(trainingPositions.size()), featureDescriptions.size());
-
-		{
-			ScopedThreadLimiter tlim(8);
-
-			#pragma omp parallel
-			{
-				std::vector<float> features; // each thread reuses a vector to avoid needless allocation/deallocation
-
-				#pragma omp for
-				for (size_t i = 0; i < trainingPositions.size(); ++i)
-				{
-					FeaturesConv::ConvertBoardToNN(Board(trainingPositions[i]), features);
-
-					if (features.size() != featureDescriptions.size())
-					{
-						std::stringstream msg;
-
-						msg << "Wrong feature vector size! " << features.size() << " (Expecting: " << featureDescriptions.size() << ")";
-
-						throw std::runtime_error(msg.str());
-					}
-
-					boardsInFeatureRepresentation.row(i) = Eigen::Map<NNMatrixRM>(&features[0], 1, static_cast<int64_t>(features.size()));
-				}
-			}
-		}
-
 		std::cout << "Updating weights..." << std::endl;
 
 		if (iter == 0)
 		{
 			annEvaluator.BuildANN(std::string("x_5M_nodiag.features"), featureDescriptions.size());
 
-			annEvaluator.TrainLoop(boardsInFeatureRepresentation, trainingTargets, 3);
+			annEvaluator.TrainLoop(trainingPositions, trainingTargets, 3, featureDescriptions);
 		}
 		else
 		{
-			annEvaluator.Train(boardsInFeatureRepresentation, trainingTargets);
+			annEvaluator.Train(trainingPositions, trainingTargets, featureDescriptions);
 		}
 
 		std::ofstream annOut(getFilename(iter));
