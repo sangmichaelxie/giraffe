@@ -420,7 +420,7 @@ void TDL(const std::string &positionsFilename)
 				// each thread makes a copy of the evaluator to reduce sharing
 				ANNEvaluator thread_annEvaluator = annEvaluator;
 
-				#pragma omp for schedule(dynamic, 256) // 256 positions takes about 10 seconds on one thread
+				#pragma omp for schedule(dynamic, 8)
 				for (size_t i = 0; i < PositionsPerBatch; ++i)
 				{
 					thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
