@@ -125,6 +125,7 @@ FCANN<ACTF, ACTFLast>::FCANN(
 	m_params.evalSingleTmp.resize(hiddenLayers.size() + 2);
 
 	UpdateWeightMasksRegions_();
+	UpdateWeightSemiSparse_();
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
@@ -204,12 +205,10 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ForwardPropagateFast(const MatrixBase<Derived>
 		if (layer == 0)
 		{
 			m_params.evalTmp[layer].noalias() = in * m_params.weights[layer];
-			//MultiplyWithRegions(in, m_params.weights[layer], m_params.evalTmp[layer], m_params.weightMasksRegions[layer]);
 		}
 		else
 		{
 			m_params.evalTmp[layer].noalias() = m_params.evalTmp[layer - 1] * m_params.weights[layer];
-			//MultiplyWithRegions(m_params.evalTmp[layer - 1], m_params.weights[layer], m_params.evalTmp[layer], m_params.weightMasksRegions[layer]);
 		}
 
 		m_params.evalTmp[layer].rowwise() += m_params.outputBias[layer];
@@ -224,15 +223,22 @@ template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
 float FCANN<ACTF, ACTFLast>::ForwardPropagateSingle(const MatrixBase<Derived> &vec)
 {
+	if (!m_params.weightsSemiSparseCurrent)
+	{
+		UpdateWeightSemiSparse_();
+	}
+
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
 		if (layer == 0)
 		{
 			m_params.evalSingleTmp[layer].noalias() = vec * m_params.weights[layer];
+			//MultiplyWithSemiSparse(vec, m_params.weightsSemiSparse[layer], m_params.evalSingleTmp[layer]);
 		}
 		else
 		{
 			m_params.evalSingleTmp[layer].noalias() = m_params.evalSingleTmp[layer - 1] * m_params.weights[layer];
+			//MultiplyWithSemiSparse(m_params.evalSingleTmp[layer - 1], m_params.weightsSemiSparse[layer], m_params.evalSingleTmp[layer]);
 		}
 
 		m_params.evalSingleTmp[layer] += m_params.outputBias[layer];
@@ -460,6 +466,8 @@ void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float reg)
 
 		} // parallel
 	}
+
+	m_params.weightsSemiSparseCurrent = false;
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
@@ -675,6 +683,23 @@ void FCANN<ACTF, ACTFLast>::UpdateWeightMasksRegions_()
 			totalSize += region.rows * region.cols;
 		}
 	}
+
+	m_params.weightsSemiSparseCurrent = false;
+}
+
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+void FCANN<ACTF, ACTFLast>::UpdateWeightSemiSparse_()
+{
+	m_params.weightsSemiSparse.resize(m_params.weightMasks.size());
+
+	for (size_t layer = 0; layer < m_params.weightMasks.size(); ++layer)
+	{
+		WeightType toConvert = m_params.weights[layer];
+
+		m_params.weightsSemiSparse[layer] = ToSemiSparse(toConvert, m_params.weightMasksRegions[layer]);
+	}
+
+	m_params.weightsSemiSparseCurrent = true;
 }
 
 /* serialization format:

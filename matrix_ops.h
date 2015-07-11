@@ -142,6 +142,22 @@ struct MatrixRegion
 };
 
 template <typename T>
+struct SemiSparseMatrix
+{
+	int64_t rows;
+	int64_t cols;
+
+	struct SubMatrix
+	{
+		int64_t i;
+		int64_t j;
+		T m;
+	};
+
+	std::vector<SubMatrix> subMatrices;
+};
+
+template <typename T>
 std::vector<MatrixRegion> MatrixToRegions(T toConvert) // matrix passed by value since we need a copy to modify anyways
 {
 	std::vector<MatrixRegion> ret;
@@ -201,16 +217,42 @@ std::vector<MatrixRegion> MatrixToRegions(T toConvert) // matrix passed by value
 	return ret;
 }
 
+template <typename T>
+SemiSparseMatrix<T> ToSemiSparse(const T &m, const std::vector<MatrixRegion> &rois)
+{
+	SemiSparseMatrix<T> ret;
+
+	ret.rows = m.rows();
+	ret.cols = m.cols();
+
+	for (const auto &roi : rois)
+	{
+		typename
+		SemiSparseMatrix<T>::SubMatrix subm;
+
+		subm.i = roi.i;
+		subm.j = roi.j;
+		subm.m = m.block(roi.i, roi.j, roi.rows, roi.cols);
+
+		ret.subMatrices.push_back(subm);
+	}
+
+	std::cout << ret.subMatrices.size() << " regions" << std::endl;
+
+	return ret;
+}
+
 template <typename EigenA, typename EigenB, typename EigenC>
-void MultiplyWithRegions(const EigenA &a, const EigenB &b, EigenC &c, const std::vector<MatrixRegion> &regions)
+void MultiplyWithSemiSparse(const EigenA &a, const SemiSparseMatrix<EigenB>
+							&b, EigenC &c)
 {
 	// c = a * b
-	c = EigenC::Zero(a.rows(), b.cols());
+	c = EigenC::Zero(a.rows(), b.cols);
 
-	for (const auto &region : regions)
+	for (const auto &subMatrix : b.subMatrices)
 	{
-		c.block(0, region.j, c.rows(), region.cols) +=
-			a.block(0, region.i, a.rows(), region.rows) * b.block(region.i, region.j, region.rows, region.cols);
+		c.block(0, subMatrix.j, c.rows(), subMatrix.m.cols()) +=
+			a.block(0, subMatrix.i, a.rows(), subMatrix.m.rows()) * subMatrix.m;
 	}
 }
 

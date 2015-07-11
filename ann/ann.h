@@ -104,7 +104,7 @@ public:
 
 	// these are used to save and restore nets
 	std::vector<BiasType> &Biases() { return m_params.outputBias; }
-	std::vector<WeightType> &Weights() { return m_params.weights; }
+	std::vector<WeightType> &Weights() { m_params.weightsSemiSparseCurrent = false; return m_params.weights; }
 	std::vector<WeightMaskType> &WeightMasks() { return m_params.weightMasks; }
 
 	void NotifyWeightMasksChanged() { UpdateWeightMasksRegions_(); }
@@ -146,6 +146,8 @@ private:
 
 	void UpdateWeightMasksRegions_();
 
+	void UpdateWeightSemiSparse_();
+
 	// this is used to ensure network stability
 	constexpr static FP MAX_WEIGHT = 1000.0f;
 
@@ -157,8 +159,12 @@ private:
 		std::vector<WeightType> weights;
 		std::vector<WeightMaskType> weightMasks;
 
-		// optimized from of weight masks (in lists of regions)
+		// optimized form of weight masks (in lists of regions)
 		std::vector<std::vector<MatrixRegion> > weightMasksRegions;
+
+		// optimized form of weight matrices (semi-sparse)
+		bool weightsSemiSparseCurrent;
+		std::vector<SemiSparseMatrix<WeightType>> weightsSemiSparse;
 
 		// these are temporary variables in case we want to do multiplications on GPU
 		std::vector<VCLMatrix> weightsGpuTmp;
