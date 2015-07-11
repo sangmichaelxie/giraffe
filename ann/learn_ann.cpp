@@ -253,6 +253,47 @@ NNMatrix EvaluateNet(T &nn, NNMatrixRM &x)
 	return ret;
 }
 
+struct LayerDescription
+{
+	size_t layerSize;
+	std::vector<Eigen::Triplet<float> > connections;
+	std::vector<std::vector<int32_t>> groups;
+};
+
+LayerDescription BuildLocalLayer(const std::vector<std::vector<int32_t>> &groupsIn, float nodeRatio)
+{
+	LayerDescription ret;
+
+	ret.groups.resize(groupsIn.size());
+
+	size_t groupOut = 0;
+	size_t node = 0;
+
+	for (auto group : groupsIn)
+	{
+		size_t nodesInGroup = group.size();
+		size_t nodesForThisGroup = nodesInGroup * nodeRatio;
+
+		for (size_t i = 0; i < nodesForThisGroup; ++i)
+		{
+			for (auto feature : group)
+			{
+				ret.connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
+			}
+
+			ret.groups[groupOut].push_back(node);
+
+			++node;
+		}
+
+		++groupOut;
+	}
+
+	ret.layerSize = node;
+
+	return ret;
+}
+
 } // namespace
 
 namespace LearnAnn
@@ -262,8 +303,6 @@ EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
 {
 	std::vector<size_t> layerSizes;
 	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
-
-	auto mt = gRd.MakeMT();
 
 	std::vector<std::vector<int32_t> > featureGroups;
 
@@ -288,32 +327,15 @@ EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
 		++feature;
 	}
 
-	std::vector<Eigen::Triplet<float> > connections;
+	LayerDescription layer0 = BuildLocalLayer(featureGroups, 2.0f);
 
-	// build first layer
-	const size_t FirstHiddenLayerNodes = 768;
-	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
-	connections.clear();
+	layerSizes.push_back(layer0.layerSize);
+	connMatrices.push_back(layer0.connections);
 
-	std::uniform_int_distribution<> groupDist(0, featureGroups.size() - 1);
+	LayerDescription layer1 = BuildLocalLayer(layer0.groups, 1.0f);
 
-	for (size_t node = 0; node < FirstHiddenLayerNodes; ++node)
-	{
-		for (size_t i = 0; i < FirstHiddenLayerNumGroupsPerNode; ++i)
-		{
-			// we can have duplicates, in which case we'll actually have less than 4 groups, and that's ok
-			size_t group = groupDist(mt);
-
-			// connect the node to all nodes in the group
-			for (const auto &feature : featureGroups[group])
-			{
-				connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
-			}
-		}
-	}
-
-	layerSizes.push_back(FirstHiddenLayerNodes);
-	connMatrices.push_back(connections);
+	layerSizes.push_back(layer1.layerSize);
+	connMatrices.push_back(layer1.connections);
 
 	layerSizes.push_back(256);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
@@ -360,7 +382,7 @@ MixingNet BuildMixingNet(const std::string &featureFilename, int64_t inputDims, 
 	std::vector<Eigen::Triplet<float> > connections;
 
 	// build first layer
-	const size_t FirstHiddenLayerNodes = 128;
+	const size_t FirstHiddenLayerNodes = 1;
 	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
 	connections.clear();
 
