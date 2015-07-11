@@ -24,11 +24,11 @@ public:
 
 	const static size_t EvalHashSize = 1*MB / sizeof(EvalHashEntry);
 
-	const static size_t NumNets = 2;
+	const static size_t NumNets = 1;
 
-	ANNEvaluator() : m_anns(NumNets), m_evalHash(EvalHashSize) {}
+	ANNEvaluator() : m_anns(NumNets), m_evalHash(EvalHashSize) { InvalidateCache(); }
 
-	ANNEvaluator(const std::vector<EvalNet> &anns) : m_anns(anns), m_evalHash(EvalHashSize)	{}
+	ANNEvaluator(const std::vector<EvalNet> &anns) : m_anns(anns), m_evalHash(EvalHashSize)	{ InvalidateCache(); }
 
 	ANNEvaluator(const std::string &filename) : m_evalHash(EvalHashSize)
 	{
@@ -45,10 +45,14 @@ public:
 		{
 			net = LearnAnn::BuildEvalNet(featureFilename, inputDims);
 		}
+
+		m_mixingNet = LearnAnn::BuildMixingNet(featureFilename, inputDims, m_anns.size());
 	}
 
 	void Serialize(std::ostream &os)
 	{
+		SerializeNet(m_mixingNet, os);
+
 		os << m_anns.size() << std::endl;
 
 		for (auto &net : m_anns)
@@ -59,6 +63,8 @@ public:
 
 	void Deserialize(std::istream &is)
 	{
+		DeserializeNet(m_mixingNet, is);
+
 		size_t n;
 
 		is >> n;
@@ -69,30 +75,73 @@ public:
 		{
 			DeserializeNet(net, is);
 		}
+
+		InvalidateCache();
 	}
 
 	void Train(const std::vector<std::string> &positions, const NNMatrixRM &y, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions)
 	{
 		auto x = BoardsToFeatureRepresentation_(positions, featureDescriptions);
 
-		auto weights = BoardsToSampleWeights_(positions);
+		MixingNet::Activations mixingAct;
+
+		m_mixingNet.InitializeActivations(mixingAct);
+
+		auto sampleWeights = m_mixingNet.ForwardPropagate(x, mixingAct);
+
+		std::vector<NNMatrixRM> predictions(m_anns.size());
+		std::vector<EvalNet::Activations> acts(m_anns.size());
 
 		for (size_t i = 0; i < m_anns.size(); ++i)
 		{
-			m_anns[i].TrainGDM(x, y, weights.col(i), 0.0f);
+			m_anns[i].InitializeActivations(acts[i]);
+
+			predictions[i] = m_anns[i].ForwardPropagate(x, acts[i]);
 		}
+
+		NNMatrixRM predictionsCombined = NNMatrixRM::Zero(predictions[0].rows(), predictions[0].cols());
+
+		for (size_t i = 0; i < m_anns.size(); ++i)
+		{
+			predictionsCombined += (predictions[i].array() * sampleWeights.col(i).array()).matrix();
+		}
+
+		for (size_t i = 0; i < m_anns.size(); ++i)
+		{
+			NNMatrixRM errorsDerivative = ComputeExpertErrorDerivatives_(predictionsCombined, y, sampleWeights, i, acts[i].actIn[acts[i].actIn.size() - 1]);
+
+			EvalNet::Gradients grad;
+
+			m_anns[i].InitializeGradients(grad);
+
+			m_anns[i].BackwardPropagateComputeGrad(errorsDerivative, acts[i], grad);
+
+			m_anns[i].ApplyWeightUpdates(grad, 0.0f);
+		}
+
+		// now train the mixing net
+		NNMatrixRM mixingNetErrorDerivative = ComputeMixingNetErrorDerivatives_(predictionsCombined, predictions, y, sampleWeights);
+
+		MixingNet::Gradients mixingGrad;
+		m_mixingNet.InitializeGradients(mixingGrad);
+
+		m_mixingNet.BackwardPropagateComputeGrad(mixingNetErrorDerivative, mixingAct, mixingGrad);
+
+		m_mixingNet.ApplyWeightUpdates(mixingGrad, 0.0f);
+
+		InvalidateCache();
 	}
 
 	void TrainLoop(const std::vector<std::string> &positions, const NNMatrixRM &y, int64_t epochs, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions)
 	{
 		auto x = BoardsToFeatureRepresentation_(positions, featureDescriptions);
 
-		auto weights = BoardsToSampleWeights_(positions);
-
 		for (size_t i = 0; i < m_anns.size(); ++i)
 		{
-			LearnAnn::TrainANN(x, y, weights.col(i), m_anns[i], epochs);
+			LearnAnn::TrainANN(x, y, m_anns[i], epochs);
 		}
+
+		InvalidateCache();
 	}
 
 	Score EvaluateForWhiteImpl(const Board &b, Score /*lowerBound*/, Score /*upperBound*/) override
@@ -109,12 +158,20 @@ public:
 
 		Eigen::Map<NNVector> mappedVec(&m_convTmp[0], 1, m_convTmp.size());
 
-		float phase = GetPhase_(b);
+		auto sampleWeights = ComputeSampleWeights_(mappedVec);
 
-		float nn0 = m_anns[0].ForwardPropagateSingle(mappedVec);
-		float nn1 = m_anns[1].ForwardPropagateSingle(mappedVec);
+		float sum = 0.0f;
 
-		Score nnRet = (nn0 * phase + nn1 * (1.0f - phase)) * EvalFullScale;
+		assert(sampleWeights.cols() == static_cast<int64_t>(m_anns.size()));
+		assert(sampleWeights.rows() == 1);
+		assert(sampleWeights.sum() > 0.9999f && sampleWeights.sum() < 1.0001f);
+
+		for (int64_t i = 0; i < static_cast<int64_t>(m_anns.size()); ++i)
+		{
+			sum += m_anns[i].ForwardPropagateSingle(mappedVec) * sampleWeights(0, i);
+		}
+
+		Score nnRet = sum * EvalFullScale;
 
 		entry->hash = hash;
 		entry->val = nnRet;
@@ -122,8 +179,34 @@ public:
 		return nnRet;
 	}
 
-private:
-	void InvalidateCache_()
+	void PrintDiag(const std::string &position)
+	{
+		std::cout << position << std::endl;
+
+		FeaturesConv::ConvertBoardToNN(Board(position), m_convTmp);
+
+		Eigen::Map<NNVector> mappedVec(&m_convTmp[0], 1, m_convTmp.size());
+
+		auto weights = ComputeSampleWeights_(mappedVec);
+
+		std::cout << "Weights: ";
+
+		for (size_t i = 0; i < m_anns.size(); ++i)
+		{
+			std::cout << '\t' << weights(0, i) << ' ';
+		}
+		std::cout << std::endl;
+
+		std::cout << "Vals: \t";
+
+		for (size_t i = 0; i < m_anns.size(); ++i)
+		{
+			std::cout << '\t' << m_anns[i].ForwardPropagateSingle(mappedVec) << ' ';
+		}
+		std::cout << std::endl;
+	}
+
+	void InvalidateCache()
 	{
 		for (auto &entry : m_evalHash)
 		{
@@ -131,30 +214,7 @@ private:
 		}
 	}
 
-	float GetPhase_(const Board &b)
-	{
-		uint32_t WQCount = PopCount(b.GetPieceTypeBitboard(WQ));
-		uint32_t WRCount = PopCount(b.GetPieceTypeBitboard(WR));
-		uint32_t WBCount = PopCount(b.GetPieceTypeBitboard(WB));
-		uint32_t WNCount = PopCount(b.GetPieceTypeBitboard(WN));
-
-		uint32_t BQCount = PopCount(b.GetPieceTypeBitboard(BQ));
-		uint32_t BRCount = PopCount(b.GetPieceTypeBitboard(BR));
-		uint32_t BBCount = PopCount(b.GetPieceTypeBitboard(BB));
-		uint32_t BNCount = PopCount(b.GetPieceTypeBitboard(BN));
-
-		float sum =
-			(WQCount + BQCount) * 4.0f +
-			(WRCount + BRCount) * 2.0f +
-			(WBCount + BBCount + WNCount + BNCount) * 1.0f;
-
-		const float maxPhase =
-			(2) * 4.0f +
-			(4) * 2.0f +
-			(8) * 1.0f;
-
-		return std::min(sum / maxPhase, 1.0f);
-	}
+private:
 
 	NNMatrixRM BoardsToFeatureRepresentation_(const std::vector<std::string> &positions, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions)
 	{
@@ -189,21 +249,80 @@ private:
 		return ret;
 	}
 
-	NNMatrixRM BoardsToSampleWeights_(const std::vector<std::string> &positions)
+	template <typename Derived>
+	NNMatrixRM ComputeSampleWeights_(const Eigen::MatrixBase<Derived> &x)
 	{
-		NNMatrixRM ret(static_cast<int64_t>(positions.size()), static_cast<int64_t>(m_anns.size()));
+		return m_mixingNet.ForwardPropagateFast(x);
+	}
 
-		for (size_t i = 0; i < positions.size(); ++i)
+	NNMatrixRM ComputeExpertErrorDerivatives_(
+		const NNMatrixRM &combinedPredictions,
+		const NNMatrixRM &targets,
+		const NNMatrixRM &sampleWeights,
+		int64_t expertNum,
+		const NNMatrixRM &finalLayerActivations)
+	{
+		// (y_combined - combinedPredictions) * (-gi(x)) * dtanh(act)/dz
+		int64_t numExamples = combinedPredictions.rows();
+
+		NNMatrixRM ret(numExamples, 1);
+
+		// this takes care of everything except the dtanh(act)/dz term, which we can't really vectorize
+		ret = ((targets - combinedPredictions).array() * (-sampleWeights.col(expertNum)).array()).matrix();
+
+		// derivative of tanh is 1-tanh^2(x)
+		for (int64_t i = 0; i < numExamples; ++i)
 		{
-			float phase = GetPhase_(Board(positions[i]));
-			ret(i, 0) = phase;
-			ret(i, 1) = 1.0f - phase;
+			float tanhx = tanh(finalLayerActivations(i, 0));
+			ret(i, 0) *= 1.0f - tanhx * tanhx;
+		}
+
+		return ret;
+	}
+
+	NNMatrixRM ComputeMixingNetErrorDerivatives_(
+		const NNMatrixRM &combinedPredictions,
+		const std::vector<NNMatrixRM> &indPredictions,
+		const NNMatrixRM &targets,
+		const NNMatrixRM &sampleWeights)
+	{
+		// (y_combined - combinedPredictions) * (-1) * (yi * gi * (1 - gi) + sum_over_all_models_k!=i{ -yk * gk * gi })
+		int64_t numExamples = combinedPredictions.rows();
+		int64_t numExperts = m_anns.size();
+
+		NNMatrixRM ret(numExamples, numExperts);
+
+		for (int64_t example = 0; example < numExamples; ++example)
+		{
+			for (int64_t expert = 0; expert < numExperts; ++expert)
+			{
+				float yi = indPredictions[expert](example, 0);
+				float gi = sampleWeights(example, expert);
+				float term1 = yi * gi * (1.0f - gi);
+
+				float term2 = 0.0f;
+
+				for (int64_t k = 0; k < numExperts; ++k)
+				{
+					if (k != expert)
+					{
+						float yk = indPredictions[k](example, 0);
+						float gk = sampleWeights(example, k);
+						term2 += -yk * gk * gi;
+					}
+				}
+
+				ret(example, expert) = (targets(example, 0) - combinedPredictions(example, 0)) * (-1.0f);
+				ret(example, expert) *= term1 + term2;
+			}
 		}
 
 		return ret;
 	}
 
 	std::vector<EvalNet> m_anns;
+
+	MixingNet m_mixingNet;
 
 	std::vector<float> m_convTmp;
 

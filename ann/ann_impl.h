@@ -280,12 +280,9 @@ void FCANN<ACTF, ACTFLast>::BackwardPropagateComputeGrad(const MatrixBase<Derive
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
-template <typename Derived1, typename Derived2, typename Derived3>
-float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, const MatrixBase<Derived3> &sampleWeights, float reg)
+template <typename Derived1, typename Derived2>
+float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg)
 {
-	assert(sampleWeights.rows() == x.rows());
-	assert(sampleWeights.cols() == 1);
-
 	static std::vector<Gradients> gradLocal;
 	static std::vector<Activations> actLocal;
 	static bool initialized = false;
@@ -324,12 +321,7 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 
 		errorsMeasureTotal += ErrorFunc(pred, y.block(begin, 0, numRows, y.cols())).sum();
 
-		NNMatrixRM errorsDerivative = ErrorFuncDerivative(pred, y.block(begin, 0, numRows, y.cols()));
-
-		for (int64_t row = 0; row < errorsDerivative.rows(); ++row)
-		{
-			errorsDerivative.row(row) *= sampleWeights(begin + row, 0);
-		}
+		NNMatrixRM errorsDerivative = ErrorFuncDerivative(pred, y.block(begin, 0, numRows, y.cols()), actLocal[threadId].actIn[actLocal[threadId].actIn.size() - 1]);
 
 		BackwardPropagateComputeGrad(errorsDerivative, actLocal[threadId], gradLocal[threadId]);
 
@@ -533,10 +525,11 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFunc(
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
-template <typename Derived1, typename Derived2>
+template <typename Derived1, typename Derived2, typename Derived3>
 NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFuncDerivative(
 	const MatrixBase<Derived1> &pred,
-	const MatrixBase<Derived2> &targets) const
+	const MatrixBase<Derived2> &targets,
+	const MatrixBase<Derived3> &finalLayerActivations) const
 {
 	NNMatrixRM ret;
 
@@ -561,12 +554,12 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFuncDerivative(
 
 		// now we have to multiply every element by the derivative at that point
 		// derivative of tanh is 1-tanh^2(x)
-		// coincidentally, we have tanh(x) already! (pred)
 		for (int64_t i = 0; i < ret.rows(); ++i)
 		{
 			for (int64_t j = 0; j < ret.cols(); ++j)
 			{
-				ret(i, j) *= 1 - (pred(i, j) * pred(i, j));
+				float tanhx = tanh(finalLayerActivations(i, j));
+				ret(i, j) *= 1 - (tanhx * tanhx);
 			}
 		}
 	}

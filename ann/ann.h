@@ -91,8 +91,8 @@ public:
 	void BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad);
 
 	// this is a convenience function that simply runs 1 iteration of GDM
-	template <typename Derived1, typename Derived2, typename Derived3>
-	float TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, const MatrixBase<Derived3> &sampleWeights, float reg);
+	template <typename Derived1, typename Derived2>
+	float TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg);
 
 	void ApplyWeightUpdates(const Gradients &grad, float reg);
 
@@ -112,8 +112,8 @@ public:
 	template <typename Derived1, typename Derived2>
 	NNMatrixRM ErrorFunc(const MatrixBase<Derived1> &pred, const MatrixBase<Derived2> &targets) const;
 
-	template <typename Derived1, typename Derived2>
-	NNMatrixRM ErrorFuncDerivative(const MatrixBase<Derived1> &pred, const MatrixBase<Derived2> &targets) const;
+	template <typename Derived1, typename Derived2, typename Derived3>
+	NNMatrixRM ErrorFuncDerivative(const MatrixBase<Derived1> &pred, const MatrixBase<Derived2> &targets, const MatrixBase<Derived3> &finalLayerActivations) const;
 
 private:
 	template <typename Derived>

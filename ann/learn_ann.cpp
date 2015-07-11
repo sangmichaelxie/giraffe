@@ -140,7 +140,7 @@ void SplitDataset(
 	train = Rows(testSize + valSize, trainSize);
 }
 
-template <typename T, typename Derived1, typename Derived2, typename Derived3>
+template <typename T, typename Derived1, typename Derived2>
 void Train(
 	T &nn,
 	int64_t epochs,
@@ -149,8 +149,7 @@ void Train(
 	Eigen::MatrixBase<Derived1> &xVal,
 	Eigen::MatrixBase<Derived2> &yVal,
 	Eigen::MatrixBase<Derived1> &/*xTest*/,
-	Eigen::MatrixBase<Derived2> &/*yTest*/,
-	const Eigen::MatrixBase<Derived3> &sampleWeights)
+	Eigen::MatrixBase<Derived2> &/*yTest*/)
 {
 	size_t iter = 0;
 
@@ -192,7 +191,6 @@ void Train(
 		trainingErrorAccum += nn.TrainGDM(
 			xTrain.block(begin, 0, batchSize, xTrain.cols()),
 			yTrain.block(begin, 0, batchSize, yTrain.cols()),
-			sampleWeights.block(begin, 0, batchSize, sampleWeights.cols()),
 			0.000001f);
 
 		if ((iter % iterationsPerCheck) == 0)
@@ -293,7 +291,7 @@ EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
 	std::vector<Eigen::Triplet<float> > connections;
 
 	// build first layer
-	const size_t FirstHiddenLayerNodes = 512;
+	const size_t FirstHiddenLayerNodes = 768;
 	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
 	connections.clear();
 
@@ -329,11 +327,76 @@ EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
 	return EvalNet(inputDims, 1, layerSizes, connMatrices);
 }
 
-template <typename Derived1, typename Derived2, typename Derived3>
+MixingNet BuildMixingNet(const std::string &featureFilename, int64_t inputDims, int64_t outputDims)
+{
+	std::vector<size_t> layerSizes;
+	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
+
+	auto mt = gRd.MakeMT();
+
+	std::vector<std::vector<int32_t> > featureGroups;
+
+	std::ifstream featureFile(featureFilename);
+
+	char type;
+
+	int32_t feature = 0;
+
+	while (featureFile >> type)
+	{
+		int32_t group;
+		featureFile >> group;
+
+		if (static_cast<size_t>(group) >= featureGroups.size())
+		{
+			featureGroups.resize(group + 1);
+		}
+
+		featureGroups[group].push_back(feature);
+
+		++feature;
+	}
+
+	std::vector<Eigen::Triplet<float> > connections;
+
+	// build first layer
+	const size_t FirstHiddenLayerNodes = 128;
+	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
+	connections.clear();
+
+	std::uniform_int_distribution<> groupDist(0, featureGroups.size() - 1);
+
+	for (size_t node = 0; node < FirstHiddenLayerNodes; ++node)
+	{
+		for (size_t i = 0; i < FirstHiddenLayerNumGroupsPerNode; ++i)
+		{
+			// we can have duplicates, in which case we'll actually have less than 4 groups, and that's ok
+			size_t group = groupDist(mt);
+
+			// connect the node to all nodes in the group
+			for (const auto &feature : featureGroups[group])
+			{
+				connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
+			}
+		}
+	}
+
+	layerSizes.push_back(FirstHiddenLayerNodes);
+	connMatrices.push_back(connections);
+
+	layerSizes.push_back(64);
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	// fully connected output layer
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	return MixingNet(inputDims, outputDims, layerSizes, connMatrices);
+}
+
+template <typename Derived1, typename Derived2>
 void TrainANN(
 	const Eigen::MatrixBase<Derived1> &x,
 	const Eigen::MatrixBase<Derived2> &y,
-	const Eigen::MatrixBase<Derived3> &sampleWeights,
 	EvalNet &nn,
 	int64_t epochs)
 {
@@ -347,18 +410,16 @@ void TrainANN(
 	auto xTest = x.block(testRows.begin, 0, testRows.num, x.cols());
 	auto yTest = y.block(testRows.begin, 0, testRows.num, y.cols());
 
-	auto sampleWeightsTrain = sampleWeights.block(trainRows.begin, 0, trainRows.num, sampleWeights.cols());
-
 	std::cout << "Train: " << xTrain.rows() << std::endl;
 	std::cout << "Val: " << xVal.rows() << std::endl;
 	std::cout << "Test: " << xTest.rows() << std::endl;
 	std::cout << "Features: " << xTrain.cols() << std::endl;
 
 	std::cout << "Beginning training..." << std::endl;
-	Train(nn, epochs, xTrain, yTrain, xVal, yVal, xTest, yTest, sampleWeightsTrain);
+	Train(nn, epochs, xTrain, yTrain, xVal, yVal, xTest, yTest);
 }
 
 // here we have to list all instantiations used (except for in this file)
-template void TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, const Eigen::MatrixBase<NNMatrixRM>&, EvalNet &, int64_t);
+template void TrainANN<NNMatrixRM, NNVector>(const Eigen::MatrixBase<NNMatrixRM>&, const Eigen::MatrixBase<NNVector>&, EvalNet &, int64_t);
 
 }
