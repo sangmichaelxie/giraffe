@@ -252,7 +252,14 @@ private:
 	template <typename Derived>
 	NNMatrixRM ComputeSampleWeights_(const Eigen::MatrixBase<Derived> &x)
 	{
-		return m_mixingNet.ForwardPropagateFast(x);
+		if (m_anns.size() == 1)
+		{
+			return NNMatrixRM::Ones(x.rows(), 1);
+		}
+		else
+		{
+			return m_mixingNet.ForwardPropagateFast(x);
+		}
 	}
 
 	NNMatrixRM ComputeExpertErrorDerivatives_(
