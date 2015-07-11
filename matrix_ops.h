@@ -237,8 +237,6 @@ SemiSparseMatrix<T> ToSemiSparse(const T &m, const std::vector<MatrixRegion> &ro
 		ret.subMatrices.push_back(subm);
 	}
 
-	std::cout << ret.subMatrices.size() << " regions" << std::endl;
-
 	return ret;
 }
 
