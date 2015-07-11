@@ -674,8 +674,6 @@ void FCANN<ACTF, ACTFLast>::UpdateWeightMasksRegions_()
 		{
 			totalSize += region.rows * region.cols;
 		}
-
-		std::cout << "Regions: " << m_params.weightMasksRegions[layer].size() << " Fill Ratio: " << (static_cast<float>(totalSize) / (toConvert.rows() * toConvert.cols())) << std::endl;
 	}
 }
 
