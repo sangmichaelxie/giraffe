@@ -107,6 +107,8 @@ public:
 	std::vector<WeightType> &Weights() { return m_params.weights; }
 	std::vector<WeightMaskType> &WeightMasks() { return m_params.weightMasks; }
 
+	void NotifyWeightMasksChanged() { UpdateWeightMasksRegions_(); }
+
 	int64_t OutputCols() const { return m_params.weights[m_params.weights.size() - 1].cols(); }
 
 	template <typename Derived1, typename Derived2>
@@ -142,6 +144,8 @@ private:
 		}
 	}
 
+	void UpdateWeightMasksRegions_();
+
 	// this is used to ensure network stability
 	constexpr static FP MAX_WEIGHT = 1000.0f;
 
@@ -152,6 +156,9 @@ private:
 		std::vector<BiasType> outputBias;
 		std::vector<WeightType> weights;
 		std::vector<WeightMaskType> weightMasks;
+
+		// optimized from of weight masks (in lists of regions)
+		std::vector<std::vector<MatrixRegion> > weightMasksRegions;
 
 		// these are temporary variables in case we want to do multiplications on GPU
 		std::vector<VCLMatrix> weightsGpuTmp;

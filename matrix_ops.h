@@ -1,6 +1,8 @@
 #ifndef MATRIX_OPS_H
 #define MATRIX_OPS_H
 
+#include <vector>
+
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 
@@ -128,6 +130,87 @@ inline void MultiplyGPU(EigenTypeA &a, const EigenTypeB &b, VCLTypeA &aGpuTmp, V
 
 		resultTmp = viennacl::linalg::prod(aGpuTmp, bGpuTmp);
 		CopyFromGPU(resultTmp, a);
+	}
+}
+
+struct MatrixRegion
+{
+	int64_t i;
+	int64_t j;
+	int64_t rows;
+	int64_t cols;
+};
+
+template <typename T>
+std::vector<MatrixRegion> MatrixToRegions(T toConvert) // matrix passed by value since we need a copy to modify anyways
+{
+	std::vector<MatrixRegion> ret;
+
+	while (true)
+	{
+		MatrixRegion newRegion;
+		bool nonZeroFound = false;
+
+		// find the first nonzero
+		for (int64_t i = 0; i < toConvert.rows(); ++i)
+		{
+			for (int64_t j = 0; j < toConvert.cols(); ++j)
+			{
+				// we are looking for exact zeros, so we don't need to check with threshold
+				if (toConvert(i, j) != 0.0f)
+				{
+					newRegion.i = i;
+					newRegion.j = j;
+					nonZeroFound = true;
+					break;
+				}
+			}
+
+			if (nonZeroFound)
+			{
+				break;
+			}
+		}
+
+		if (!nonZeroFound)
+		{
+			// the matrix is all zero, so we are done!
+			break;
+		}
+
+		newRegion.rows = 0;
+		newRegion.cols = 0;
+
+		// try to grow in rows (only need to check 1 element at a time, since we are growing from a single element)
+		while ((newRegion.i + newRegion.rows) < toConvert.rows() && toConvert(newRegion.i + newRegion.rows, newRegion.j) != 0.0f)
+		{
+			++newRegion.rows;
+		}
+
+		// try to grow in cols (need to check 1 vector at a time)
+		while ((newRegion.j + newRegion.cols) < toConvert.cols() && toConvert.block(newRegion.i, newRegion.j + newRegion.cols, newRegion.rows, 1).all())
+		{
+			++newRegion.cols;
+		}
+
+		ret.push_back(newRegion);
+		assert(toConvert.block(newRegion.i, newRegion.j, newRegion.rows, newRegion.cols).all());
+		toConvert.block(newRegion.i, newRegion.j, newRegion.rows, newRegion.cols).setZero();
+	}
+
+	return ret;
+}
+
+template <typename EigenA, typename EigenB, typename EigenC>
+void MultiplyWithRegions(const EigenA &a, const EigenB &b, EigenC &c, const std::vector<MatrixRegion> &regions)
+{
+	// c = a * b
+	c = EigenC::Zero(a.rows(), b.cols());
+
+	for (const auto &region : regions)
+	{
+		c.block(0, region.j, c.rows(), region.cols) +=
+			a.block(0, region.i, a.rows(), region.rows) * b.block(region.i, region.j, region.rows, region.cols);
 	}
 }
 

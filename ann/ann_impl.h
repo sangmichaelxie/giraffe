@@ -123,6 +123,8 @@ FCANN<ACTF, ACTFLast>::FCANN(
 
 	m_params.evalTmp.resize(hiddenLayers.size() + 2);
 	m_params.evalSingleTmp.resize(hiddenLayers.size() + 2);
+
+	UpdateWeightMasksRegions_();
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
@@ -202,10 +204,12 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ForwardPropagateFast(const MatrixBase<Derived>
 		if (layer == 0)
 		{
 			m_params.evalTmp[layer].noalias() = in * m_params.weights[layer];
+			//MultiplyWithRegions(in, m_params.weights[layer], m_params.evalTmp[layer], m_params.weightMasksRegions[layer]);
 		}
 		else
 		{
 			m_params.evalTmp[layer].noalias() = m_params.evalTmp[layer - 1] * m_params.weights[layer];
+			//MultiplyWithRegions(m_params.evalTmp[layer - 1], m_params.weights[layer], m_params.evalTmp[layer], m_params.weightMasksRegions[layer]);
 		}
 
 		m_params.evalTmp[layer].rowwise() += m_params.outputBias[layer];
@@ -654,6 +658,27 @@ void FCANN<ACTF, ACTFLast>::ActivateDerivative_(MatrixBase<Derived> &x) const
 	else assert(false);
 }
 
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+void FCANN<ACTF, ACTFLast>::UpdateWeightMasksRegions_()
+{
+	m_params.weightMasksRegions.resize(m_params.weightMasks.size());
+
+	for (size_t layer = 0; layer < m_params.weightMasks.size(); ++layer)
+	{
+		WeightMaskType toConvert = m_params.weightMasks[layer];
+
+		m_params.weightMasksRegions[layer] = MatrixToRegions(toConvert);
+
+		int64_t totalSize = 0;
+		for (const auto &region : m_params.weightMasksRegions[layer])
+		{
+			totalSize += region.rows * region.cols;
+		}
+
+		std::cout << "Regions: " << m_params.weightMasksRegions[layer].size() << " Fill Ratio: " << (static_cast<float>(totalSize) / (toConvert.rows() * toConvert.cols())) << std::endl;
+	}
+}
+
 /* serialization format:
  * numLayers
  * for each layer:
@@ -772,4 +797,6 @@ void DeserializeNet(T &net, std::istream &s)
 	net.Weights() = weights;
 	net.Biases() = biases;
 	net.WeightMasks() = weightMasks;
+
+	net.NotifyWeightMasksChanged();
 }
