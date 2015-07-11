@@ -36,6 +36,13 @@ std::string getFilename(int64_t iter)
 	return filenameSs.str();
 }
 
+bool fileExists(const std::string &filename)
+{
+	std::ifstream is(filename);
+
+	return is.good();
+}
+
 // plays a game from start position, and store the leaves of each position in leaves, and the scores in whiteScores
 void playGame(std::vector<Board> &leaves, std::vector<float> &whiteScores, EvaluatorIface *evaluatorPtr, Killer &killer, TTable &ttable, std::mt19937 &mt)
 {
@@ -165,17 +172,17 @@ void TDLSelfPlay()
 	{
 		std::string filename = getFilename(iter);
 
-		std::ifstream dump(filename);
-
-		if (dump.is_open())
-		{
-			annEvaluator.Deserialize(dump);
-		}
-		else
+		if (!fileExists(filename))
 		{
 			break;
 		}
 	}
+
+	--iter;
+
+	std::string filename = getFilename(iter);
+	std::ifstream dump(filename);
+	annEvaluator.Deserialize(dump);
 
 	if (iter != 0)
 	{
@@ -355,16 +362,19 @@ void TDL(const std::string &positionsFilename)
 	{
 		std::string filename = getFilename(iter);
 
-		std::ifstream dump(filename);
-
-		if (dump.is_open())
-		{
-			annEvaluator.Deserialize(dump);
-		}
-		else
+		if (!fileExists(filename))
 		{
 			break;
 		}
+	}
+
+	if (iter > 0)
+	{
+		--iter;
+
+		std::string filename = getFilename(iter);
+		std::ifstream dump(filename);
+		annEvaluator.Deserialize(dump);
 	}
 
 	if (iter != 0)
@@ -505,7 +515,7 @@ void TDL(const std::string &positionsFilename)
 		{
 			annEvaluator.BuildANN(std::string("x_5M_nodiag.features"), featureDescriptions.size());
 
-			annEvaluator.TrainLoop(trainingPositions, trainingTargets, 3, featureDescriptions);
+			annEvaluator.TrainLoop(trainingPositions, trainingTargets, 1, featureDescriptions);
 		}
 		else
 		{
