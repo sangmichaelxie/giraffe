@@ -232,13 +232,13 @@ float FCANN<ACTF, ACTFLast>::ForwardPropagateSingle(const MatrixBase<Derived> &v
 	{
 		if (layer == 0)
 		{
-			m_params.evalSingleTmp[layer].noalias() = vec * m_params.weights[layer];
-			//MultiplyWithSemiSparse(vec, m_params.weightsSemiSparse[layer], m_params.evalSingleTmp[layer]);
+			//m_params.evalSingleTmp[layer].noalias() = vec * m_params.weights[layer];
+			MultiplyWithSemiSparse(vec, m_params.weightsSemiSparse[layer], m_params.evalSingleTmp[layer]);
 		}
 		else
 		{
-			m_params.evalSingleTmp[layer].noalias() = m_params.evalSingleTmp[layer - 1] * m_params.weights[layer];
-			//MultiplyWithSemiSparse(m_params.evalSingleTmp[layer - 1], m_params.weightsSemiSparse[layer], m_params.evalSingleTmp[layer]);
+			//m_params.evalSingleTmp[layer].noalias() = m_params.evalSingleTmp[layer - 1] * m_params.weights[layer];
+			MultiplyWithSemiSparse(m_params.evalSingleTmp[layer - 1], m_params.weightsSemiSparse[layer], m_params.evalSingleTmp[layer]);
 		}
 
 		m_params.evalSingleTmp[layer] += m_params.outputBias[layer];

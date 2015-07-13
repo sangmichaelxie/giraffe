@@ -241,16 +241,29 @@ SemiSparseMatrix<T> ToSemiSparse(const T &m, const std::vector<MatrixRegion> &ro
 }
 
 template <typename EigenA, typename EigenB, typename EigenC>
-void MultiplyWithSemiSparse(const EigenA &a, const SemiSparseMatrix<EigenB>
-							&b, EigenC &c)
+void MultiplyWithSemiSparse(const EigenA &a, const SemiSparseMatrix<EigenB> &b, EigenC &c)
 {
 	// c = a * b
+
+	// special case for single region
+	if (b.subMatrices.size() == 1)
+	{
+		c.noalias() = a * b.subMatrices[0].m;
+		return;
+	}
+
 	c = EigenC::Zero(a.rows(), b.cols);
+
+	assert(a.rows() == 1);
 
 	for (const auto &subMatrix : b.subMatrices)
 	{
-		c.block(0, subMatrix.j, c.rows(), subMatrix.m.cols()) +=
-			a.block(0, subMatrix.i, a.rows(), subMatrix.m.rows()) * subMatrix.m;
+		for (int64_t col = 0; col < subMatrix.m.cols(); ++col)
+		{
+			c(0, col + subMatrix.j) = a.block(0, subMatrix.i, 1, subMatrix.m.rows()).dot(subMatrix.m.col(col).transpose());
+		}
+		//c.block(0, subMatrix.j, c.rows(), subMatrix.m.cols()) +=
+		//	a.block(0, subMatrix.i, a.rows(), subMatrix.m.rows()) * subMatrix.m;
 	}
 }
 
