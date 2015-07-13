@@ -84,71 +84,27 @@ void PushGlobalCoords(std::vector<T> &ret, bool exists, Square sq, int32_t group
 #endif
 }
 
-template <typename T> void PushPosPieceType(std::vector<T> &ret, Square pos, PieceType pt, bool x);
-template<> void PushPosPieceType<float>(std::vector<float> &ret, Square /*pos*/, PieceType /*pt*/, bool x)
-{
-	if (x)
-	{
-		ret.push_back(1.0f);
-	}
-	else
-	{
-		ret.push_back(-1.0f);
-	}
-}
-
-template<> void PushPosPieceType<FeatureDescription>(std::vector<FeatureDescription> &ret, Square sq, PieceType pt, bool /*x*/)
-{
-	FeatureDescription fd;
-	fd.featureType = FeatureDescription::FeatureType_posPieceType;
-	fd.sq = sq;
-	fd.pt = pt;
-	ret.push_back(fd);
-}
-
-template <typename T> void PushPosMobility(
+template <typename T> void PushMobility(
 		std::vector<T> &ret,
-		bool isGlobal,
-		Square sq,
 		float mob,
-		int32_t dirXOffset,
-		int32_t dirYOffset,
 		int32_t group);
-template<> void PushPosMobility<float>(
+template<> void PushMobility<float>(
 		std::vector<float> &ret,
-		bool /*isGlobal*/,
-		Square /*sq*/,
 		float mob,
-		int32_t /*dirXOffset*/,
-		int32_t /*dirYOffset*/,
 		int32_t /*group*/)
 {
 	ret.push_back(mob);
 }
 
-template<> void PushPosMobility<FeatureDescription>(
+template<> void PushMobility<FeatureDescription>(
 		std::vector<FeatureDescription> &ret,
-		bool isGlobal,
-		Square sq,
 		float /*mob*/,
-		int32_t dirXOffset,
-		int32_t dirYOffset,
 		int32_t group)
 {
 	FeatureDescription fd;
 
-	if (!isGlobal)
-	{
-		fd.featureType = FeatureDescription::FeatureType_posMobility;
-		fd.sq = sq;
-		fd.dirXOffset = dirXOffset;
-		fd.dirYOffset = dirYOffset;
-	}
-	else
-	{
-		fd.featureType = FeatureDescription::FeatureType_global;
-		fd.group = group;
-	}
+	fd.featureType = FeatureDescription::FeatureType_global;
+	fd.group = group;
 
 	ret.push_back(fd);
 }
@@ -168,7 +124,7 @@ template<> void PushPosFloat<FeatureDescription>(std::vector<FeatureDescription>
 }
 
 template <typename T>
-void PushAttacks(std::vector<T> &ret, bool isGlobal, Square sq, PieceType pt, bool exists, const Board &board, int32_t group = 0)
+void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, const Board &board, int32_t group = 0)
 {
 	if (pt == WR || pt == BR || pt == WQ || pt == BQ)
 	{
@@ -198,7 +154,7 @@ void PushAttacks(std::vector<T> &ret, bool isGlobal, Square sq, PieceType pt, bo
 				y += DirYOffsets[i];
 			}
 
-			PushPosMobility(ret, isGlobal, sq, NormalizeCount(count, 7), DirXOffsets[i], DirYOffsets[i], group);
+			PushMobility(ret, NormalizeCount(count, 7), group);
 		}
 	}
 
@@ -230,7 +186,7 @@ void PushAttacks(std::vector<T> &ret, bool isGlobal, Square sq, PieceType pt, bo
 				y += DirYOffsets[i];
 			}
 
-			PushPosMobility(ret, isGlobal, sq, NormalizeCount(count, 7), DirXOffsets[i], DirYOffsets[i], group);
+			PushMobility(ret, NormalizeCount(count, 7), group);
 		}
 	}
 }
@@ -239,39 +195,62 @@ template <typename T>
 void PushSquareFeatures(std::vector<T> &ret, const Board &board, Square sq)
 {
 	PieceType pt = board.GetPieceAtSquare(sq);
+	PieceType ptNc = StripColor(pt);
+	Color c = GetColor(pt);
 
-	PushPosPieceType(ret, sq, EMPTY, pt == EMPTY);
+	// first we push white material and black material (if they are on this square)
+	int64_t whiteMaterial = 0.0f;
+	int64_t blackMaterial = 0.0f;
 
-	PushPosPieceType(ret, sq, WK, pt == WK);
-	PushPosPieceType(ret, sq, WQ, pt == WQ);
-	PushPosPieceType(ret, sq, WR, pt == WR);
-	PushPosPieceType(ret, sq, WB, pt == WB);
-	PushPosPieceType(ret, sq, WN, pt == WN);
-	PushPosPieceType(ret, sq, WP, pt == WP);
-	PushPosPieceType(ret, sq, BK, pt == BK);
-	PushPosPieceType(ret, sq, BQ, pt == BQ);
-	PushPosPieceType(ret, sq, BR, pt == BR);
-	PushPosPieceType(ret, sq, BB, pt == BB);
-	PushPosPieceType(ret, sq, BN, pt == BN);
-	PushPosPieceType(ret, sq, BP, pt == BP);
+	if (pt != EMPTY)
+	{
+		switch (ptNc)
+		{
+		case WK:
+			((c == WHITE) ? whiteMaterial : blackMaterial) = 20;
+			break;
+		case WQ:
+			((c == WHITE) ? whiteMaterial : blackMaterial) = 12;
+			break;
+		case WR:
+			((c == WHITE) ? whiteMaterial : blackMaterial) = 6;
+			break;
+		case WB:
+			((c == WHITE) ? whiteMaterial : blackMaterial) = 4;
+			break;
+		case WN:
+			((c == WHITE) ? whiteMaterial : blackMaterial) = 3;
+			break;
+		case WP:
+			((c
+					== WHITE) ? whiteMaterial : blackMaterial) = 1;
+			break;
+		}
+	}
 
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WK>(sq)), 1));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WQ>(sq)), 1));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WR>(sq)), 2));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WB>(sq)), 2));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WN>(sq)), 2));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<WP>(sq)), 2));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BK>(sq)), 1));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BQ>(sq)), 1));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BR>(sq)), 2));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BB>(sq)), 2));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BN>(sq)), 2));
-	PushPosFloat(ret, sq, NormalizeCount(PopCount(board.GetAttackers<BP>(sq)), 2));
+	PushPosFloat(ret, sq, NormalizeCount(whiteMaterial, 20));
+	PushPosFloat(ret, sq, NormalizeCount(blackMaterial, 20));
 
-	// get the sliding ranges in
-	// we use queen type here to get both straight and diagonal ranges
-	// colour is not important
-	PushAttacks(ret, false, sq, WQ, true, board);
+	// now we find the smallest attacker of the square from both sides
+	int64_t smallestWhiteAttacker = 30; // no attacker gets the highest value (least desirable)
+	int64_t smallestBlackAttacker = 30;
+
+	if (board.GetAttackers<WP>(sq)) smallestWhiteAttacker = 1;
+	else if (board.GetAttackers<WN>(sq)) smallestWhiteAttacker = 3;
+	else if (board.GetAttackers<WB>(sq)) smallestWhiteAttacker = 4;
+	else if (board.GetAttackers<WR>(sq)) smallestWhiteAttacker = 6;
+	else if (board.GetAttackers<WQ>(sq)) smallestWhiteAttacker = 12;
+	else if (board.GetAttackers<WK>(sq)) smallestWhiteAttacker = 20;
+
+	if (board.GetAttackers<BP>(sq)) smallestBlackAttacker = 1;
+	else if (board.GetAttackers<BN>(sq)) smallestBlackAttacker = 3;
+	else if (board.GetAttackers<BB>(sq)) smallestBlackAttacker = 4;
+	else if (board.GetAttackers<BR>(sq)) smallestBlackAttacker = 6;
+	else if (board.GetAttackers<BQ>(sq)) smallestBlackAttacker = 12;
+	else if (board.GetAttackers<BK>(sq)) smallestBlackAttacker = 20;
+
+	PushPosFloat(ret, sq, NormalizeCount(smallestWhiteAttacker, 30));
+	PushPosFloat(ret, sq, NormalizeCount(smallestBlackAttacker, 30));
 }
 
 template <Color color, typename T>
@@ -354,12 +333,12 @@ void PushQueens(std::vector<T> &ret, uint64_t queens, PieceType pt, const Board 
 		uint32_t pos = BitScanForward(queens);
 
 		PushGlobalCoords(ret, true, pos, group);
-		PushAttacks(ret, true, pos, pt, true, board, group);
+		PushAttacks(ret, pos, pt, true, board, group);
 	}
 	else
 	{
 		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, true, 0, pt, false, board, group);
+		PushAttacks(ret, 0, pt, false, board, group);
 	}
 }
 
@@ -375,10 +354,10 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 	if (pieceCount == 0)
 	{
 		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, true, 0, pt, false, board, group);
+		PushAttacks(ret, 0, pt, false, board, group);
 		++group;
 		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, true, 0, pt, false, board, group);
+		PushAttacks(ret, 0, pt, false, board, group);
 	}
 	else if (pieceCount == 1)
 	{
@@ -391,19 +370,19 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 		{
 			// use the first slot
 			PushGlobalCoords(ret, true, pos, group);
-			PushAttacks(ret, true, pos, pt, true, board, group);
+			PushAttacks(ret, pos, pt, true, board, group);
 			++group;
 			PushGlobalCoords(ret, false, 0, group);
-			PushAttacks(ret, true, pos, pt, false, board, group);
+			PushAttacks(ret, pos, pt, false, board, group);
 		}
 		else
 		{
 			// use the second slot
 			PushGlobalCoords(ret, false, 0, group);
-			PushAttacks(ret, true, pos, pt, false, board, group);
+			PushAttacks(ret, pos, pt, false, board, group);
 			++group;
 			PushGlobalCoords(ret, true, pos, group);
-			PushAttacks(ret, true, pos, pt, true, board, group);
+			PushAttacks(ret, pos, pt, true, board, group);
 		}
 	}
 	else
@@ -419,10 +398,10 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 		}
 
 		PushGlobalCoords(ret, true, pos1, group);
-		PushAttacks(ret, true, pos1, pt, true, board, group);
+		PushAttacks(ret, pos1, pt, true, board, group);
 		++group;
 		PushGlobalCoords(ret, true, pos2, group);
-		PushAttacks(ret, true, pos2, pt, true, board, group);
+		PushAttacks(ret, pos2, pt, true, board, group);
 	}
 }
 
@@ -505,123 +484,6 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	{
 		//PushSquareFeatures(ret, board, sq);
 	}
-}
-
-std::set<Square> GetInfluences(const FeatureDescription &fd)
-{
-	assert(fd.featureType != FeatureDescription::FeatureType_global);
-
-	std::set<Square> ret;
-
-	// squares always influence the square it's on
-	ret.insert(fd.sq);
-
-	int32_t srcX = GetX(fd.sq);
-	int32_t srcY = GetY(fd.sq);
-
-	if (fd.featureType == FeatureDescription::FeatureType_posPieceType)
-	{
-		PieceType pt = StripColor(fd.pt);
-
-		for (Square sq = 0; sq < 64; ++sq)
-		{
-			int32_t x = GetX(sq);
-			int32_t y = GetY(sq);
-
-			int32_t absDistX = abs(srcX - x);
-			int32_t absDistY = abs(srcY - y);
-
-			if (pt == K)
-			{
-				if (absDistX <= 1 && absDistY <= 1)
-				{
-					ret.insert(sq);
-				}
-			}
-			else if (pt == Q)
-			{
-				if ((absDistX == absDistY) || (absDistX == 0) || (absDistY == 0))
-				{
-					ret.insert(sq);
-				}
-			}
-			else if (pt == R)
-			{
-				if ((absDistX == 0) || (absDistY == 0))
-				{
-					ret.insert(sq);
-				}
-			}
-			else if (pt == B)
-			{
-				if (absDistX == absDistY)
-				{
-					ret.insert(sq);
-				}
-			}
-			else if (pt == N)
-			{
-				if ((absDistX == 1 && absDistY == 2) || (absDistX == 2 && absDistY == 1))
-				{
-					ret.insert(sq);
-				}
-			}
-			else if (pt == P)
-			{
-				// we use same rule as kings here
-				if (absDistX <= 1 && absDistY <= 1)
-				{
-					ret.insert(sq);
-				}
-			}
-		}
-	}
-	else if (fd.featureType == FeatureDescription::FeatureType_posMobility)
-	{
-		for (Square sq = 0; sq < 64; ++sq)
-		{
-			int32_t x = GetX(sq);
-			int32_t y = GetY(sq);
-
-			int32_t distX = x - srcX;
-			int32_t distY = y - srcY;
-
-			// if either dirXOffset or dirYOffset is zero, that dimension must match, and
-			// the other dimension must have the right sign
-			if (fd.dirXOffset == 0)
-			{
-				if (distX == 0 && (distY / fd.dirYOffset) > 0)
-				{
-					ret.insert(sq);
-				}
-			}
-			else if (fd.dirYOffset == 0)
-			{
-				if (distY == 0 && (distX / fd.dirXOffset) > 0)
-				{
-					ret.insert(sq);
-				}
-			}
-			else
-			{
-				// otherwise we have a diagonal, and feature can influence this square if
-				// (distX, distY) is a positive multiple of offset
-				int32_t xRatio = distX / fd.dirXOffset;
-				int32_t yRatio = distY / fd.dirYOffset;
-
-				if (xRatio > 0 && yRatio > 0 && xRatio == yRatio)
-				{
-					ret.insert(sq);
-				}
-			}
-		}
-	}
-	else if (fd.featureType == FeatureDescription::FeatureType_pos)
-	{
-		ret.insert(fd.sq);
-	}
-
-	return ret;
 }
 
 } // namespace FeaturesConv

@@ -19,10 +19,8 @@ struct FeatureDescription
 {
 	enum FeatureType
 	{
-		FeatureType_global, // global features are things like side to move, and material counts
-		FeatureType_posPieceType, // existence of a piece type at a square
-		FeatureType_posMobility, // sliding mobility from a square
-		FeatureType_pos // generic property of a square
+		FeatureType_global, // global features are things like side to move, and material counts, and piece lists
+		FeatureType_pos // property of a square
 	};
 
 	FeatureType featureType;
@@ -33,16 +31,6 @@ struct FeatureDescription
 	// fields for pos features
 	Square sq;
 
-	// fields for posPieceType
-	PieceType pt;
-
-	// fields for posMobility
-	int32_t dirXOffset;
-	int32_t dirYOffset;
-
-	// fields for pos
-	// (none)
-
 	std::string ToString() const
 	{
 		std::stringstream ret;
@@ -52,16 +40,6 @@ struct FeatureDescription
 		case FeatureType_global:
 			ret << "GLOBAL ";
 			ret << group << ' ';
-			break;
-		case FeatureType_posPieceType:
-			ret << "POS_PT ";
-			ret << sq << ' ';
-			ret << PieceTypeToChar(pt);
-			break;
-		case FeatureType_posMobility:
-			ret << "POS_MO ";
-			ret << sq << ' ';
-			ret << dirXOffset << ' ' << dirYOffset;
 			break;
 		case FeatureType_pos:
 			ret << "POS_GN";
@@ -79,8 +57,6 @@ struct FeatureDescription
 // FeatureDescription (to get feature descriptions)
 template <typename T>
 void ConvertBoardToNN(const Board &board, std::vector<T> &ret);
-
-std::set<Square> GetInfluences(const FeatureDescription &fd);
 
 }
 

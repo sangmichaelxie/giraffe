@@ -14,6 +14,40 @@ inline int32_t GetFile(Square sq) { return GetX(sq); }
 inline Square Sq(int32_t x, int32_t y) { return y * 8 + x; }
 inline bool Valid(int32_t x) { return x < 8 && x >= 0; }
 
+inline int32_t GetDiag0(Square sq)
+{
+	static const uint32_t diag[64] =
+	{
+		0, 1, 2, 3, 4, 5, 6, 7,
+		1, 2, 3, 4, 5, 6, 7, 8,
+		2, 3, 4, 5, 6, 7, 8, 9,
+		3, 4, 5, 6, 7, 8, 9, 10,
+		4, 5, 6, 7, 8, 9, 10, 11,
+		5, 6, 7, 8, 9, 10, 11, 12,
+		6, 7, 8, 9, 10, 11, 12, 13,
+		7, 8, 9, 10, 11, 12, 13, 14
+	};
+
+	return diag[GetY(sq)*8 + GetX(sq)];
+}
+
+inline int32_t GetDiag1(Square sq)
+{
+	static const uint32_t diag[64] =
+	{
+		0, 1, 2, 3, 4, 5, 6, 7,
+		1, 2, 3, 4, 5, 6, 7, 8,
+		2, 3, 4, 5, 6, 7, 8, 9,
+		3, 4, 5, 6, 7, 8, 9, 10,
+		4, 5, 6, 7, 8, 9, 10, 11,
+		5, 6, 7, 8, 9, 10, 11, 12,
+		6, 7, 8, 9, 10, 11, 12, 13,
+		7, 8, 9, 10, 11, 12, 13, 14
+	};
+
+	return diag[GetY(sq)*8 + (7 - GetX(sq))];
+}
+
 typedef uint32_t Color;
 
 typedef int16_t Score;

@@ -37,16 +37,16 @@ public:
 		Deserialize(netfIn);
 	}
 
-	void BuildANN(const std::string &featureFilename, int64_t inputDims)
+	void BuildANN(int64_t inputDims)
 	{
 		m_anns.resize(NumNets);
 
 		for (auto &net : m_anns)
 		{
-			net = LearnAnn::BuildEvalNet(featureFilename, inputDims);
+			net = LearnAnn::BuildNet<EvalNet>(inputDims, 1);
 		}
 
-		m_mixingNet = LearnAnn::BuildMixingNet(featureFilename, inputDims, m_anns.size());
+		m_mixingNet = LearnAnn::BuildNet<MixingNet>(inputDims, m_anns.size());
 	}
 
 	void Serialize(std::ostream &os)

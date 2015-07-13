@@ -8,8 +8,8 @@
 namespace LearnAnn
 {
 
-EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims);
-MixingNet BuildMixingNet(const std::string &featureFilename, int64_t inputDims, int64_t outputDims);
+template <typename T>
+T BuildNet(int64_t inputDims, int64_t outputDims);
 
 template <typename Derived1, typename Derived2>
 void TrainANN(

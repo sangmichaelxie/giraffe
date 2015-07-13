@@ -24,6 +24,7 @@
 #include "ann.h"
 #include "types.h"
 #include "random_device.h"
+#include "features_conv.h"
 
 namespace
 {
@@ -260,7 +261,7 @@ struct LayerDescription
 	std::vector<std::vector<int32_t>> groups;
 };
 
-LayerDescription BuildLocalLayer(const std::vector<std::vector<int32_t>> &groupsIn, float nodeRatio)
+LayerDescription BuildLocalLayer(const std::vector<std::vector<int32_t>> &groupsIn, float nodeRatio, size_t maxNodesPerGroup)
 {
 	LayerDescription ret;
 
@@ -272,7 +273,7 @@ LayerDescription BuildLocalLayer(const std::vector<std::vector<int32_t>> &groups
 	for (auto group : groupsIn)
 	{
 		size_t nodesInGroup = group.size();
-		size_t nodesForThisGroup = nodesInGroup * nodeRatio;
+		size_t nodesForThisGroup = std::min<size_t>(nodesInGroup * nodeRatio, maxNodesPerGroup);
 
 		for (size_t i = 0; i < nodesForThisGroup; ++i)
 		{
@@ -299,45 +300,77 @@ LayerDescription BuildLocalLayer(const std::vector<std::vector<int32_t>> &groups
 namespace LearnAnn
 {
 
-EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
+template <typename T>
+T BuildNet(int64_t inputDims, int64_t outputDims)
 {
 	std::vector<size_t> layerSizes;
 	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
 
-	std::vector<std::vector<int32_t> > featureGroups;
+	std::vector<std::vector<int32_t>> featureGroups;
 
-	std::ifstream featureFile(featureFilename);
+	// get feature descriptions
+	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
+	FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
 
-	char type;
-
-	int32_t feature = 0;
-
-	while (featureFile >> type)
+	// first we make global feature groups
+	std::map<int, std::vector<int32_t>> globalGroups;
+	for (size_t featureNum = 0; featureNum < featureDescriptions.size(); ++featureNum)
 	{
-		int32_t group;
-		featureFile >> group;
+		auto &fd = featureDescriptions[featureNum];
 
-		if (static_cast<size_t>(group) >= featureGroups.size())
+		if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_global)
 		{
-			featureGroups.resize(group + 1);
+			globalGroups[fd.group].push_back(featureNum);
 		}
-
-		featureGroups[group].push_back(feature);
-
-		++feature;
 	}
 
-	LayerDescription layer0 = BuildLocalLayer(featureGroups, 2.0f);
+	for (const auto &group : globalGroups)
+	{
+		featureGroups.push_back(group.second);
+	}
+
+	// now we make square-specific groups
+	std::vector<std::vector<int32_t>> xGroups(8);
+	std::vector<std::vector<int32_t>> yGroups(8);
+	std::vector<std::vector<int32_t>> diag0Groups(15);
+	std::vector<std::vector<int32_t>> diag1Groups(15);
+
+	for (size_t featureNum = 0; featureNum < featureDescriptions.size(); ++featureNum)
+	{
+		auto &fd = featureDescriptions[featureNum];
+
+		if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_pos)
+		{
+			Square sq = fd.sq;
+
+			int32_t x = GetX(sq);
+			int32_t y = GetY(sq);
+			int32_t diag0 = GetDiag0(sq);
+			int32_t diag1 = GetDiag1(sq);
+
+			xGroups[x].push_back(featureNum);
+			yGroups[y].push_back(featureNum);
+			diag0Groups[diag0].push_back(featureNum);
+			diag1Groups[diag1].push_back(featureNum);
+		}
+	}
+
+	//featureGroups.insert(featureGroups.end(), xGroups.begin(), xGroups.end());
+	//featureGroups.insert(featureGroups.end(), yGroups.begin(), yGroups.end());
+	//featureGroups.insert(featureGroups.end(), diag0Groups.begin(), diag0Groups.end());
+	//featureGroups.insert(featureGroups.end(), diag1Groups.begin(), diag1Groups.end());
+
+	LayerDescription layer0 = BuildLocalLayer(featureGroups, 1.0f, 16);
 
 	layerSizes.push_back(layer0.layerSize);
 	connMatrices.push_back(layer0.connections);
 
-	LayerDescription layer1 = BuildLocalLayer(layer0.groups, 1.0f);
+	LayerDescription layer1 = BuildLocalLayer(layer0.groups, 1.0f, 16);
 
 	layerSizes.push_back(layer1.layerSize);
 	connMatrices.push_back(layer1.connections);
 
-	layerSizes.push_back(256);
+	layerSizes.push_back(512);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 	layerSizes.push_back(64);
@@ -346,74 +379,11 @@ EvalNet BuildEvalNet(const std::string &featureFilename, int64_t inputDims)
 	// fully connected output layer
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
-	return EvalNet(inputDims, 1, layerSizes, connMatrices);
+	return T(inputDims, outputDims, layerSizes, connMatrices);
 }
 
-MixingNet BuildMixingNet(const std::string &featureFilename, int64_t inputDims, int64_t outputDims)
-{
-	std::vector<size_t> layerSizes;
-	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
-
-	auto mt = gRd.MakeMT();
-
-	std::vector<std::vector<int32_t> > featureGroups;
-
-	std::ifstream featureFile(featureFilename);
-
-	char type;
-
-	int32_t feature = 0;
-
-	while (featureFile >> type)
-	{
-		int32_t group;
-		featureFile >> group;
-
-		if (static_cast<size_t>(group) >= featureGroups.size())
-		{
-			featureGroups.resize(group + 1);
-		}
-
-		featureGroups[group].push_back(feature);
-
-		++feature;
-	}
-
-	std::vector<Eigen::Triplet<float> > connections;
-
-	// build first layer
-	const size_t FirstHiddenLayerNodes = 1;
-	const size_t FirstHiddenLayerNumGroupsPerNode = 4;
-	connections.clear();
-
-	std::uniform_int_distribution<> groupDist(0, featureGroups.size() - 1);
-
-	for (size_t node = 0; node < FirstHiddenLayerNodes; ++node)
-	{
-		for (size_t i = 0; i < FirstHiddenLayerNumGroupsPerNode; ++i)
-		{
-			// we can have duplicates, in which case we'll actually have less than 4 groups, and that's ok
-			size_t group = groupDist(mt);
-
-			// connect the node to all nodes in the group
-			for (const auto &feature : featureGroups[group])
-			{
-				connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
-			}
-		}
-	}
-
-	layerSizes.push_back(FirstHiddenLayerNodes);
-	connMatrices.push_back(connections);
-
-	layerSizes.push_back(64);
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
-
-	// fully connected output layer
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
-
-	return MixingNet(inputDims, outputDims, layerSizes, connMatrices);
-}
+template EvalNet BuildNet(int64_t inputDims, int64_t outputDims);
+template MixingNet BuildNet(int64_t inputDims, int64_t outputDims);
 
 template <typename Derived1, typename Derived2>
 void TrainANN(

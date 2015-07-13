@@ -293,7 +293,7 @@ void TDLSelfPlay()
 
 		if (iter == 0)
 		{
-			annEvaluator.BuildANN(std::string("x_5M_nodiag.features"), featureDescriptions.size());
+			annEvaluator.BuildANN(featureDescriptions.size());
 
 			annEvaluator.TrainLoop(trainingPositions, trainingTargetsNN, 30, featureDescriptions);
 		}
@@ -358,7 +358,7 @@ void TDL(const std::string &positionsFilename)
 	int64_t iter = 0;
 
 	// try to read existing dumps to continue where we left off
-	for (; iter < NumIterations; ++iter)
+	for (; iter < NumIterations; iter += EvaluatorSerializeInterval)
 	{
 		std::string filename = getFilename(iter);
 
@@ -513,7 +513,7 @@ void TDL(const std::string &positionsFilename)
 
 		if (iter == 0)
 		{
-			annEvaluator.BuildANN(std::string("x_5M_nodiag.features"), featureDescriptions.size());
+			annEvaluator.BuildANN(featureDescriptions.size());
 
 			annEvaluator.TrainLoop(trainingPositions, trainingTargets, 1, featureDescriptions);
 		}
@@ -522,9 +522,12 @@ void TDL(const std::string &positionsFilename)
 			annEvaluator.Train(trainingPositions, trainingTargets, featureDescriptions);
 		}
 
-		std::ofstream annOut(getFilename(iter));
+		if ((iter % EvaluatorSerializeInterval) == 0)
+		{
+			std::ofstream annOut(getFilename(iter));
 
-		annEvaluator.Serialize(annOut);
+			annEvaluator.Serialize(annOut);
+		}
 	}
 }
 
