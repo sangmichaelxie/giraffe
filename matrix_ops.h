@@ -262,8 +262,6 @@ void MultiplyWithSemiSparse(const EigenA &a, const SemiSparseMatrix<EigenB> &b, 
 		{
 			c(0, col + subMatrix.j) = a.block(0, subMatrix.i, 1, subMatrix.m.rows()).dot(subMatrix.m.col(col).transpose());
 		}
-		//c.block(0, subMatrix.j, c.rows(), subMatrix.m.cols()) +=
-		//	a.block(0, subMatrix.i, a.rows(), subMatrix.m.rows()) * subMatrix.m;
 	}
 }
 
