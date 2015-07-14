@@ -10,7 +10,10 @@
 #include <queue>
 #include <algorithm>
 #include <sstream>
+#include <tuple>
 #include <omp.h>
+
+#include <cmath>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -254,6 +257,21 @@ NNMatrix EvaluateNet(T &nn, NNMatrixRM &x)
 	return ret;
 }
 
+std::vector<std::tuple<size_t, size_t>> GetCombinations(size_t m /* for combinations of 0-10, use m = 11 */)
+{
+	std::vector<std::tuple<size_t, size_t>> ret;
+
+	for (size_t elem0 = 0; elem0 < m; ++elem0)
+	{
+		for (size_t elem1 = 0; elem1 < elem0; ++elem1)
+		{
+			ret.push_back(std::make_tuple(elem0, elem1));
+		}
+	}
+
+	return ret;
+}
+
 struct LayerDescription
 {
 	size_t layerSize;
@@ -261,33 +279,75 @@ struct LayerDescription
 	std::vector<std::vector<int32_t>> groups;
 };
 
-LayerDescription BuildLocalLayer(const std::vector<std::vector<int32_t>> &groupsIn, float nodeRatio, size_t maxNodesPerGroup)
+LayerDescription BuildLocalLayer(
+	const std::vector<std::vector<int32_t>> &groupsIn,
+	float nodeRatioSingleGroup,
+	size_t maxNodesPerSingleGroup,
+	float nodeRatioPairGroup,
+	size_t maxNodesPerPair)
 {
 	LayerDescription ret;
 
-	ret.groups.resize(groupsIn.size());
+	auto groupCombinations = GetCombinations(groupsIn.size());
+
+	ret.groups.resize(((nodeRatioSingleGroup == 0.0f) ? 0 : groupsIn.size()) + ((nodeRatioPairGroup == 0.0f) ? 0 : groupCombinations.size()));
 
 	size_t groupOut = 0;
 	size_t node = 0;
 
-	for (auto group : groupsIn)
+	if (nodeRatioSingleGroup != 0.0f)
 	{
-		size_t nodesInGroup = group.size();
-		size_t nodesForThisGroup = std::min<size_t>(nodesInGroup * nodeRatio, maxNodesPerGroup);
-
-		for (size_t i = 0; i < nodesForThisGroup; ++i)
+		for (auto group : groupsIn)
 		{
-			for (auto feature : group)
+			size_t nodesInGroup = group.size();
+			size_t nodesForThisGroup = std::min<size_t>(ceil(nodesInGroup * nodeRatioSingleGroup), maxNodesPerSingleGroup);
+
+			for (size_t i = 0; i < nodesForThisGroup; ++i)
 			{
-				ret.connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
+				for (auto feature : group)
+				{
+					ret.connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
+				}
+
+				ret.groups[groupOut].push_back(node);
+
+				++node;
 			}
 
-			ret.groups[groupOut].push_back(node);
-
-			++node;
+			++groupOut;
 		}
+	}
 
-		++groupOut;
+	// now we build the pairs
+	if (nodeRatioPairGroup != 0.0f)
+	{
+		for (const auto &groupCombination : groupCombinations)
+		{
+			size_t group0 = std::get<0>(groupCombination);
+			size_t group1 = std::get<0>(groupCombination);
+
+			size_t nodesInGroups = groupsIn[group0].size() + groupsIn[group1].size();
+			size_t nodesForThisCombination = std::min<size_t>(ceil(nodesInGroups * nodeRatioPairGroup), maxNodesPerPair);
+
+			for (size_t i = 0; i < nodesForThisCombination; ++i)
+			{
+				for (auto feature : groupsIn[group0])
+				{
+					ret.connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
+				}
+
+				for (auto feature : groupsIn[group1])
+				{
+					ret.connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
+				}
+
+				ret.groups[groupOut].push_back(node);
+
+				++node;
+			}
+
+			++groupOut;
+		}
 	}
 
 	ret.layerSize = node;
@@ -360,17 +420,17 @@ T BuildNet(int64_t inputDims, int64_t outputDims)
 	//featureGroups.insert(featureGroups.end(), diag0Groups.begin(), diag0Groups.end());
 	//featureGroups.insert(featureGroups.end(), diag1Groups.begin(), diag1Groups.end());
 
-	LayerDescription layer0 = BuildLocalLayer(featureGroups, 1.0f, 16);
+	LayerDescription layer0 = BuildLocalLayer(featureGroups, 2.0f, 1024, 0.2f, 4);
 
 	layerSizes.push_back(layer0.layerSize);
 	connMatrices.push_back(layer0.connections);
 
-	LayerDescription layer1 = BuildLocalLayer(layer0.groups, 1.0f, 16);
+	LayerDescription layer1 = BuildLocalLayer(layer0.groups, 0.25f, 1024, 0.0f, 0);
 
 	layerSizes.push_back(layer1.layerSize);
 	connMatrices.push_back(layer1.connections);
 
-	layerSizes.push_back(512);
+	layerSizes.push_back(128);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 	layerSizes.push_back(64);
