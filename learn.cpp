@@ -386,6 +386,8 @@ void TDL(const std::string &positionsFilename)
 	{
 		std::cout << "======= Iteration: " << iter << " =======" << std::endl;
 
+		double iterationStart = CurrentTime();
+
 		std::random_shuffle(rootPositions.begin(), rootPositions.end());
 
 		// first we generate new labels
@@ -528,6 +530,8 @@ void TDL(const std::string &positionsFilename)
 
 			annEvaluator.Serialize(annOut);
 		}
+
+		std::cout << "Iteration took " << (CurrentTime() - iterationStart) << " seconds" << std::endl;
 	}
 }
 
