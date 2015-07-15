@@ -382,13 +382,15 @@ void TDL(const std::string &positionsFilename)
 		std::cout << "Continuing from iteration " << iter << std::endl;
 	}
 
+	double timeStart = CurrentTime();
+
 	for (; iter < NumIterations; ++iter)
 	{
-		std::cout << "======= Iteration: " << iter << " =======" << std::endl;
+		std::random_shuffle(rootPositions.begin(), rootPositions.end());
 
 		double iterationStart = CurrentTime();
 
-		std::random_shuffle(rootPositions.begin(), rootPositions.end());
+		float errorSum = 0.0f;
 
 		// first we generate new labels
 		// if this is the first iteration, we use static material labels
@@ -410,11 +412,7 @@ void TDL(const std::string &positionsFilename)
 		}
 		else
 		{
-			std::cout << "Labelling using TDLeaf..." << std::endl;
-
 			size_t positionsProcessed = 0;
-			double timeStart = CurrentTime();
-			double timeLastPrint = CurrentTime();
 
 			trainingPositions.resize(PositionsPerBatch);
 			trainingTargets.resize(trainingPositions.size(), 1);
@@ -432,7 +430,7 @@ void TDL(const std::string &positionsFilename)
 				// each thread makes a copy of the evaluator to reduce sharing
 				ANNEvaluator thread_annEvaluator = annEvaluator;
 
-				#pragma omp for schedule(dynamic, 8)
+				#pragma omp for schedule(dynamic, 1)
 				for (size_t i = 0; i < PositionsPerBatch; ++i)
 				{
 					thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
@@ -487,6 +485,11 @@ void TDL(const std::string &positionsFilename)
 						accumulatedError = std::min(accumulatedError, MaxError);
 
 						trainingTargets(i, 0) = leafScoreUnscaled + LearningRate * accumulatedError;
+
+						float absError = fabs(accumulatedError);
+
+						#pragma omp atomic
+						errorSum += absError;
 					}
 					else
 					{
@@ -494,24 +497,11 @@ void TDL(const std::string &positionsFilename)
 						trainingTargets(i, 0) = thread_annEvaluator.UnScale(leafScore);
 					}
 
-					if (omp_get_thread_num() == 0)
-					{
-						float timeSinceLastPrint = CurrentTime() - timeLastPrint;
-						if (timeSinceLastPrint > 15.0f)
-						{
-							double timeElapsed = CurrentTime() - timeStart;
-							std::cout << "Processed: " << positionsProcessed << " Positions/s: " << (positionsProcessed / timeElapsed) << std::endl;
-							timeLastPrint = CurrentTime();
-						}
-					}
-
 					#pragma omp atomic
 					++positionsProcessed;
 				}
 			}
 		}
-
-		std::cout << "Updating weights..." << std::endl;
 
 		if (iter == 0)
 		{
@@ -531,7 +521,15 @@ void TDL(const std::string &positionsFilename)
 			annEvaluator.Serialize(annOut);
 		}
 
-		std::cout << "Iteration took " << (CurrentTime() - iterationStart) << " seconds" << std::endl;
+		if ((iter % IterationPrintInterval) == 0)
+		{
+			std::cout << "Iteration " << iter << ". ";
+			std::cout << "Time: " << (CurrentTime() - timeStart) << " seconds. ";
+			std::cout << "Iteration took: " << (CurrentTime() - iterationStart) << " seconds. ";
+			std::cout << "TD Error: " << errorSum << ". ";
+
+			std::cout << std::endl;
+		}
 	}
 }
 
