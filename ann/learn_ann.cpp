@@ -282,9 +282,9 @@ struct LayerDescription
 LayerDescription BuildLocalLayer(
 	const std::vector<std::vector<int32_t>> &groupsIn,
 	float nodeRatioSingleGroup,
-	size_t maxNodesPerSingleGroup,
+	const std::pair<size_t, size_t> &singleGroupsRange,
 	float nodeRatioPairGroup,
-	size_t maxNodesPerPair)
+	const std::pair<size_t, size_t> &pairGroupsRange)
 {
 	LayerDescription ret;
 
@@ -300,7 +300,10 @@ LayerDescription BuildLocalLayer(
 		for (auto group : groupsIn)
 		{
 			size_t nodesInGroup = group.size();
-			size_t nodesForThisGroup = std::min<size_t>(ceil(nodesInGroup * nodeRatioSingleGroup), maxNodesPerSingleGroup);
+			size_t nodesForThisGroup = ceil(nodesInGroup * nodeRatioSingleGroup);
+
+			if (nodesForThisGroup < singleGroupsRange.first) nodesForThisGroup = singleGroupsRange.first;
+			if (nodesForThisGroup > singleGroupsRange.second) nodesForThisGroup = singleGroupsRange.second;
 
 			for (size_t i = 0; i < nodesForThisGroup; ++i)
 			{
@@ -327,7 +330,10 @@ LayerDescription BuildLocalLayer(
 			size_t group1 = std::get<0>(groupCombination);
 
 			size_t nodesInGroups = groupsIn[group0].size() + groupsIn[group1].size();
-			size_t nodesForThisCombination = std::min<size_t>(ceil(nodesInGroups * nodeRatioPairGroup), maxNodesPerPair);
+			size_t nodesForThisCombination = ceil(nodesInGroups * nodeRatioPairGroup);
+
+			if (nodesForThisCombination < pairGroupsRange.first) nodesForThisCombination = pairGroupsRange.first;
+			if (nodesForThisCombination > pairGroupsRange.second) nodesForThisCombination = pairGroupsRange.second;
 
 			for (size_t i = 0; i < nodesForThisCombination; ++i)
 			{
@@ -420,18 +426,20 @@ T BuildNet(int64_t inputDims, int64_t outputDims)
 	//featureGroups.insert(featureGroups.end(), diag0Groups.begin(), diag0Groups.end());
 	//featureGroups.insert(featureGroups.end(), diag1Groups.begin(), diag1Groups.end());
 
-	LayerDescription layer0 = BuildLocalLayer(featureGroups, 2.0f, 1024, 0.2f, 4);
+	LayerDescription layer0 = BuildLocalLayer(featureGroups, 4.0f, std::pair<size_t, size_t>(2, 1024), 0.0f, std::pair<size_t, size_t>(0, 0));
 
 	layerSizes.push_back(layer0.layerSize);
 	connMatrices.push_back(layer0.connections);
 
-	LayerDescription layer1 = BuildLocalLayer(layer0.groups, 0.25f, 1024, 0.0f, 0);
+	LayerDescription layer1 = BuildLocalLayer(layer0.groups, 1.0f, std::pair<size_t, size_t>(2, 1024), 0.0f, std::pair<size_t, size_t>(0, 0));
 
 	layerSizes.push_back(layer1.layerSize);
 	connMatrices.push_back(layer1.connections);
 
-	layerSizes.push_back(128);
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+	LayerDescription layer2 = BuildLocalLayer(layer1.groups, 0.25f, std::pair<size_t, size_t>(2, 1024), 0.05f, std::pair<size_t, size_t>(2, 1024));
+
+	layerSizes.push_back(layer2.layerSize);
+	connMatrices.push_back(layer2.connections);
 
 	layerSizes.push_back(64);
 	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
