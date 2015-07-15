@@ -64,23 +64,9 @@ void PushGlobalCoords(std::vector<T> &ret, bool exists, Square sq, int32_t group
 	PushGlobalFloat(ret, exists ? NormalizeCoord(x) : 0.0f, group);
 	PushGlobalFloat(ret, exists ? NormalizeCoord(y) : 0.0f, group);
 
-#if 0
-	static const uint32_t diag[64] =
-	{
-		0, 1, 2, 3, 4, 5, 6, 7,
-		1, 2, 3, 4, 5, 6, 7, 8,
-		2, 3, 4, 5, 6, 7, 8, 9,
-		3, 4, 5, 6, 7, 8, 9, 10,
-		4, 5, 6, 7, 8, 9, 10, 11,
-		5, 6, 7, 8, 9, 10, 11, 12,
-		6, 7, 8, 9, 10, 11, 12, 13,
-		7, 8, 9, 10, 11, 12, 13, 14
-	};
-
-	uint32_t diag0 = diag[y*8 + x];
-	uint32_t diag1 = diag[y*8 + (7 - x)];
-	PushGlobalFloat(ret, exists ? NormalizeCount(diag0, 14) : 0.0f, group);
-	PushGlobalFloat(ret, exists ? NormalizeCount(diag1, 14) : 0.0f, group);
+#if 1
+	PushGlobalFloat(ret, exists ? NormalizeCount(GetDiag0(sq), 14) : 0.0f, group);
+	PushGlobalFloat(ret, exists ? NormalizeCount(GetDiag1(sq), 14) : 0.0f, group);
 #endif
 }
 
