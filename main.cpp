@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <thread>
 
 #include <cstdint>
 
@@ -22,27 +23,6 @@
 #include "learn.h"
 
 #include "Eigen/Dense"
-
-void Initialize()
-{
-	Eigen::initParallel();
-
-	// set Eigen to use 1 thread because we are doing OpenMP here
-	Eigen::setNbThreads(1);
-
-	// disable nested parallelism since we don't need it, and disabling it
-	// makes managing number of threads easier
-	omp_set_nested(0);
-
-	std::cout << "# Using " << omp_get_max_threads() << " OpenMP thread(s)" << std::endl;
-
-	// turn off IO buffering
-	std::cout.setf(std::ios::unitbuf);
-
-	initmagicmoves();
-	BoardConstsInit();
-	InitializeZobrist();
-}
 
 std::string gVersion;
 
@@ -65,17 +45,46 @@ void GetVersion()
 #endif
 }
 
-int main(int argc, char **argv)
+void Initialize(ANNEvaluator &evaluator)
 {
-	Initialize();
+	Eigen::initParallel();
+
+	// set Eigen to use 1 thread because we are doing OpenMP here
+	Eigen::setNbThreads(1);
+
+	// disable nested parallelism since we don't need it, and disabling it
+	// makes managing number of threads easier
+	omp_set_nested(0);
+
+	std::cout << "# Using " << omp_get_max_threads() << " OpenMP thread(s)" << std::endl;
 
 	GetVersion();
 
+	// turn off IO buffering
+	std::cout.setf(std::ios::unitbuf);
+
+	initmagicmoves();
+	BoardConstsInit();
+	InitializeZobrist();
+
+	std::ifstream evalNet("eval.net");
+	evaluator.Deserialize(evalNet);
+}
+
+int main(int argc, char **argv)
+{
 	Backend backend;
+
+	ANNEvaluator evaluator;
+	backend.SetEvaluator(&evaluator);
+
+	std::thread initThread(Initialize, std::ref(evaluator));
 
 	// first we handle special operation modes
 	if (argc >= 2 && std::string(argv[1]) == "tdl")
 	{
+		initThread.join();
+
 		if (argc < 3)
 		{
 			std::cout << "Usage: " << argv[0] << " tdl positions" << std::endl;
@@ -92,9 +101,6 @@ int main(int argc, char **argv)
 	std::cout << "# Running in release mode" << std::endl;
 #endif
 
-	ANNEvaluator evaluator("eval.net");
-	backend.SetEvaluator(&evaluator);
-
 	while (true)
 	{
 		std::string lineStr;
@@ -105,6 +111,12 @@ int main(int argc, char **argv)
 		// we set usermove=1, so all commands from xboard start with a unique word
 		std::string cmd;
 		line >> cmd;
+
+		if (cmd != "xboard" && cmd != "protover" && initThread.joinable())
+		{
+			// wait for initialization to be done
+			initThread.join();
+		}
 
 		if (cmd == "xboard") {} // ignore since we only support xboard mode anyways
 		else if (cmd == "protover")
