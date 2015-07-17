@@ -195,6 +195,7 @@ void Train(
 		trainingErrorAccum += nn.TrainGDM(
 			xTrain.block(begin, 0, batchSize, xTrain.cols()),
 			yTrain.block(begin, 0, batchSize, yTrain.cols()),
+			0.001f,
 			0.000001f);
 
 		if ((iter % iterationsPerCheck) == 0)

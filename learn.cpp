@@ -299,7 +299,7 @@ void TDLSelfPlay()
 		}
 		else
 		{
-			annEvaluator.Train(trainingPositions, trainingTargetsNN, featureDescriptions);
+			annEvaluator.Train(trainingPositions, trainingTargetsNN, featureDescriptions, LearningRate);
 		}
 
 		std::ofstream annOut(getFilename(iter));
@@ -370,7 +370,7 @@ void TDL(const std::string &positionsFilename)
 
 	if (iter > 0)
 	{
-		--iter;
+		iter -= EvaluatorSerializeInterval;
 
 		std::string filename = getFilename(iter);
 		std::ifstream dump(filename);
@@ -481,15 +481,15 @@ void TDL(const std::string &positionsFilename)
 							thread_ttable.AgeTable();
 						}
 
-						accumulatedError = std::max(accumulatedError, -MaxError);
-						accumulatedError = std::min(accumulatedError, MaxError);
-
-						trainingTargets(i, 0) = leafScoreUnscaled + LearningRate * accumulatedError;
-
 						float absError = fabs(accumulatedError);
 
 						#pragma omp atomic
 						errorSum += absError;
+
+						accumulatedError = std::max(accumulatedError, -MaxError);
+						accumulatedError = std::min(accumulatedError, MaxError);
+
+						trainingTargets(i, 0) = leafScoreUnscaled + LearningRate * accumulatedError;
 					}
 					else
 					{
@@ -511,7 +511,7 @@ void TDL(const std::string &positionsFilename)
 		}
 		else
 		{
-			annEvaluator.Train(trainingPositions, trainingTargets, featureDescriptions);
+			annEvaluator.Train(trainingPositions, trainingTargets, featureDescriptions, LearningRate);
 		}
 
 		if ((iter % EvaluatorSerializeInterval) == 0)

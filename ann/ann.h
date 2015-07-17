@@ -92,9 +92,9 @@ public:
 
 	// this is a convenience function that simply runs 1 iteration of GDM
 	template <typename Derived1, typename Derived2>
-	float TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg);
+	float TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float learningRate, float reg);
 
-	void ApplyWeightUpdates(const Gradients &grad, float reg);
+	void ApplyWeightUpdates(const Gradients &grad, float learningRate, float reg);
 
 	float GetSparsity();
 

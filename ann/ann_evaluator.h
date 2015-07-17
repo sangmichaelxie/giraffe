@@ -79,7 +79,7 @@ public:
 		InvalidateCache();
 	}
 
-	void Train(const std::vector<std::string> &positions, const NNMatrixRM &y, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions)
+	void Train(const std::vector<std::string> &positions, const NNMatrixRM &y, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions, float learningRate)
 	{
 		auto x = BoardsToFeatureRepresentation_(positions, featureDescriptions);
 
@@ -116,7 +116,7 @@ public:
 
 			m_anns[i].BackwardPropagateComputeGrad(errorsDerivative, acts[i], grad);
 
-			m_anns[i].ApplyWeightUpdates(grad, 0.0f);
+			m_anns[i].ApplyWeightUpdates(grad, learningRate, 0.0f);
 		}
 
 		// now train the mixing net
@@ -127,7 +127,7 @@ public:
 
 		m_mixingNet.BackwardPropagateComputeGrad(mixingNetErrorDerivative, mixingAct, mixingGrad);
 
-		m_mixingNet.ApplyWeightUpdates(mixingGrad, 0.0f);
+		m_mixingNet.ApplyWeightUpdates(mixingGrad, learningRate, 0.0f);
 
 		InvalidateCache();
 	}

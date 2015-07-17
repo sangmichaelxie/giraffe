@@ -291,7 +291,7 @@ void FCANN<ACTF, ACTFLast>::BackwardPropagateComputeGrad(const MatrixBase<Derive
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived1, typename Derived2>
-float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float reg)
+float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const MatrixBase<Derived2> &y, float learningRate, float reg)
 {
 	static std::vector<Gradients> gradLocal;
 	static std::vector<Activations> actLocal;
@@ -346,13 +346,13 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 		}
 	}
 
-	ApplyWeightUpdates(gradLocal[0], reg);
+	ApplyWeightUpdates(gradLocal[0], learningRate, reg);
 
 	return errorsMeasureTotal / x.rows();
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
-void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float reg)
+void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float learningRate, float reg)
 {
 	assert(grad.weightGradients.size() == m_params.weights.size());
 	assert(grad.biasGradients.size() == m_params.outputBias.size());
@@ -446,6 +446,9 @@ void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float reg)
 				// ADADELTA
 				NNMatrix weightDelta = -weightsGradientsBlock.array() * (weightsRMSd2Block.array() + e).sqrt() / (weightsEg2Block.array() + e).sqrt() + weightReg.array();
 				NNVector biasDelta = -biasGradientsBlock.array() * (biasRMSd2Block.array() + e).sqrt() / (biasEg2Block.array() + e).sqrt();
+
+				//NNMatrix weightDelta = -weightsGradientsBlock.array() * learningRate /*+ weightReg.array()*/;
+				//NNVector biasDelta = -biasGradientsBlock.array() * learningRate;
 
 				weightsBlock += weightDelta;
 				weightsBlock.array() *= weightMaskBlock.array();
