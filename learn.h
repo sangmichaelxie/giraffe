@@ -12,11 +12,12 @@ namespace Learn
 {
 
 const static int64_t NumIterations = 100000;
-const static float Lambda = 0.7f;
+const static float TDLambda = 0.7f; // this is discount due to credit assignment uncertainty
+const static float AbsLambda = 0.98f; // this is discount to encourage progress
 const static int64_t HalfMovesToMake = 10;
 const static size_t PositionsFirstBatch = 1000000;
 const static size_t PositionsPerBatch = 100;
-const static float MaxError = 1.0f;
+const static float MaxError = 0.2f;
 const static int64_t SearchDepth = 2;
 const static int64_t GamesPerIteration = 100; // each game produce about 150 positions
 const static int64_t GamesFirstIteration = 1000; // each game produce about 150 positions

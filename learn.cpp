@@ -253,7 +253,7 @@ void TDLSelfPlay()
 					for (size_t j = i; j < differences.size(); ++j)
 					{
 						totalError += differences[j] * discountFactor;
-						discountFactor *= Lambda;
+						discountFactor *= TDLambda;
 					}
 
 					trainingPositionsFromThisGame.push_back(leaves[i].GetFen());
@@ -458,18 +458,21 @@ void TDL(const std::string &positionsFilename)
 						// now we compute the error by making a few moves
 						float accumulatedError = 0.0f;
 						float lastScore = leafScoreUnscaled;
-						float discount = 1.0f;
+						float tdDiscount = 1.0f;
+						float absoluteDiscount = AbsLambda;
 
 						for (int64_t m = 0; m < HalfMovesToMake; ++m)
 						{
 							Search::SearchResult result = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
-							float scoreWhiteUnscaled = thread_annEvaluator.UnScale(result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f));
+							float scoreWhiteUnscaled = thread_annEvaluator.UnScale(result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f)) * absoluteDiscount;
+
+							absoluteDiscount *= AbsLambda;
 
 							// compute error contribution
-							accumulatedError += discount * (scoreWhiteUnscaled - lastScore);
+							accumulatedError += tdDiscount * (scoreWhiteUnscaled - lastScore);
 							lastScore = scoreWhiteUnscaled;
-							discount *= Lambda;
+							tdDiscount *= TDLambda;
 
 							if ((rootPos.GetGameStatus() != Board::ONGOING) || (result.pv.size() == 0))
 							{
