@@ -178,65 +178,89 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 }
 
 template <typename T>
-void PushSquareFeatures(std::vector<T> &ret, const Board &board, Square sq)
+void PushSquareFeatures(std::vector<T> &ret, const Board &board, int32_t &group)
 {
-	PieceType pt = board.GetPieceAtSquare(sq);
-	PieceType ptNc = StripColor(pt);
-	Color c = GetColor(pt);
+	// we store everything in arrays before actually pushing them, so that features
+	// in the same group will be together (good for performance during eval)
+	int64_t whiteMaterial[64] = { 0 };
+	int64_t blackMaterial[64] = { 0 };
 
-	// first we push white material and black material (if they are on this square)
-	int64_t whiteMaterial = 0.0f;
-	int64_t blackMaterial = 0.0f;
+	// smallest attacker of the square from both sides
+	int64_t smallestWhiteAttacker[64] = { 0 };
+	int64_t smallestBlackAttacker[64] = { 0 };
 
-	if (pt != EMPTY)
+	for (Square sq = 0; sq < 64; ++sq)
 	{
-		switch (ptNc)
+		PieceType pt = board.GetPieceAtSquare(sq);
+		PieceType ptNc = StripColor(pt);
+		Color c = GetColor(pt);
+
+		if (pt != EMPTY)
 		{
-		case WK:
-			((c == WHITE) ? whiteMaterial : blackMaterial) = 20;
-			break;
-		case WQ:
-			((c == WHITE) ? whiteMaterial : blackMaterial) = 12;
-			break;
-		case WR:
-			((c == WHITE) ? whiteMaterial : blackMaterial) = 6;
-			break;
-		case WB:
-			((c == WHITE) ? whiteMaterial : blackMaterial) = 4;
-			break;
-		case WN:
-			((c == WHITE) ? whiteMaterial : blackMaterial) = 3;
-			break;
-		case WP:
-			((c
-					== WHITE) ? whiteMaterial : blackMaterial) = 1;
-			break;
+			switch (ptNc)
+			{
+			case WK:
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 20;
+				break;
+			case WQ:
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 12;
+				break;
+			case WR:
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 6;
+				break;
+			case WB:
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 4;
+				break;
+			case WN:
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 3;
+				break;
+			case WP:
+				((c	== WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 1;
+				break;
+			}
 		}
+
+		if (board.GetAttackers<WP>(sq)) smallestWhiteAttacker[sq] = 1;
+		else if (board.GetAttackers<WN>(sq)) smallestWhiteAttacker[sq] = 3;
+		else if (board.GetAttackers<WB>(sq)) smallestWhiteAttacker[sq] = 4;
+		else if (board.GetAttackers<WR>(sq)) smallestWhiteAttacker[sq] = 6;
+		else if (board.GetAttackers<WQ>(sq)) smallestWhiteAttacker[sq] = 12;
+		else if (board.GetAttackers<WK>(sq)) smallestWhiteAttacker[sq] = 20;
+		else smallestWhiteAttacker[sq] = 30;
+		 // no attacker gets the highest value (least desirable)
+
+		if (board.GetAttackers<BP>(sq)) smallestBlackAttacker[sq] = 1;
+		else if (board.GetAttackers<BN>(sq)) smallestBlackAttacker[sq] = 3;
+		else if (board.GetAttackers<BB>(sq)) smallestBlackAttacker[sq] = 4;
+		else if (board.GetAttackers<BR>(sq)) smallestBlackAttacker[sq] = 6;
+		else if (board.GetAttackers<BQ>(sq)) smallestBlackAttacker[sq] = 12;
+		else if (board.GetAttackers<BK>(sq)) smallestBlackAttacker[sq] = 20;
+		else smallestBlackAttacker[sq] = 30;
 	}
 
-	PushPosFloat(ret, sq, NormalizeCount(whiteMaterial, 20));
-	PushPosFloat(ret, sq, NormalizeCount(blackMaterial, 20));
+	for (Square sq = 0; sq < 64; ++sq)
+	{
+		PushGlobalFloat(ret, NormalizeCount(whiteMaterial[sq], 20), group);
+	}
+	++group;
 
-	// now we find the smallest attacker of the square from both sides
-	int64_t smallestWhiteAttacker = 30; // no attacker gets the highest value (least desirable)
-	int64_t smallestBlackAttacker = 30;
+	for (Square sq = 0; sq < 64; ++sq)
+	{
+		PushGlobalFloat(ret, NormalizeCount(blackMaterial[sq], 20), group);
+	}
+	++group;
 
-	if (board.GetAttackers<WP>(sq)) smallestWhiteAttacker = 1;
-	else if (board.GetAttackers<WN>(sq)) smallestWhiteAttacker = 3;
-	else if (board.GetAttackers<WB>(sq)) smallestWhiteAttacker = 4;
-	else if (board.GetAttackers<WR>(sq)) smallestWhiteAttacker = 6;
-	else if (board.GetAttackers<WQ>(sq)) smallestWhiteAttacker = 12;
-	else if (board.GetAttackers<WK>(sq)) smallestWhiteAttacker = 20;
+	for (Square sq = 0; sq < 64; ++sq)
+	{
+		PushGlobalFloat(ret, NormalizeCount(smallestWhiteAttacker[sq], 30), group);
+	}
+	++group;
 
-	if (board.GetAttackers<BP>(sq)) smallestBlackAttacker = 1;
-	else if (board.GetAttackers<BN>(sq)) smallestBlackAttacker = 3;
-	else if (board.GetAttackers<BB>(sq)) smallestBlackAttacker = 4;
-	else if (board.GetAttackers<BR>(sq)) smallestBlackAttacker = 6;
-	else if (board.GetAttackers<BQ>(sq)) smallestBlackAttacker = 12;
-	else if (board.GetAttackers<BK>(sq)) smallestBlackAttacker = 20;
-
-	PushPosFloat(ret, sq, NormalizeCount(smallestWhiteAttacker, 30));
-	PushPosFloat(ret, sq, NormalizeCount(smallestBlackAttacker, 30));
+	for (Square sq = 0; sq < 64; ++sq)
+	{
+		PushGlobalFloat(ret, NormalizeCount(smallestBlackAttacker[sq], 30), group);
+	}
+	++group;
 }
 
 template <Color color, typename T>
@@ -466,10 +490,7 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(BN), BN, board, group);
 
-	for (Square sq = 0; sq < 64; ++sq)
-	{
-		//PushSquareFeatures(ret, board, sq);
-	}
+	PushSquareFeatures(ret, board, group);
 }
 
 } // namespace FeaturesConv
