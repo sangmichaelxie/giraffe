@@ -244,7 +244,9 @@ Score StaticEvaluate(const Board &b, Score /*lowerBound*/, Score /*upperBound*/)
 	ret += EvaluateKings<WHITE>(b.GetPieceTypeBitboard(WK), phase);
 	ret -= EvaluateKings<BLACK>(b.GetPieceTypeBitboard(BK), phase);
 
-	return ret + (b.GetSideToMove() == WHITE ? SIDE_TO_MOVE_BONUS : (-SIDE_TO_MOVE_BONUS));
+	ret += (b.GetSideToMove() == WHITE ? SIDE_TO_MOVE_BONUS : (-SIDE_TO_MOVE_BONUS));
+
+	return EvaluatorIface::EvalFullScale * tanh(1e-3f * ret);
 }
 
 Score EvaluateMaterial(const Board &b)
