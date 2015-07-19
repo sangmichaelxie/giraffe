@@ -427,7 +427,7 @@ T BuildNet(int64_t inputDims, int64_t outputDims)
 	//featureGroups.insert(featureGroups.end(), diag0Groups.begin(), diag0Groups.end());
 	//featureGroups.insert(featureGroups.end(), diag1Groups.begin(), diag1Groups.end());
 
-	LayerDescription layer0 = BuildLocalLayer(featureGroups, 4.0f, std::pair<size_t, size_t>(2, 1024), 0.0f, std::pair<size_t, size_t>(0, 0));
+	LayerDescription layer0 = BuildLocalLayer(featureGroups, 1.0f, std::pair<size_t, size_t>(2, 1024), 0.0f, std::pair<size_t, size_t>(0, 0));
 
 	layerSizes.push_back(layer0.layerSize);
 	connMatrices.push_back(layer0.connections);
