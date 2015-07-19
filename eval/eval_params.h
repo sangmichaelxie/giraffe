@@ -56,7 +56,7 @@ static const Phase B_PHASE_CONTRIBUTION = 1;
 static const Phase N_PHASE_CONTRIBUTION = 1;
 static const Phase P_PHASE_CONTRIBUTION = 0;
 
-float MOBILITY_MULTIPLIERS[2] = { 0.0f, 0.0f };
+static const float MOBILITY_MULTIPLIERS[2] = { 0.0f, 0.0f };
 
 // max phase without custom positions and promotions
 static const Phase MAX_PHASE =
@@ -66,8 +66,8 @@ static const Phase MAX_PHASE =
 	N_PHASE_CONTRIBUTION * 4 +
 	P_PHASE_CONTRIBUTION * 16;
 
-const float PAWN_PCSQ_MULTIPLIERS[2] = { 1.0f, 2.0f };
-const Score PAWN_PCSQ[64] =
+static const float PAWN_PCSQ_MULTIPLIERS[2] = { 1.0f, 2.0f };
+static const Score PAWN_PCSQ[64] =
 {
 	0,   0,   0,   0,   0,   0,   0,   0,
 	0,   0,   0,  -5,  -5,   0,   0,   0,
@@ -79,7 +79,7 @@ const Score PAWN_PCSQ[64] =
 	0,   0,   0,   0,   0,   0,   0,   0
 };
 
-const Score KNIGHT_PCSQ[2][64] =
+static const Score KNIGHT_PCSQ[2][64] =
 {
 	{
 		-144, -109, -85, -73, -73, -85, -109, -144,
@@ -103,9 +103,9 @@ const Score KNIGHT_PCSQ[2][64] =
 	}
 };
 
-const Score KNIGHT_MOBILITY[2][9] = {{ -65, -42, -9, 3, 15, 27, 37, 42, 44 }, { -50, -30, -10, 0, 10, 20, 28, 31, 33 }};
+static const Score KNIGHT_MOBILITY[2][9] = {{ -65, -42, -9, 3, 15, 27, 37, 42, 44 }, { -50, -30, -10, 0, 10, 20, 28, 31, 33 }};
 
-const Score BISHOP_PCSQ[2][64] =
+static const Score BISHOP_PCSQ[2][64] =
 {
 	{
 		-54, -27, -34, -43, -43, -34, -27, -54,
@@ -129,11 +129,11 @@ const Score BISHOP_PCSQ[2][64] =
 	}
 };
 
-const Score BISHOP_MOBILITY[2][14] = { { -52, -28, 6, 20, 34, 48, 60, 68,  74, 77, 80, 82, 84, 86 }, { -47, -23, 1, 15, 29, 43, 55, 63, 68, 72, 75, 77, 84, 86 } };
+static const Score BISHOP_MOBILITY[2][14] = { { -52, -28, 6, 20, 34, 48, 60, 68,  74, 77, 80, 82, 84, 86 }, { -47, -23, 1, 15, 29, 43, 55, 63, 68, 72, 75, 77, 84, 86 } };
 
-const Score BISHOP_PAIR_BONUS[2] = { 50, 75 };
+static const Score BISHOP_PAIR_BONUS[2] = { 50, 75 };
 
-const Score ROOK_PCSQ[2][64] =
+static const Score ROOK_PCSQ[2][64] =
 {
 	{
 		-22, -17, -12, -8, -8, -12, -17, -22,
@@ -157,12 +157,12 @@ const Score ROOK_PCSQ[2][64] =
 	}
 };
 
-const Score ROOK_MOBILITY[2][15] = {
+static const Score ROOK_MOBILITY[2][15] = {
 	{ -47, -31, -5, 1, 7, 13, 18, 22, 26, 29, 31, 33, 35, 36, 37 },
 	{ -53, -26, 0, 16, 32, 48, 64, 80, 96, 109, 115, 119, 122, 123, 124 }};
 
-const float QUEEN_PCSQ_MULTIPLIERS[2] = { 5.0f, 5.0f };
-const Score QUEEN_PCSQ[2][64] =
+static const float QUEEN_PCSQ_MULTIPLIERS[2] = { 5.0f, 5.0f };
+static const Score QUEEN_PCSQ[2][64] =
 {
 	{
 		-2, -2, -2, -2, -2, -2, -2, -2,
@@ -186,11 +186,11 @@ const Score QUEEN_PCSQ[2][64] =
 	}
 };
 
-const Score QUEEN_MOBILITY[2][28] = {
+static const Score QUEEN_MOBILITY[2][28] = {
 	{ -42, -28, -5, 0, 6, 11, 13, 18, 20, 21, 22, 22, 22, 23, 24, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25 },
 	{ -40, -23, -7, 0, 10, 19, 29, 38, 40, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41 }};
 
-const Score KING_PCSQ[2][64] =
+static const Score KING_PCSQ[2][64] =
 {
 	{
 		298, 332, 273, 225, 225, 273, 332, 298,
@@ -215,7 +215,7 @@ const Score KING_PCSQ[2][64] =
 };
 
 // give the side to move a small bonus to minimize odd and even effect
-Score SIDE_TO_MOVE_BONUS = 14;
+static const Score SIDE_TO_MOVE_BONUS = 14;
 
 }
 

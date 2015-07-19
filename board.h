@@ -227,10 +227,10 @@ private:
 	uint64_t m_seeTotalOccupancy;
 };
 
-uint64_t DebugPerft(std::string fen, uint32_t depth);
+uint64_t DebugPerft(Board &b, uint32_t depth);
 
 // same as perft, but also tries a null move on all non-in-check positions
-uint64_t DebugPerftWithNull(std::string fen, uint32_t depth);
+uint64_t DebugPerftWithNull(Board &b, uint32_t depth);
 
 void DebugRunPerftTests();
 

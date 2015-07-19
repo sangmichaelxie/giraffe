@@ -26,7 +26,9 @@ public:
 		//return StaticEvaluate(b, lowerBound, upperBound);
 		return EvaluateMaterial(b);
 	}
-} gStaticEvaluator;
+};
+
+extern StaticEvaluator gStaticEvaluator;
 
 }
 

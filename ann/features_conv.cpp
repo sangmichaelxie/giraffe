@@ -493,4 +493,7 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	PushSquareFeatures(ret, board, group);
 }
 
+template void ConvertBoardToNN<float>(const Board &board, std::vector<float> &ret);
+template void ConvertBoardToNN<FeatureDescription>(const Board &board, std::vector<FeatureDescription> &ret);
+
 } // namespace FeaturesConv

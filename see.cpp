@@ -1,6 +1,8 @@
 #include "see.h"
 #include "eval/eval_params.h"
 
+#include <iostream>
+
 #include <cstdint>
 
 // best tactical result for the moving side

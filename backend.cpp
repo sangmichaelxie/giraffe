@@ -1,5 +1,8 @@
 #include "backend.h"
 
+#include <iostream>
+#include <string>
+
 #include "board.h"
 #include "timeallocator.h"
 #include "eval/eval.h"

@@ -298,4 +298,6 @@ Score EvaluateMaterial(const Board &b)
 	return EvaluatorIface::EvalFullScale * tanh(1e-3f * ret);
 }
 
+StaticEvaluator gStaticEvaluator;
+
 }

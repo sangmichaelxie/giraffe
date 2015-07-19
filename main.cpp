@@ -21,6 +21,7 @@
 #include "ann/features_conv.h"
 #include "ann/ann_evaluator.h"
 #include "learn.h"
+#include "zobrist.h"
 
 #include "Eigen/Dense"
 

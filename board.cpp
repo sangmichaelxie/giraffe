@@ -5,6 +5,7 @@
 #include <sstream>
 #include <regex>
 #include <tuple>
+#include <iostream>
 
 #include <cassert>
 #include <cstdlib>
@@ -257,6 +258,10 @@ void Board::GenerateAllMoves(MoveList &moveList) const
 	}
 #endif
 }
+
+template void Board::GenerateAllMoves<Board::ALL> (MoveList &moveList) const;
+template void Board::GenerateAllMoves<Board::QUIET>(MoveList &moveList) const;
+template void Board::GenerateAllMoves<Board::VIOLENT>(MoveList &moveList) const;
 
 template <Board::MOVE_TYPES MT>
 void Board::GenerateAllLegalMovesSlow(MoveList &moveList) const

@@ -14,7 +14,7 @@
 #include "omp_scoped_thread_limiter.h"
 #include "random_device.h"
 
-void EnableNanInterrupt()
+inline void EnableNanInterrupt()
 {
 	_MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
 }

@@ -1,6 +1,7 @@
 #include "movepicker.h"
 
 #include <algorithm>
+#include <iostream>
 
 #include <cassert>
 #include <cstdlib>

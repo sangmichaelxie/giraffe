@@ -21,6 +21,7 @@
 #include "killer.h"
 #include "random_device.h"
 #include "ann/ann_evaluator.h"
+#include "util.h"
 
 namespace
 {
