@@ -32,3 +32,4 @@ engine_log.txt
 *.net
 *.o
 *.d
+send.sh
