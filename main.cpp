@@ -56,10 +56,6 @@ void Initialize(ANNEvaluator &evaluator)
 	// makes managing number of threads easier
 	omp_set_nested(0);
 
-	std::cout << "# Using " << omp_get_max_threads() << " OpenMP thread(s)" << std::endl;
-
-	GetVersion();
-
 	// turn off IO buffering
 	std::cout.setf(std::ios::unitbuf);
 
@@ -73,11 +69,22 @@ void Initialize(ANNEvaluator &evaluator)
 
 int main(int argc, char **argv)
 {
+	std::cout << "# Using " << omp_get_max_threads() << " OpenMP thread(s)" << std::endl;
+
+	GetVersion();
+
+#ifdef DEBUG
+	std::cout << "# Running in debug mode" << std::endl;
+#else
+	std::cout << "# Running in release mode" << std::endl;
+#endif
+
 	Backend backend;
 
 	ANNEvaluator evaluator;
 	backend.SetEvaluator(&evaluator);
 
+	// do all the heavy initialization in a thread so we can reply to "protover 2" in time
 	std::thread initThread(Initialize, std::ref(evaluator));
 
 	// first we handle special operation modes
@@ -95,12 +102,6 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-#ifdef DEBUG
-	std::cout << "# Running in debug mode" << std::endl;
-#else
-	std::cout << "# Running in release mode" << std::endl;
-#endif
-
 	while (true)
 	{
 		std::string lineStr;
@@ -112,7 +113,14 @@ int main(int argc, char **argv)
 		std::string cmd;
 		line >> cmd;
 
-		if (cmd != "xboard" && cmd != "protover" && initThread.joinable())
+		if (
+			cmd != "xboard" &&
+			cmd != "protover" &&
+			cmd != "hard" &&
+			cmd != "easy" &&
+			cmd != "cores" &&
+			cmd != "memory" &&
+			initThread.joinable())
 		{
 			// wait for initialization to be done
 			initThread.join();
