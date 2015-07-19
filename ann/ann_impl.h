@@ -352,7 +352,7 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
-void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float learningRate, float reg)
+void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float /*learningRate*/, float reg)
 {
 	assert(grad.weightGradients.size() == m_params.weights.size());
 	assert(grad.biasGradients.size() == m_params.outputBias.size());
