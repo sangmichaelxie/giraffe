@@ -442,12 +442,6 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(BN), 2.0f), group);
 	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(BP), 8.0f), group);
 
-	// castling rights
-	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
-	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
-	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
-	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
-
 	// which side to move
 	PushGlobalBool(ret, board.GetSideToMove() == WHITE, group);
 
@@ -457,9 +451,13 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 
 	++group;
 	PushGlobalCoords(ret, true, wkPos, group);
+	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
+	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
 
 	++group;
 	PushGlobalCoords(ret, true, bkPos, group);
+	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
+	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
 
 	// pawns
 	++group;
@@ -476,8 +474,12 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	// rooks
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(WR), WR, board, group);
+	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
+	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(BR), BR, board, group);
+	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
+	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
 
 	// bishops
 	++group;
