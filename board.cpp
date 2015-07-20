@@ -1446,7 +1446,7 @@ bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
 	switch (lastPT)
 	{
 	case WP:
-		attackers = PAWN_ATK[to][stm == WHITE ? 0 : 1] & m_boardDescBB[WP | stm];
+		attackers = PAWN_ATK[to][stm == WHITE ? 1 : 0] & m_boardDescBB[WP | stm];
 
 		if (attackers)
 		{
