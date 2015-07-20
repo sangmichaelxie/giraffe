@@ -563,21 +563,6 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 		}
 	}
 
-	// can any move possibly increase alpha?
-	// we take opponent's biggest piece, and if even capturing that piece for free with the highest positional gain possible
-	// doesn't improve alpha, there is no point going further
-	// we also have to consider the possibility of promotion (when we have a pawn on 7th rank)
-	// this is called delta pruning
-	Score highestPossibleScore =
-		staticEval +
-		Eval::MAT[0][board.GetOpponentLargestPieceType()] +
-		(board.HasPawnOn7th() ? Eval::MAT[0][WQ] : 0) +
-		Eval::MAX_POSITIONAL_SCORE;
-	if (highestPossibleScore <= alpha)
-	{
-		return highestPossibleScore;
-	}
-
 	// if we weren't able to get a cutoff, we may still be able to raise alpha to save some work
 	if (staticEval > alpha)
 	{
@@ -604,21 +589,6 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 		assert(seeScore == seeScoreCalculated);
 #endif
-
-		// only search the capture if it can potentially improve alpha (delta pruning)
-		PieceType promoType = GetPromoType(mv);
-
-		// if piece at square is empty, this must be en-passant, if not promotion
-		Score capturedValue = board.GetPieceAtSquare(GetToSquare(mv)) == EMPTY ? ((promoType != 0) ? 0 : Eval::MAT[0][WP]) : Eval::MAT[0][board.GetPieceAtSquare(GetToSquare(mv))];
-
-		Score promoVal = (promoType != 0) ? Eval::MAT[0][promoType & ~COLOR_MASK] : 0;
-
-		if ((staticEval + capturedValue + promoVal + Eval::MAX_POSITIONAL_SCORE) <= alpha)
-		{
-			//continue;
-		}
-
-
 		if (board.ApplyMove(mv))
 		{
 			Score score = 0;
