@@ -38,7 +38,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 			// we cannot get back in here again otherwise we'll return the hash move again
 			ExitStage_();
 			ret = m_hashMove;
-			Score seeScore = StaticExchangeEvaluation(m_board, ret);
+			Score seeScore = SEE::StaticExchangeEvaluation(m_board, ret);
 			SetScoreBiased(ret, seeScore);
 			stage = LIKELY;
 			return ret;
@@ -60,7 +60,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 				if (GetPromoType(m_moveListViolent[m_i]) != 0) // we will only get queen promotions in violent moves
 				{
 					// don't promote and get captured right away, with no compensation
-					Score seeScore = StaticExchangeEvaluation(m_board, m_moveListViolent[m_i]);
+					Score seeScore = SEE::StaticExchangeEvaluation(m_board, m_moveListViolent[m_i]);
 
 					if (seeScore >= 0)
 					{
@@ -89,7 +89,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 					continue;
 				}
 
-				Score seeScore = StaticExchangeEvaluation(m_board, m_moveListViolent[m_i]);
+				Score seeScore = SEE::StaticExchangeEvaluation(m_board, m_moveListViolent[m_i]);
 
 				if (seeScore >= 0)
 				{
@@ -148,7 +148,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 				if (m_board.CheckPseudoLegal(m_killersList[m_i]))
 				{
 					ret = m_killersList[m_i++];
-					Score seeScore = StaticExchangeEvaluation(m_board, ret);
+					Score seeScore = SEE::StaticExchangeEvaluation(m_board, ret);
 					SetScoreBiased(ret, seeScore);
 					stage = NEUTRAL;
 					return ret;
@@ -180,7 +180,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 				// if the move is losing according to SEE, put it in losing captures list
 				// here we have to guarantee that this move is not a killer, because
 				// in the next stage we don't check that (since captures can't be killers)
-				Score seeScore = StaticExchangeEvaluation(m_board, m_moveListQuiet[m_i]);
+				Score seeScore = SEE::StaticExchangeEvaluation(m_board, m_moveListQuiet[m_i]);
 
 				if (seeScore < 0)
 				{
@@ -209,7 +209,7 @@ Move MovePicker::GetNextMove(MovePickerStage &stage)
 				}
 
 				ret = m_moveListViolent[m_i++];
-				Score seeScore = StaticExchangeEvaluation(m_board, ret);
+				Score seeScore = SEE::StaticExchangeEvaluation(m_board, ret);
 				SetScoreBiased(ret, seeScore);
 				stage = UNLIKELY;
 				return ret;
@@ -301,7 +301,7 @@ void MovePicker::AssignSeeScores_(MoveList &ml)
 {
 	for (size_t i = 0; i < ml.GetSize(); ++i)
 	{
-		Score seeScore = StaticExchangeEvaluation(m_board, ml[i]);
+		Score seeScore = SEE::StaticExchangeEvaluation(m_board, ml[i]);
 		SetScore(ml[i], seeScore + 0x8000);
 	}
 }
@@ -333,7 +333,7 @@ void DebugMovePicker(Board &b, uint32_t depth, Killer &killer)
 
 	for (size_t i = 0; i < mlq.GetSize(); ++i)
 	{
-		if (StaticExchangeEvaluation(b, mlq[i]) >= 0)
+		if (SEE::StaticExchangeEvaluation(b, mlq[i]) >= 0)
 		{
 			++equalWinningCaptures;
 		}
@@ -462,7 +462,7 @@ void DebugMovePicker(Board &b, uint32_t depth, Killer &killer)
 		std::cout << "Expected:" << std::endl;
 		for (size_t i = 0; i < mlq.GetSize(); ++i)
 		{
-			if (StaticExchangeEvaluation(b, mlq[i]) >= 0)
+			if (SEE::StaticExchangeEvaluation(b, mlq[i]) >= 0)
 			{
 				std::cout << b.MoveToAlg(mlq[i]) << std::endl;
 			}

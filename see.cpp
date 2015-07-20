@@ -5,6 +5,9 @@
 
 #include <cstdint>
 
+namespace SEE
+{
+
 // best tactical result for the moving side
 Score StaticExchangeEvaluation(Board &board, Move mv)
 {
@@ -26,11 +29,11 @@ Score StaticExchangeEvaluation(Board &board, Move mv)
 
 	if (capturedPT != EMPTY)
 	{
-		ret = Eval::MAT[0][capturedPT] - StaticExchangeEvaluationImpl(board, to);
+		ret = SEE_MAT[capturedPT] - StaticExchangeEvaluationSq(board, to);
 	}
 	else
 	{
-		ret = -StaticExchangeEvaluationImpl(board, to);
+		ret = -StaticExchangeEvaluationSq(board, to);
 	}
 
 	board.UndoMoveSee();
@@ -38,7 +41,15 @@ Score StaticExchangeEvaluation(Board &board, Move mv)
 	return ret;
 }
 
-Score StaticExchangeEvaluationImpl(Board &board, Square sq)
+Score SSEMap(Board &board, Square sq)
+{
+	board.ResetSee();
+
+	// bias result to 0-SEE_MAT[WK]
+	return StaticExchangeEvaluationSq(board, sq, true) + SEE_MAT[WK];
+}
+
+Score StaticExchangeEvaluationSq(Board &board, Square sq, bool forced)
 {
 	Score ret = 0;
 
@@ -50,8 +61,27 @@ Score StaticExchangeEvaluationImpl(Board &board, Square sq)
 	if (hasMoreCapture)
 	{
 		PieceType capturedPT = board.ApplyMoveSee(pt, from, sq);
-		ret = std::max(0, Eval::MAT[0][capturedPT] - StaticExchangeEvaluationImpl(board, sq));
+
+		if (forced)
+		{
+			// in forced mode, we are trying to build a SEE map, so we assume the square to be empty
+			// (even if it's not)
+			ret = -StaticExchangeEvaluationSq(board, sq);
+		}
+		else
+		{
+			ret = std::max(0, SEE_MAT[capturedPT] - StaticExchangeEvaluationSq(board, sq));
+		}
+
 		board.UndoMoveSee();
+	}
+	else
+	{
+		if (forced)
+		{
+			// if the move is forced and we don't have a move, return worst result
+			ret = -SEE_MAT[WK];
+		}
 	}
 
 	return ret;
@@ -125,4 +155,6 @@ void DebugRunSeeTests()
 
 	// white non-capture, non-losing
 	if (!RunSeeTest("2r4k/1P6/8/4q1nr/7p/5N2/K7/8 w - - 0 1", "f3d2", 0)) { abort(); }
+}
+
 }

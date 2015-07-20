@@ -123,6 +123,29 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "conv")
+	{
+		waitForSlowInitFunc();
+
+		if (argc < 3)
+		{
+			std::cout << "Usage: " << argv[0] << " conv FEN" << std::endl;
+		}
+
+		std::stringstream ss;
+
+		for (int i = 2; i < argc; ++i)
+		{
+			ss << argv[i] << ' ';
+		}
+
+		Board b(ss.str());
+
+		std::vector<FeaturesConv::FeatureDescription> ret;
+		FeaturesConv::ConvertBoardToNN(b, ret);
+
+		return 0;
+	}
 
 	while (true)
 	{
@@ -342,7 +365,7 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "runtests")
 		{
-			DebugRunSeeTests();
+			SEE::DebugRunSeeTests();
 			DebugRunMovePickerTests();
 			DebugRunPerftTests();
 			std::cout << "All passed!" << std::endl;

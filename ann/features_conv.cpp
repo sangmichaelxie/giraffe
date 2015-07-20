@@ -1,4 +1,5 @@
 #include "features_conv.h"
+#include "see.h"
 
 #include "bit_ops.h"
 
@@ -186,8 +187,10 @@ void PushSquareFeatures(std::vector<T> &ret, const Board &board, int32_t &group)
 	int64_t blackMaterial[64] = { 0 };
 
 	// smallest attacker of the square from both sides
-	int64_t smallestWhiteAttacker[64] = { 0 };
-	int64_t smallestBlackAttacker[64] = { 0 };
+	int64_t whiteSee[64] = { 0 };
+	int64_t blackSee[64] = { 0 };
+
+	Board boardCopy = board;
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
@@ -200,65 +203,63 @@ void PushSquareFeatures(std::vector<T> &ret, const Board &board, int32_t &group)
 			switch (ptNc)
 			{
 			case WK:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 20;
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WK];
 				break;
 			case WQ:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 12;
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WQ];
 				break;
 			case WR:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 6;
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WR];
 				break;
 			case WB:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 4;
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WB];
 				break;
 			case WN:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 3;
+				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WN];
 				break;
 			case WP:
-				((c	== WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = 1;
+				((c	== WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WP];
 				break;
 			}
 		}
 
-		if (board.GetAttackers<WP>(sq)) smallestWhiteAttacker[sq] = 1;
-		else if (board.GetAttackers<WN>(sq)) smallestWhiteAttacker[sq] = 3;
-		else if (board.GetAttackers<WB>(sq)) smallestWhiteAttacker[sq] = 4;
-		else if (board.GetAttackers<WR>(sq)) smallestWhiteAttacker[sq] = 6;
-		else if (board.GetAttackers<WQ>(sq)) smallestWhiteAttacker[sq] = 12;
-		else if (board.GetAttackers<WK>(sq)) smallestWhiteAttacker[sq] = 20;
-		else smallestWhiteAttacker[sq] = 30;
-		 // no attacker gets the highest value (least desirable)
+		if (board.GetSideToMove() == WHITE)
+		{
+			whiteSee[sq] = SEE::SSEMap(boardCopy, sq);
+			boardCopy.MakeNullMove();
+			blackSee[sq] = SEE::SSEMap(boardCopy, sq);
+		}
+		else
+		{
+			blackSee[sq] = SEE::SSEMap(boardCopy, sq);
+			boardCopy.MakeNullMove();
+			whiteSee[sq] = SEE::SSEMap(boardCopy, sq);
+		}
 
-		if (board.GetAttackers<BP>(sq)) smallestBlackAttacker[sq] = 1;
-		else if (board.GetAttackers<BN>(sq)) smallestBlackAttacker[sq] = 3;
-		else if (board.GetAttackers<BB>(sq)) smallestBlackAttacker[sq] = 4;
-		else if (board.GetAttackers<BR>(sq)) smallestBlackAttacker[sq] = 6;
-		else if (board.GetAttackers<BQ>(sq)) smallestBlackAttacker[sq] = 12;
-		else if (board.GetAttackers<BK>(sq)) smallestBlackAttacker[sq] = 20;
-		else smallestBlackAttacker[sq] = 30;
+		boardCopy.UndoMove();
 	}
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushGlobalFloat(ret, NormalizeCount(whiteMaterial[sq], 20), group);
+		PushGlobalFloat(ret, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]), group);
 	}
 	++group;
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushGlobalFloat(ret, NormalizeCount(blackMaterial[sq], 20), group);
+		PushGlobalFloat(ret, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]), group);
 	}
 	++group;
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushGlobalFloat(ret, NormalizeCount(smallestWhiteAttacker[sq], 30), group);
+		PushGlobalFloat(ret, NormalizeCount(whiteSee[sq], SEE::SEE_MAT[WK]), group);
 	}
 	++group;
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushGlobalFloat(ret, NormalizeCount(smallestBlackAttacker[sq], 30), group);
+		PushGlobalFloat(ret, NormalizeCount(blackSee[sq], SEE::SEE_MAT[WK]), group);
 	}
 	++group;
 }
