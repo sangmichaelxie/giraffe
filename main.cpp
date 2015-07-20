@@ -3,6 +3,7 @@
 #include <string>
 #include <sstream>
 #include <thread>
+#include <mutex>
 
 #include <cstdint>
 
@@ -22,6 +23,7 @@
 #include "ann/ann_evaluator.h"
 #include "learn.h"
 #include "zobrist.h"
+#include "gtb.h"
 
 #include "Eigen/Dense"
 
@@ -46,8 +48,30 @@ void GetVersion()
 #endif
 }
 
-void Initialize(ANNEvaluator &evaluator)
+void InitializeSlow(ANNEvaluator &evaluator, std::mutex &mtx)
 {
+	std::ifstream evalNet("eval.net");
+	evaluator.Deserialize(evalNet);
+
+	std::string gtbInitOutput = GTB::Init();
+
+	std::lock_guard<std::mutex> lock(mtx);
+	std::cout << gtbInitOutput;
+}
+
+// fast initialization steps that can be done in main thread
+void InitializeFast()
+{
+	std::cout << "# Using " << omp_get_max_threads() << " OpenMP thread(s)" << std::endl;
+
+	GetVersion();
+
+#ifdef DEBUG
+	std::cout << "# Running in debug mode" << std::endl;
+#else
+	std::cout << "# Running in release mode" << std::endl;
+#endif
+
 	Eigen::initParallel();
 
 	// set Eigen to use 1 thread because we are doing OpenMP here
@@ -63,35 +87,32 @@ void Initialize(ANNEvaluator &evaluator)
 	initmagicmoves();
 	BoardConstsInit();
 	InitializeZobrist();
-
-	std::ifstream evalNet("eval.net");
-	evaluator.Deserialize(evalNet);
 }
 
 int main(int argc, char **argv)
 {
-	std::cout << "# Using " << omp_get_max_threads() << " OpenMP thread(s)" << std::endl;
-
-	GetVersion();
-
-#ifdef DEBUG
-	std::cout << "# Running in debug mode" << std::endl;
-#else
-	std::cout << "# Running in release mode" << std::endl;
-#endif
+	InitializeFast();
 
 	Backend backend;
 
 	ANNEvaluator evaluator;
 	backend.SetEvaluator(&evaluator);
 
+	// we need a mutex here because InitializeSlow needs to print, and it may decide to
+	// print at the same time as the main command loop (if the command loop isn't waiting)
+	std::mutex coutMtx;
+
+	coutMtx.lock();
+
 	// do all the heavy initialization in a thread so we can reply to "protover 2" in time
-	std::thread initThread(Initialize, std::ref(evaluator));
+	std::thread initThread(InitializeSlow, std::ref(evaluator), std::ref(coutMtx));
+
+	auto waitForSlowInitFunc = [&initThread, &coutMtx]() { coutMtx.unlock(); initThread.join(); coutMtx.lock(); };
 
 	// first we handle special operation modes
 	if (argc >= 2 && std::string(argv[1]) == "tdl")
 	{
-		initThread.join();
+		waitForSlowInitFunc();
 
 		if (argc < 3)
 		{
@@ -106,7 +127,10 @@ int main(int argc, char **argv)
 	while (true)
 	{
 		std::string lineStr;
+
+		coutMtx.unlock();
 		std::getline(std::cin, lineStr);
+		coutMtx.lock();
 
 		std::stringstream line(lineStr);
 
@@ -114,6 +138,7 @@ int main(int argc, char **argv)
 		std::string cmd;
 		line >> cmd;
 
+		// this is the list of commands we can process before initialization finished
 		if (
 			cmd != "xboard" &&
 			cmd != "protover" &&
@@ -121,10 +146,12 @@ int main(int argc, char **argv)
 			cmd != "easy" &&
 			cmd != "cores" &&
 			cmd != "memory" &&
+			cmd != "accepted" &&
+			cmd != "rejected" &&
 			initThread.joinable())
 		{
 			// wait for initialization to be done
-			initThread.join();
+			waitForSlowInitFunc();
 		}
 
 		if (cmd == "xboard") {} // ignore since we only support xboard mode anyways
@@ -162,8 +189,7 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "quit")
 		{
-			backend.Quit();
-			return 0;
+			break;
 		}
 		else if (cmd == "random") {}
 		else if (cmd == "force")
@@ -310,6 +336,10 @@ int main(int argc, char **argv)
 		{
 			std::cout << backend.DebugEval() << std::endl;
 		}
+		else if (cmd == "gtb")
+		{
+			std::cout << backend.DebugGTB() << std::endl;
+		}
 		else if (cmd == "runtests")
 		{
 			DebugRunSeeTests();
@@ -326,4 +356,7 @@ int main(int argc, char **argv)
 			std::cout << "Error (unknown command): " << cmd << std::endl;
 		}
 	}
+
+	backend.Quit();
+	GTB::DeInit();
 }

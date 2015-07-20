@@ -7,44 +7,19 @@
 
 #include <cstdint>
 
+#include "types.h"
 #include "util.h"
 #include "eval/eval.h"
 #include "see.h"
 #include "movepicker.h"
+#include "gtb.h"
 
 namespace
 {
-	// a score of MATE_MOVING_SIDE means the opponent (of the moving side) is mated on the board
-	const static Score MATE_MOVING_SIDE = 30000;
-
-	// a score of MATE_OPPONENT_SIDE means the moving side is mated on the board
-	const static Score MATE_OPPONENT_SIDE = -30000;
-
-	const static Score MATE_MOVING_SIDE_THRESHOLD = 20000;
-	const static Score MATE_OPPONENT_SIDE_THRESHOLD = -20000;
-
 	// estimated minimum branching factor for time allocation
 	// if more than 1/x of the allocated time has been used at the end of an iteration,
 	// a new iteration won't be started
 	const static double ESTIMATED_MIN_BRANCHING_FACTOR = 5.0;
-
-	// when these mating scores are propagated up, they are adjusted by distance to mate
-	inline void AdjustIfMateScore(Score &score)
-	{
-		if (score > MATE_MOVING_SIDE_THRESHOLD)
-		{
-			--score;
-		}
-		else if (score < MATE_OPPONENT_SIDE_THRESHOLD)
-		{
-			++score;
-		}
-	}
-
-	inline bool IsMateScore(Score score)
-	{
-		return score > MATE_MOVING_SIDE_THRESHOLD || score < MATE_OPPONENT_SIDE_THRESHOLD;
-	}
 }
 
 namespace Search
@@ -260,6 +235,17 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	bool isPV = (beta - alpha) != 1;
 
 	bool isRoot = ply == 0;
+
+	// we cannot probe at root because then we would have no move to return
+	if (!isRoot)
+	{
+		GTB::ProbeResult gtbResult = GTB::Probe(board);
+
+		if (gtbResult)
+		{
+			return *gtbResult;
+		}
+	}
 
 	TTEntry *tEntry = ENABLE_TT ? context.transpositionTable->Probe(board.GetHash()) : 0;
 
@@ -526,6 +512,13 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	if (board.HasInsufficientMaterial())
 	{
 		return DRAW_SCORE;
+	}
+
+	GTB::ProbeResult gtbResult = GTB::Probe(board);
+
+	if (gtbResult)
+	{
+		return *gtbResult;
 	}
 
 	// we first see if we can stand-pat

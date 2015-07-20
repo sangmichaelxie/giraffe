@@ -153,6 +153,9 @@ public:
 	// we don't look through the whole history because that can be very slow in long games
 	bool Is2Fold(size_t numMoves);
 
+	bool IsEpAvailable() const { return m_boardDescBB[EN_PASS_SQUARE] != 0; }
+	Square GetEpSquare() const { return BitScanForward(m_boardDescBB[EN_PASS_SQUARE]); }
+
 	// in relaxed mode, we include material configurations that are not drawn by rule, but are
 	// effectively drawn (helpmate situations)
 	bool HasInsufficientMaterial(bool relaxed = true) const;

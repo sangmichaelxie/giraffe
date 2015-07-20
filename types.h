@@ -146,4 +146,56 @@ inline char PieceTypeToChar(PieceType pt)
 const static size_t KB = 1024;
 const static size_t MB = 1024*KB;
 
+// a score of MATE_MOVING_SIDE means the opponent (of the moving side) is mated on the board
+const static Score MATE_MOVING_SIDE = 30000;
+
+// a score of MATE_OPPONENT_SIDE means the moving side is mated on the board
+const static Score MATE_OPPONENT_SIDE = -30000;
+
+const static Score MATE_MOVING_SIDE_THRESHOLD = 20000;
+const static Score MATE_OPPONENT_SIDE_THRESHOLD = -20000;
+
+// when these mating scores are propagated up, they are adjusted by distance to mate
+inline void AdjustIfMateScore(Score &score)
+{
+	if (score > MATE_MOVING_SIDE_THRESHOLD)
+	{
+		--score;
+	}
+	else if (score < MATE_OPPONENT_SIDE_THRESHOLD)
+	{
+		++score;
+	}
+}
+
+inline bool IsMateScore(Score score)
+{
+	return score > MATE_MOVING_SIDE_THRESHOLD || score < MATE_OPPONENT_SIDE_THRESHOLD;
+}
+
+inline Score MakeWinningScore(int32_t plies)
+{
+	return MATE_MOVING_SIDE - plies;
+}
+
+inline Score MakeLosingScore(int32_t plies)
+{
+	return MATE_OPPONENT_SIDE + plies;
+}
+
+// this is basically std::experimental::optional, but we don't want to switch to C++1y just for this
+template <typename T>
+class Optional
+{
+public:
+	Optional() : m_valid(false) {}
+	operator bool() const { return m_valid; }
+	T &operator*() { return m_val; }
+	Optional &operator=(const T &val) { m_val = val; m_valid = true; return *this; }
+
+private:
+	T m_val;
+	bool m_valid;
+};
+
 #endif // TYPES_H

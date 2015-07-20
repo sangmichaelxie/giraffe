@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <regex>
+#include <sstream>
 
 #ifdef __GNUC_MINOR__
 	#ifndef __llvm__
@@ -26,6 +27,14 @@ inline bool PatternMatch(std::string str, std::string pattern_str)
 {
 	std::regex pattern(pattern_str, std::regex_constants::extended);
 	return std::regex_match(str, pattern);
+}
+
+template <typename T>
+inline std::string ToStr(const T &x)
+{
+	std::stringstream ss;
+	ss << x;
+	return ss.str();
 }
 
 #endif // UTIL_H

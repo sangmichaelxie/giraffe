@@ -27,7 +27,8 @@ SOURCES += main.cpp \
 	ann/learn_ann.cpp \
 	ann/features_conv.cpp \
     learn.cpp \
-    random_device.cpp
+    random_device.cpp \
+    gtb.cpp
 
 HEADERS += \
 	board_consts.h \
@@ -58,5 +59,6 @@ HEADERS += \
 	ann/ann_evaluator.h \
     learn.h \
     omp_scoped_thread_limiter.h \
-    random_device.h
+    random_device.h \
+    gtb.h
 

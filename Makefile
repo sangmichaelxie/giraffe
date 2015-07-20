@@ -1,5 +1,8 @@
 CXX=g++-4.9
 
+# this is used to build gtb only
+CC=gcc-4.9 
+
 HGVERSION:= $(shell hg parents --template '{node|short}')
 
 CXXFLAGS_COMMON = \
@@ -27,7 +30,7 @@ INCLUDES=-I. -IEigen_dev
 
 EXE=giraffe
 
-LDFLAGS=-L. -lm -ltcmalloc
+LDFLAGS=-L. -Lgtb -lm -ltcmalloc -lgtb
 
 OBJS := $(CXXFILES:%.cpp=obj/%.o)
 DEPS := $(CXXFILES:%.cpp=dep/%.d)
@@ -61,8 +64,11 @@ dep/%.d: %.cpp
 obj/%.o :
 	$(Q) $(CXX) $(CXXFLAGS) $(INCLUDES) -c $(@:obj/%.o=%.cpp) -o $@
 
-$(EXE): $(OBJS)
-	$(Q) $(CXX) $(CXXFLAGS) $(LDFLAGS) $(OBJS) -o $(EXE)
+$(EXE): $(OBJS) gtb/libgtb.a
+	$(Q) $(CXX) $(CXXFLAGS) $(OBJS) -o $(EXE) $(LDFLAGS)
+
+gtb/libgtb.a:
+	$(Q) cd gtb && CC=$(CC) make
 
 test:
 	$(Q) echo $(DEPS)

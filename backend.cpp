@@ -6,6 +6,7 @@
 #include "board.h"
 #include "timeallocator.h"
 #include "eval/eval.h"
+#include "gtb.h"
 
 Backend::Backend()
 	: m_mode(Backend::EngineMode_force), m_searchInProgress(false), m_maxDepth(0), m_showThinking(false),
@@ -221,6 +222,20 @@ void Backend::DebugRunPerftWithNull(int32_t depth)
 Score Backend::DebugEval()
 {
 	return m_evaluator->EvaluateForSTM(m_currentBoard, SCORE_MIN, SCORE_MAX);
+}
+
+std::string Backend::DebugGTB()
+{
+	GTB::ProbeResult result = GTB::Probe(m_currentBoard);
+
+	if (!result)
+	{
+		return "No result";
+	}
+	else
+	{
+		return ToStr(*result);
+	}
 }
 
 void Backend::Quit()

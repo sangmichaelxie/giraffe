@@ -57,6 +57,8 @@ public:
 	void DebugRunPerftWithNull(int32_t depth);
 	Score DebugEval();
 
+	std::string DebugGTB();
+
 	void Quit();
 
 	bool IsAMove(const std::string &s);

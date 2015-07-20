@@ -1,0 +1,63 @@
+gtb-probe.o: gtb-probe.c gtb-probe.h sysport/sysport.h gtb-att.h \
+  gtb-types.h gtb-dec.h
+gtb-dec.o: gtb-dec.c gtb-dec.h compression/huffman/hzip.h \
+  compression/wrap.h
+gtb-att.o: gtb-att.c gtb-att.h sysport/sysport.h
+sysport.o: sysport/sysport.c sysport/sysport.h
+wrap.o: compression/wrap.c compression/wrap.h \
+  compression/lzma/Lzma86Enc.h compression/lzma/Types.h \
+  compression/lzma/Lzma86Dec.h compression/zlib/zlib.h \
+  compression/zlib/zconf.h compression/huffman/hzip.h \
+  compression/liblzf/lzf.h
+hzip.o: compression/huffman/hzip.c compression/huffman/hzip.h
+LzmaEnc.o: compression/lzma/LzmaEnc.c compression/lzma/LzmaEnc.h \
+  compression/lzma/Types.h compression/lzma/LzFind.h
+LzmaDec.o: compression/lzma/LzmaDec.c compression/lzma/LzmaDec.h \
+  compression/lzma/Types.h
+Alloc.o: compression/lzma/Alloc.c compression/lzma/Alloc.h
+LzFind.o: compression/lzma/LzFind.c compression/lzma/LzFind.h \
+  compression/lzma/Types.h compression/lzma/LzHash.h
+Lzma86Enc.o: compression/lzma/Lzma86Enc.c compression/lzma/Lzma86Enc.h \
+  compression/lzma/Types.h compression/lzma/Alloc.h \
+  compression/lzma/Bra.h compression/lzma/LzmaEnc.h
+Lzma86Dec.o: compression/lzma/Lzma86Dec.c compression/lzma/Lzma86Dec.h \
+  compression/lzma/Types.h compression/lzma/Alloc.h \
+  compression/lzma/Bra.h compression/lzma/LzmaDec.h
+Bra86.o: compression/lzma/Bra86.c compression/lzma/Bra.h \
+  compression/lzma/Types.h
+zcompress.o: compression/zlib/zcompress.c compression/zlib/zlib.h \
+  compression/zlib/zconf.h
+uncompr.o: compression/zlib/uncompr.c compression/zlib/zlib.h \
+  compression/zlib/zconf.h
+inflate.o: compression/zlib/inflate.c compression/zlib/zutil.h \
+  compression/zlib/zlib.h compression/zlib/zconf.h \
+  compression/zlib/inftrees.h compression/zlib/inflate.h \
+  compression/zlib/inffast.h compression/zlib/inffixed.h
+deflate.o: compression/zlib/deflate.c compression/zlib/deflate.h \
+  compression/zlib/zutil.h compression/zlib/zlib.h \
+  compression/zlib/zconf.h
+adler32.o: compression/zlib/adler32.c compression/zlib/zlib.h \
+  compression/zlib/zconf.h
+crc32.o: compression/zlib/crc32.c compression/zlib/zutil.h \
+  compression/zlib/zlib.h compression/zlib/zconf.h \
+  compression/zlib/crc32.h
+infback.o: compression/zlib/infback.c compression/zlib/zutil.h \
+  compression/zlib/zlib.h compression/zlib/zconf.h \
+  compression/zlib/inftrees.h compression/zlib/inflate.h \
+  compression/zlib/inffast.h compression/zlib/inffixed.h
+inffast.o: compression/zlib/inffast.c compression/zlib/zutil.h \
+  compression/zlib/zlib.h compression/zlib/zconf.h \
+  compression/zlib/inftrees.h compression/zlib/inflate.h \
+  compression/zlib/inffast.h
+inftrees.o: compression/zlib/inftrees.c compression/zlib/zutil.h \
+  compression/zlib/zlib.h compression/zlib/zconf.h \
+  compression/zlib/inftrees.h
+trees.o: compression/zlib/trees.c compression/zlib/deflate.h \
+  compression/zlib/zutil.h compression/zlib/zlib.h \
+  compression/zlib/zconf.h compression/zlib/trees.h
+zutil.o: compression/zlib/zutil.c compression/zlib/zutil.h \
+  compression/zlib/zlib.h compression/zlib/zconf.h
+lzf_c.o: compression/liblzf/lzf_c.c compression/liblzf/lzf.h \
+  compression/liblzf/lzfP.h
+lzf_d.o: compression/liblzf/lzf_d.c compression/liblzf/lzf.h \
+  compression/liblzf/lzfP.h
