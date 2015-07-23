@@ -5,6 +5,7 @@
 #include <sstream>
 #include <algorithm>
 #include <random>
+#include <functional>
 
 #include <cmath>
 
@@ -22,6 +23,7 @@
 #include "random_device.h"
 #include "ann/ann_evaluator.h"
 #include "util.h"
+#include "stats.h"
 
 namespace
 {
@@ -115,13 +117,11 @@ void TDL(const std::string &positionsFilename)
 
 	double timeStart = CurrentTime();
 
+	Stat errorStat;
+
 	for (; iter < NumIterations; ++iter)
 	{
-		std::random_shuffle(rootPositions.begin(), rootPositions.end());
-
 		double iterationStart = CurrentTime();
-
-		float errorSum = 0.0f;
 
 		// first we generate new labels
 		// if this is the first iteration, we use static material labels
@@ -161,12 +161,16 @@ void TDL(const std::string &positionsFilename)
 				// each thread makes a copy of the evaluator to reduce sharing
 				ANNEvaluator thread_annEvaluator = annEvaluator;
 
+				auto rng = gRd.MakeMT();
+				auto positionDist = std::uniform_int_distribution<size_t>(0, rootPositions.size() - 1);
+				auto positionDrawFunc = std::bind(positionDist, rng);
+
 				#pragma omp for schedule(dynamic, 1)
 				for (size_t i = 0; i < PositionsPerBatch; ++i)
 				{
 					thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
 
-					Board rootPos(rootPositions[i]);
+					Board rootPos(rootPositions[positionDrawFunc()]);
 					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
 					Board leafPos = rootPos;
@@ -217,8 +221,10 @@ void TDL(const std::string &positionsFilename)
 
 						float absError = fabs(accumulatedError);
 
-						#pragma omp atomic
-						errorSum += absError;
+						#pragma omp critical(statUpdate)
+						{
+							errorStat.AddNumber(absError);
+						}
 
 						accumulatedError = std::max(accumulatedError, -MaxError);
 						accumulatedError = std::min(accumulatedError, MaxError);
@@ -245,7 +251,7 @@ void TDL(const std::string &positionsFilename)
 		}
 		else
 		{
-			annEvaluator.Train(trainingPositions, trainingTargets, featureDescriptions, LearningRate);
+			annEvaluator.Train(trainingPositions, trainingTargets, featureDescriptions, LearningRateSGD);
 		}
 
 		if ((iter % EvaluatorSerializeInterval) == 0)
@@ -259,8 +265,10 @@ void TDL(const std::string &positionsFilename)
 		{
 			std::cout << "Iteration " << iter << ". ";
 			std::cout << "Time: " << (CurrentTime() - timeStart) << " seconds. ";
-			std::cout << "Iteration took: " << (CurrentTime() - iterationStart) << " seconds. ";
-			std::cout << "TD Error: " << errorSum << ". ";
+			std::cout << "Last Iteration took: " << (CurrentTime() - iterationStart) << " seconds. ";
+
+			std::cout << "TD Error: " << errorStat.GetAvg() << ". ";
+			errorStat.Reset();
 
 			std::cout << std::endl;
 		}
