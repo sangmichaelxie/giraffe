@@ -146,6 +146,21 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "bench")
+	{
+		waitForSlowInitFunc();
+
+		Search::SyncSearchDepthLimited(Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), 7, &evaluator);
+		Search::SyncSearchDepthLimited(Board("2r2rk1/pp3pp1/b2Pp3/P1Q4p/RPqN2n1/8/2P2PPP/2B1R1K1 w - - 0 1"), 7, &evaluator);
+		Search::SyncSearchDepthLimited(Board("8/1nr3pk/p3p1r1/4p3/P3P1q1/4PR1N/3Q2PK/5R2 w - - 0 1"), 7, &evaluator);
+		Search::SyncSearchDepthLimited(Board("5R2/8/7r/7P/5RPK/1k6/4r3/8 w - - 0 1"), 7, &evaluator);
+		Search::SyncSearchDepthLimited(Board("r5k1/2p2pp1/1nppr2p/8/p2PPp2/PPP2P1P/3N2P1/R3RK2 w - - 0 1"), 7, &evaluator);
+		Search::SyncSearchDepthLimited(Board("8/R7/8/1k6/1p1Bq3/8/4NK2/8 w - - 0 1"), 7, &evaluator);
+
+		std::cout << evaluator.FailHigh << ' ' << evaluator.FailLow << ' ' << evaluator.Total << std::endl;
+
+		return 0;
+	}
 
 	while (true)
 	{
