@@ -171,6 +171,38 @@ void TDL(const std::string &positionsFilename)
 					thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
 
 					Board rootPos(rootPositions[positionDrawFunc()]);
+
+					if (rootPos.GetGameStatus() != Board::ONGOING)
+					{
+						continue;
+					}
+
+					// make 2 random moves
+					MoveList ml;
+					rootPos.GenerateAllLegalMovesSlow<Board::ALL>(ml);
+
+					auto movePickerDist = std::uniform_int_distribution<size_t>(0, ml.GetSize() - 1);
+
+					rootPos.ApplyMove(ml[movePickerDist(rng)]);
+
+					if (rootPos.GetGameStatus() != Board::ONGOING)
+					{
+						continue;
+					}
+
+					ml.Clear();
+
+					rootPos.GenerateAllLegalMovesSlow<Board::ALL>(ml);
+
+					movePickerDist = std::uniform_int_distribution<size_t>(0, ml.GetSize() - 1);
+
+					rootPos.ApplyMove(ml[movePickerDist(rng)]);
+
+					if (rootPos.GetGameStatus() != Board::ONGOING)
+					{
+						continue;
+					}
+
 					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
 
 					Board leafPos = rootPos;
