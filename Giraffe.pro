@@ -28,7 +28,8 @@ SOURCES += main.cpp \
 	ann/features_conv.cpp \
     learn.cpp \
     random_device.cpp \
-    gtb.cpp
+    gtb.cpp \
+    ann/ann_evaluator.cpp
 
 HEADERS += \
 	board_consts.h \

@@ -157,8 +157,6 @@ int main(int argc, char **argv)
 		Search::SyncSearchDepthLimited(Board("r5k1/2p2pp1/1nppr2p/8/p2PPp2/PPP2P1P/3N2P1/R3RK2 w - - 0 1"), 7, &evaluator);
 		Search::SyncSearchDepthLimited(Board("8/R7/8/1k6/1p1Bq3/8/4NK2/8 w - - 0 1"), 7, &evaluator);
 
-		std::cout << evaluator.FailHigh << ' ' << evaluator.FailLow << ' ' << evaluator.Total << std::endl;
-
 		return 0;
 	}
 

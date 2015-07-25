@@ -4,6 +4,8 @@
 #include "types.h"
 #include "board.h"
 
+#include <limits>
+
 // add small offsets to prevent overflow/underflow on adding/subtracting 1 (eg. for PV search)
 const static Score SCORE_MAX = std::numeric_limits<Score>::max() - 1000;
 const static Score SCORE_MIN = std::numeric_limits<Score>::lowest() + 1000;
