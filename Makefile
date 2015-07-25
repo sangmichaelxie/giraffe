@@ -6,7 +6,7 @@ CC=gcc-4.9
 HGVERSION:= $(shell hg parents --template '{node|short}')
 
 CXXFLAGS_COMMON = \
-	-Wall -Wextra -std=gnu++11 -mtune=native -Wa,-q -ffast-math \
+	-Wall -Wextra -Wno-unused-function -std=gnu++11 -mtune=native -Wa,-q -ffast-math \
 	-pthread -fopenmp -DHGVERSION="\"${HGVERSION}\""
 	
 CXXFLAGS_DEP = \
