@@ -55,9 +55,12 @@ template<> void PushGlobalFloat<FeatureDescription>(std::vector<FeatureDescripti
 }
 
 template <typename T>
-void PushGlobalCoords(std::vector<T> &ret, bool exists, Square sq, int32_t group)
+void PushGlobalCoords(std::vector<T> &ret, bool exists, Square sq, int32_t group, bool mustExist = false)
 {
-	PushGlobalBool(ret, exists, group);
+	if (!mustExist)
+	{
+		PushGlobalBool(ret, exists, group);
+	}
 
 	uint32_t x = GetX(sq);
 	uint32_t y = GetY(sq);
@@ -241,8 +244,8 @@ void PushSquareFeatures(std::vector<T> &ret, const Board &board)
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]));
-		PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]));
+		//PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]));
+		//PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]));
 		PushPosFloat(ret, sq, NormalizeCount(whiteSee[sq], SEE::SEE_MAT[WK]));
 		PushPosFloat(ret, sq, NormalizeCount(blackSee[sq], SEE::SEE_MAT[WK]));
 	}
@@ -350,7 +353,7 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 	{
 		PushGlobalCoords(ret, false, 0, group);
 		PushAttacks(ret, 0, pt, false, board, group);
-		++group;
+		//++group;
 		PushGlobalCoords(ret, false, 0, group);
 		PushAttacks(ret, 0, pt, false, board, group);
 	}
@@ -366,7 +369,7 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 			// use the first slot
 			PushGlobalCoords(ret, true, pos, group);
 			PushAttacks(ret, pos, pt, true, board, group);
-			++group;
+			//++group;
 			PushGlobalCoords(ret, false, 0, group);
 			PushAttacks(ret, pos, pt, false, board, group);
 		}
@@ -375,7 +378,7 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 			// use the second slot
 			PushGlobalCoords(ret, false, 0, group);
 			PushAttacks(ret, pos, pt, false, board, group);
-			++group;
+			//++group;
 			PushGlobalCoords(ret, true, pos, group);
 			PushAttacks(ret, pos, pt, true, board, group);
 		}
@@ -394,7 +397,7 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 
 		PushGlobalCoords(ret, true, pos1, group);
 		PushAttacks(ret, pos1, pt, true, board, group);
-		++group;
+		//++group;
 		PushGlobalCoords(ret, true, pos2, group);
 		PushAttacks(ret, pos2, pt, true, board, group);
 	}
@@ -412,19 +415,54 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 
 	int32_t group = 0;
 
+	size_t WQCount = board.GetPieceCount(WQ);
+	size_t WRCount = board.GetPieceCount(WR);
+	size_t WBCount = board.GetPieceCount(WB);
+	size_t WNCount = board.GetPieceCount(WN);
+	size_t WPCount = board.GetPieceCount(WP);
+
+	size_t BQCount = board.GetPieceCount(BQ);
+	size_t BRCount = board.GetPieceCount(BR);
+	size_t BBCount = board.GetPieceCount(BB);
+	size_t BNCount = board.GetPieceCount(BN);
+	size_t BPCount = board.GetPieceCount(BP);
+
+	float WMatNP =
+		SEE::SEE_MAT[WQ] * WQCount +
+		SEE::SEE_MAT[WR] * WRCount +
+		SEE::SEE_MAT[WB] * WBCount +
+		SEE::SEE_MAT[WN] * WNCount;
+
+	float BMatNP =
+		SEE::SEE_MAT[BQ] * BQCount +
+		SEE::SEE_MAT[BR] * BRCount +
+		SEE::SEE_MAT[BB] * BBCount +
+		SEE::SEE_MAT[BN] * BNCount;
+
+	float WMatWP = WMatNP + SEE::SEE_MAT[WP] * WPCount;
+	float BMatWP = BMatNP + SEE::SEE_MAT[BP] * BPCount;
+
+	int64_t MaxTotalMatNP = SEE::SEE_MAT[WQ] + 2 * SEE::SEE_MAT[WR] + 2 * SEE::SEE_MAT[WB] + 2 * SEE::SEE_MAT[WN];
+	int64_t MaxTotalMatWP = MaxTotalMatNP + 8 * SEE::SEE_MAT[WP];
+
+	WMatNP = NormalizeCount(static_cast<int64_t>(WMatNP), MaxTotalMatNP);
+	BMatNP = NormalizeCount(static_cast<int64_t>(BMatNP), MaxTotalMatNP);
+	WMatWP = NormalizeCount(static_cast<int64_t>(WMatWP), MaxTotalMatWP);
+	BMatWP = NormalizeCount(static_cast<int64_t>(BMatWP), MaxTotalMatWP);
+
 	// material (no need for king) -
 	// these can also be calculated from "pieces exist" flags, they are
 	// almost entirely redundant (except for set-up illegal positions, and promotions)
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(WQ), 1.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(WR), 2.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(WB), 2.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(WN), 2.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(WP), 8.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(BQ), 1.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(BR), 2.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(BB), 2.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(BN), 2.0f), group);
-	PushGlobalFloat(ret, NormalizeCount(board.GetPieceCount(BP), 8.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(WQCount, 1.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(WRCount, 2.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(WBCount, 2.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(WNCount, 2.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(WPCount, 8.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(BQCount, 1.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(BRCount, 2.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(BBCount, 2.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(BNCount, 2.0f), group);
+	PushGlobalFloat(ret, NormalizeCount(BPCount, 8.0f), group);
 
 	// which side to move
 	PushGlobalBool(ret, board.GetSideToMove() == WHITE, group);
@@ -433,51 +471,72 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	uint32_t wkPos = board.GetFirstPiecePos(WK);
 	uint32_t bkPos = board.GetFirstPiecePos(BK);
 
+	// this function pushes important features that should go into all groups
+	auto PushFCFeatures = [wkPos, bkPos, WMatNP, BMatNP, WMatWP, BMatWP](std::vector<T> &ret, int32_t group)
+	{
+		PushGlobalCoords(ret, true, wkPos, group, true);
+		PushGlobalCoords(ret, true, bkPos, group, true);
+		PushGlobalFloat(ret, WMatNP, group);
+		PushGlobalFloat(ret, BMatNP, group);
+		PushGlobalFloat(ret, WMatWP, group);
+		PushGlobalFloat(ret, BMatWP, group);
+	};
+
 	++group;
-	PushGlobalCoords(ret, true, wkPos, group);
+	PushGlobalCoords(ret, true, wkPos, group, true);
 	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
+	PushFCFeatures(ret, group);
 
 	++group;
-	PushGlobalCoords(ret, true, bkPos, group);
+	PushGlobalCoords(ret, true, bkPos, group, true);
 	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
+	PushFCFeatures(ret, group);
 
-	// pawns
+	// pawns (all pawns in the same group)
 	++group;
 	PushPawns<WHITE>(ret, board.GetPieceTypeBitboard(WP), group);
-	++group;
 	PushPawns<BLACK>(ret, board.GetPieceTypeBitboard(BP), group);
+	PushFCFeatures(ret, group);
 
 	// queens
 	++group;
 	PushQueens(ret, board.GetPieceTypeBitboard(WQ), WQ, board, group);
+	PushFCFeatures(ret, group);
 	++group;
 	PushQueens(ret, board.GetPieceTypeBitboard(BQ), BQ, board, group);
+	PushFCFeatures(ret, group);
 
 	// rooks
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(WR), WR, board, group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
+	PushFCFeatures(ret, group);
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(BR), BR, board, group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
+	PushFCFeatures(ret, group);
 
 	// bishops
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(WB), WB, board, group);
+	PushFCFeatures(ret, group);
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(BB), BB, board, group);
+	PushFCFeatures(ret, group);
 
 	// knights
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(WN), WN, board, group);
+	PushFCFeatures(ret, group);
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(BN), BN, board, group);
+	PushFCFeatures(ret, group);
 
-	PushSquareFeatures(ret, board);
+	//PushSquareFeatures(ret, board);
 }
 
 template void ConvertBoardToNN<float>(const Board &board, std::vector<float> &ret);
