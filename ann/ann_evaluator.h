@@ -24,11 +24,7 @@ public:
 
 	const static size_t EvalHashSize = 32*MB / sizeof(EvalHashEntry);
 
-	const static size_t NumNets = 1;
-
 	ANNEvaluator();
-
-	ANNEvaluator(const std::vector<EvalNet> &anns);
 
 	ANNEvaluator(const std::string &filename);
 
@@ -49,28 +45,14 @@ public:
 	void InvalidateCache();
 
 private:
-
 	NNMatrixRM BoardsToFeatureRepresentation_(const std::vector<std::string> &positions, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions);
 
-	template <typename Derived>
-	NNMatrixRM ComputeSampleWeights_(const Eigen::MatrixBase<Derived> &x);
-
-	NNMatrixRM ComputeExpertErrorDerivatives_(
-		const NNMatrixRM &combinedPredictions,
+	NNMatrixRM ComputeErrorDerivatives_(
+		const NNMatrixRM &predictions,
 		const NNMatrixRM &targets,
-		const NNMatrixRM &sampleWeights,
-		int64_t expertNum,
 		const NNMatrixRM &finalLayerActivations);
 
-	NNMatrixRM ComputeMixingNetErrorDerivatives_(
-		const NNMatrixRM &combinedPredictions,
-		const std::vector<NNMatrixRM> &indPredictions,
-		const NNMatrixRM &targets,
-		const NNMatrixRM &sampleWeights);
-
-	std::vector<EvalNet> m_anns;
-
-	MixingNet m_mixingNet;
+	EvalNet m_mainAnn;
 
 	std::vector<float> m_convTmp;
 
