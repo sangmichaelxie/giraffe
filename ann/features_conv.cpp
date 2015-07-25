@@ -179,7 +179,7 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 }
 
 template <typename T>
-void PushSquareFeatures(std::vector<T> &ret, const Board &board, int32_t &group)
+void PushSquareFeatures(std::vector<T> &ret, const Board &board)
 {
 	// we store everything in arrays before actually pushing them, so that features
 	// in the same group will be together (good for performance during eval)
@@ -241,27 +241,11 @@ void PushSquareFeatures(std::vector<T> &ret, const Board &board, int32_t &group)
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushGlobalFloat(ret, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]), group);
+		PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]));
+		PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]));
+		PushPosFloat(ret, sq, NormalizeCount(whiteSee[sq], SEE::SEE_MAT[WK]));
+		PushPosFloat(ret, sq, NormalizeCount(blackSee[sq], SEE::SEE_MAT[WK]));
 	}
-	++group;
-
-	for (Square sq = 0; sq < 64; ++sq)
-	{
-		PushGlobalFloat(ret, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]), group);
-	}
-	++group;
-
-	for (Square sq = 0; sq < 64; ++sq)
-	{
-		PushGlobalFloat(ret, NormalizeCount(whiteSee[sq], SEE::SEE_MAT[WK]), group);
-	}
-	++group;
-
-	for (Square sq = 0; sq < 64; ++sq)
-	{
-		PushGlobalFloat(ret, NormalizeCount(blackSee[sq], SEE::SEE_MAT[WK]), group);
-	}
-	++group;
 }
 
 template <Color color, typename T>
@@ -493,7 +477,7 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	++group;
 	PushPairPieces(ret, board.GetPieceTypeBitboard(BN), BN, board, group);
 
-	PushSquareFeatures(ret, board, group);
+	PushSquareFeatures(ret, board);
 }
 
 template void ConvertBoardToNN<float>(const Board &board, std::vector<float> &ret);

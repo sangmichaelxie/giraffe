@@ -60,5 +60,6 @@ HEADERS += \
     learn.h \
     omp_scoped_thread_limiter.h \
     random_device.h \
-    gtb.h
+    gtb.h \
+    stats.h
 
