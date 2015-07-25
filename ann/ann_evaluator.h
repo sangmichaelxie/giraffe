@@ -22,7 +22,7 @@ public:
 		Score val;
 	};
 
-	const static size_t EvalHashSize = 1*MB / sizeof(EvalHashEntry);
+	const static size_t EvalHashSize = 32*MB / sizeof(EvalHashEntry);
 
 	const static size_t NumNets = 1;
 
