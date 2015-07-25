@@ -21,6 +21,10 @@ else
 	CXXFLAGS=$(CXXFLAGS_RELEASE)
 endif
 
+ifeq ($(PG), 1)
+	CXXFLAGS=$(CXXFLAGS_DEBUG) -O2 -pg
+endif
+
 CXXFILES := \
 	$(wildcard *.cpp) \
 	$(wildcard ann/*.cpp) \
