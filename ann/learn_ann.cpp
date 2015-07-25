@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <sstream>
 #include <tuple>
+#include <type_traits>
 #include <omp.h>
 
 #include <cmath>
@@ -313,6 +314,36 @@ void AddSingleNodes(
 	}
 }
 
+void AddTwoGroupsNodes(
+	LayerDescription &layerDescription,
+	const std::vector<int32_t> &group0,
+	const std::vector<int32_t> &group1,
+	float nodeCountMultiplier
+	)
+{
+	size_t nodesInGroup = group0.size() + group1.size();
+	size_t nodesForThisGroup = ceil(nodesInGroup * nodeCountMultiplier);
+
+	layerDescription.groups.push_back(std::vector<int32_t>());
+
+	for (size_t i = 0; i < nodesForThisGroup; ++i)
+	{
+		for (auto feature : group0)
+		{
+			layerDescription.connections.push_back(Eigen::Triplet<float>(feature, layerDescription.layerSize, 1.0f));
+		}
+
+		for (auto feature : group1)
+		{
+			layerDescription.connections.push_back(Eigen::Triplet<float>(feature, layerDescription.layerSize, 1.0f));
+		}
+
+		layerDescription.groups.back().push_back(layerDescription.layerSize);
+
+		++layerDescription.layerSize;
+	}
+}
+
 template <typename ForwardIterator>
 void AddPairNodes(
 	LayerDescription &layerDescription,
@@ -451,6 +482,25 @@ LayerDescription BuildLocalLayer(
 	return ret;
 }
 
+void DebugPrintGroups(const std::vector<std::vector<int32_t>> &groups)
+{
+	std::cout << "Groups:" << std::endl;
+	size_t groupNum = 0;
+	for (auto group : groups)
+	{
+		std::cout << groupNum << " (" << group.size() << "): ";
+
+		for (auto feature : group)
+		{
+			std::cout << feature << ' ';
+		}
+
+		std::cout << std::endl;
+
+		++groupNum;
+	}
+}
+
 } // namespace
 
 namespace LearnAnn
@@ -490,6 +540,7 @@ T BuildNet(int64_t inputDims, int64_t outputDims)
 	std::vector<std::vector<int32_t>> yGroups(8);
 	std::vector<std::vector<int32_t>> diag0Groups(15);
 	std::vector<std::vector<int32_t>> diag1Groups(15);
+	std::vector<int32_t> allSqGroup;
 
 	const static size_t NumRegions = 9;
 	std::vector<std::vector<int32_t>> regionGroups(NumRegions);
@@ -545,6 +596,8 @@ T BuildNet(int64_t inputDims, int64_t outputDims)
 					regionGroups[region].push_back(featureNum);
 				}
 			}
+
+			allSqGroup.push_back(featureNum);
 		}
 	}
 
@@ -553,32 +606,55 @@ T BuildNet(int64_t inputDims, int64_t outputDims)
 	//featureGroups.insert(featureGroups.end(), diag0Groups.begin(), diag0Groups.end());
 	//featureGroups.insert(featureGroups.end(), diag1Groups.begin(), diag1Groups.end());
 
-	LayerDescription layer0;
+	featureGroups.push_back(allSqGroup);
 
-	AddSingleNodes(
-		layer0,
-		featureGroups.begin(),
-		featureGroups.end(),
-		1.0f
-	);
+	if (std::is_same<T, EvalNet>::value)
+	{
+		LayerDescription layer0;
 
-	/*
-	AddPairNodes(
-		layer0,
-		featureGroups.begin(),
-		featureGroups.end(),
-		0.25f
-	);
-	*/
+		AddSingleNodes(
+			layer0,
+			featureGroups.begin(),
+			featureGroups.end(),
+			1.0f
+		);
 
-	layerSizes.push_back(layer0.layerSize);
-	connMatrices.push_back(layer0.connections);
+		layerSizes.push_back(layer0.layerSize);
+		connMatrices.push_back(layer0.connections);
 
-	layerSizes.push_back(64);
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+		/*
+		// for the second layer, each group gets partnered with first group, except for first group (which is passed on)
+		LayerDescription layer1;
 
-	// fully connected output layer
-	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+		AddSingleNodes(layer1, layer0.groups.begin(), layer0.groups.begin() + 1, 1.0f);
+
+		for (int32_t group = 1; group < static_cast<int32_t>(layer0.groups.size()); ++group)
+		{
+			AddTwoGroupsNodes(layer1, layer0.groups[0], layer0.groups[group], 1.0f);
+		}
+
+		layerSizes.push_back(layer1.layerSize);
+		connMatrices.push_back(layer1.connections);
+		*/
+
+		layerSizes.push_back(64);
+		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+		// fully connected output layer
+		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+	}
+	else if (std::is_same<T, MixingNet>::value)
+	{
+		layerSizes.push_back(64);
+		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+		// fully connected output layer
+		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+	}
+	else
+	{
+		assert(false && "What kind of net are we building?");
+	}
 
 	return T(inputDims, outputDims, layerSizes, connMatrices);
 }
