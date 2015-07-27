@@ -21,8 +21,11 @@ Score EvaluateMaterial(const Board &b);
 class StaticEvaluator : public EvaluatorIface
 {
 public:
-	Score EvaluateForWhiteImpl(const Board &b, Score /*lowerBound*/, Score /*upperBound*/) override
+	Score EvaluateForWhiteImpl(const Board &b, Score lowerBound, Score upperBound) override
 	{
+		(void) lowerBound;
+		(void) upperBound;
+
 		//return StaticEvaluate(b, lowerBound, upperBound);
 		return EvaluateMaterial(b);
 	}
