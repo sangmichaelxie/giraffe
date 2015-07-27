@@ -45,8 +45,7 @@ Score SSEMap(Board &board, Square sq)
 {
 	board.ResetSee();
 
-	// bias result to 0-SEE_MAT[WK]
-	return StaticExchangeEvaluationSq(board, sq, true) + SEE_MAT[WK];
+	return -StaticExchangeEvaluationSq(board, sq, true);
 }
 
 Score StaticExchangeEvaluationSq(Board &board, Square sq, bool forced)

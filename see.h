@@ -31,6 +31,7 @@ static const Score SEE_MAT[14] = {
 // returns how good this capture is for the moving side
 Score StaticExchangeEvaluation(Board &board, Move mv);
 
+// returns the value of the largest piece the opponent can place on the square
 Score SSEMap(Board &board, Square sq);
 
 Score StaticExchangeEvaluationSq(Board &board, Square sq, bool forced = false);
