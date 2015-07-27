@@ -196,7 +196,7 @@ void Train(
 		trainingErrorAccum += nn.TrainGDM(
 			xTrain.block(begin, 0, batchSize, xTrain.cols()),
 			yTrain.block(begin, 0, batchSize, yTrain.cols()),
-			0.001f,
+			1.0f,
 			0.000001f);
 
 		if ((iter % iterationsPerCheck) == 0)
@@ -384,104 +384,6 @@ void AddPairNodes(
 	}
 }
 
-LayerDescription BuildLocalLayer(
-	const std::vector<std::vector<int32_t>> &groupsIn,
-	std::vector<float> &groupsInNodeMultipliers,
-	float nodeRatioSingleGroup,
-	const std::pair<size_t, size_t> &singleGroupsRange,
-	float nodeRatioPairGroup,
-	const std::pair<size_t, size_t> &pairGroupsRange)
-{
-	assert(groupsInNodeMultipliers.size() <= groupsIn.size());
-
-	groupsInNodeMultipliers.resize(groupsIn.size(), 1.0f);
-
-	LayerDescription ret;
-
-	auto groupCombinations = GetCombinations(groupsIn.size());
-
-	ret.groups.resize(((nodeRatioSingleGroup == 0.0f) ? 0 : groupsIn.size()) + ((nodeRatioPairGroup == 0.0f) ? 0 : groupCombinations.size()));
-
-	size_t groupOut = 0;
-	size_t node = 0;
-
-	if (nodeRatioSingleGroup != 0.0f)
-	{
-		for (size_t groupNum = 0; groupNum < groupsIn.size(); ++groupNum)
-		{
-			auto group = groupsIn[groupNum];
-
-			size_t nodesInGroup = group.size();
-			size_t nodesForThisGroup = ceil(nodesInGroup * nodeRatioSingleGroup * groupsInNodeMultipliers[groupNum]);
-
-			if (nodesForThisGroup < singleGroupsRange.first) nodesForThisGroup = singleGroupsRange.first;
-			if (nodesForThisGroup > singleGroupsRange.second) nodesForThisGroup = singleGroupsRange.second;
-
-			for (size_t i = 0; i < nodesForThisGroup; ++i)
-			{
-				for (auto feature : group)
-				{
-					ret.connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
-				}
-
-				ret.groups[groupOut].push_back(node);
-
-				++node;
-			}
-
-			++groupOut;
-		}
-	}
-
-	// now we build the pairs
-	if (nodeRatioPairGroup != 0.0f)
-	{
-		for (const auto &groupCombination : groupCombinations)
-		{
-			size_t group0 = std::get<0>(groupCombination);
-			size_t group1 = std::get<0>(groupCombination);
-
-			float multiplier0 = groupsInNodeMultipliers[group0];
-			float multiplier1 = groupsInNodeMultipliers[group1];
-
-			// don't connect groups with multiplier < 1 (these are regional groups)
-			if (multiplier0 < 1.0f && multiplier1 < 1.0f)
-			{
-				continue;
-			}
-
-			size_t nodesInGroups = groupsIn[group0].size() * multiplier0 + groupsIn[group1].size() * multiplier1;
-			size_t nodesForThisCombination = ceil(nodesInGroups * nodeRatioPairGroup);
-
-			if (nodesForThisCombination < pairGroupsRange.first) nodesForThisCombination = pairGroupsRange.first;
-			if (nodesForThisCombination > pairGroupsRange.second) nodesForThisCombination = pairGroupsRange.second;
-
-			for (size_t i = 0; i < nodesForThisCombination; ++i)
-			{
-				for (auto feature : groupsIn[group0])
-				{
-					ret.connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
-				}
-
-				for (auto feature : groupsIn[group1])
-				{
-					ret.connections.push_back(Eigen::Triplet<float>(feature, node, 1.0f));
-				}
-
-				ret.groups[groupOut].push_back(node);
-
-				++node;
-			}
-
-			++groupOut;
-		}
-	}
-
-	ret.layerSize = node;
-
-	return ret;
-}
-
 void DebugPrintGroups(const std::vector<std::vector<int32_t>> &groups)
 {
 	std::cout << "Groups:" << std::endl;
@@ -506,8 +408,7 @@ void DebugPrintGroups(const std::vector<std::vector<int32_t>> &groups)
 namespace LearnAnn
 {
 
-template <typename T>
-T BuildNet(int64_t inputDims, int64_t outputDims)
+EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 {
 	std::vector<size_t> layerSizes;
 	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
@@ -608,7 +509,7 @@ T BuildNet(int64_t inputDims, int64_t outputDims)
 
 	featureGroups.push_back(allSqGroup);
 
-	if (std::is_same<T, EvalNet>::value)
+	if (!smallNet)
 	{
 		LayerDescription layer0;
 
@@ -643,24 +544,18 @@ T BuildNet(int64_t inputDims, int64_t outputDims)
 		// fully connected output layer
 		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 	}
-	else if (std::is_same<T, MixingNet>::value)
+	else
 	{
+		// we are building a small net for bound checking only
 		layerSizes.push_back(64);
 		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 		// fully connected output layer
 		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 	}
-	else
-	{
-		assert(false && "What kind of net are we building?");
-	}
 
-	return T(inputDims, outputDims, layerSizes, connMatrices);
+	return EvalNet(inputDims, outputDims, layerSizes, connMatrices);
 }
-
-template EvalNet BuildNet(int64_t inputDims, int64_t outputDims);
-template MixingNet BuildNet(int64_t inputDims, int64_t outputDims);
 
 template <typename Derived1, typename Derived2>
 void TrainANN(

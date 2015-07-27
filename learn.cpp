@@ -288,6 +288,20 @@ void TDL(const std::string &positionsFilename)
 
 		if ((iter % EvaluatorSerializeInterval) == 0)
 		{
+			auto mt = gRd.MakeMT();
+			std::shuffle(rootPositions.begin(), rootPositions.end(), mt);
+
+			std::cout << "Training bounds..." << std::endl;
+			// we have to train the bound nets before serializing
+
+			size_t numPositions = std::min<size_t>(rootPositions.size(), 100000);
+
+			for (size_t i = 0; i < (numPositions - 4096); i += 4096)
+			{
+				std::vector<std::string> pos(rootPositions.begin() + i, rootPositions.begin() + i + 4096);
+				annEvaluator.TrainBounds(pos, featureDescriptions, LearningRateSGD);
+			}
+
 			std::ofstream annOut(getFilename(iter));
 
 			annEvaluator.Serialize(annOut);

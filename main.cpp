@@ -50,13 +50,29 @@ void GetVersion()
 
 void InitializeSlow(ANNEvaluator &evaluator, std::mutex &mtx)
 {
-	std::ifstream evalNet("eval.net");
-	evaluator.Deserialize(evalNet);
+	std::string initOutput;
 
-	std::string gtbInitOutput = GTB::Init();
+	std::ifstream evalNet("eval.net");
+
+	if (evalNet)
+	{
+		evaluator.Deserialize(evalNet);
+	}
+	else
+	{
+		initOutput += "# eval.net not found, ANN evaluator not initialized\n";
+	}
+
+	initOutput += GTB::Init();
 
 	std::lock_guard<std::mutex> lock(mtx);
-	std::cout << gtbInitOutput;
+	std::cout << initOutput;
+}
+
+void InitializeSlowBlocking(ANNEvaluator &evaluator)
+{
+	std::mutex mtx;
+	InitializeSlow(evaluator, mtx);
 }
 
 // fast initialization steps that can be done in main thread
@@ -98,25 +114,15 @@ int main(int argc, char **argv)
 	ANNEvaluator evaluator;
 	backend.SetEvaluator(&evaluator);
 
-	// we need a mutex here because InitializeSlow needs to print, and it may decide to
-	// print at the same time as the main command loop (if the command loop isn't waiting)
-	std::mutex coutMtx;
-
-	coutMtx.lock();
-
-	// do all the heavy initialization in a thread so we can reply to "protover 2" in time
-	std::thread initThread(InitializeSlow, std::ref(evaluator), std::ref(coutMtx));
-
-	auto waitForSlowInitFunc = [&initThread, &coutMtx]() { coutMtx.unlock(); initThread.join(); coutMtx.lock(); };
-
 	// first we handle special operation modes
 	if (argc >= 2 && std::string(argv[1]) == "tdl")
 	{
-		waitForSlowInitFunc();
+		InitializeSlowBlocking(evaluator);
 
 		if (argc < 3)
 		{
 			std::cout << "Usage: " << argv[0] << " tdl positions" << std::endl;
+			return 0;
 		}
 
 		Learn::TDL(argv[2]);
@@ -125,11 +131,12 @@ int main(int argc, char **argv)
 	}
 	else if (argc >= 2 && std::string(argv[1]) == "conv")
 	{
-		waitForSlowInitFunc();
+		InitializeSlowBlocking(evaluator);
 
 		if (argc < 3)
 		{
 			std::cout << "Usage: " << argv[0] << " conv FEN" << std::endl;
+			return 0;
 		}
 
 		std::stringstream ss;
@@ -148,7 +155,7 @@ int main(int argc, char **argv)
 	}
 	else if (argc >= 2 && std::string(argv[1]) == "bench")
 	{
-		waitForSlowInitFunc();
+		InitializeSlowBlocking(evaluator);
 
 		Search::SyncSearchDepthLimited(Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), 7, &evaluator);
 		Search::SyncSearchDepthLimited(Board("2r2rk1/pp3pp1/b2Pp3/P1Q4p/RPqN2n1/8/2P2PPP/2B1R1K1 w - - 0 1"), 7, &evaluator);
@@ -159,6 +166,76 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "check_bounds")
+	{
+		InitializeSlowBlocking(evaluator);
+
+		if (argc < 3)
+		{
+			std::cout << "Usage: " << argv[0] << " check_bounds <EPD/FEN file>" << std::endl;
+			return 0;
+		}
+
+		std::ifstream infile(argv[2]);
+
+		if (!infile)
+		{
+			std::cerr << "Failed to open " << argv[2] << " for reading" << std::endl;
+			return 1;
+		}
+
+		uint64_t passes = 0;
+		uint64_t total = 0;
+		float windowSizeTotal = 0.0f;
+
+		std::string fen;
+		std::vector<std::string> fens;
+		while (std::getline(infile, fen))
+		{
+			fens.push_back(fen);
+		}
+
+		#pragma omp parallel
+		{
+			auto evaluatorCopy = evaluator;
+
+			#pragma omp for
+			for (size_t i = 0; i < fens.size(); ++i)
+			{
+				Board b(fens[i]);
+				float windowSize = 0.0f;
+				bool res = evaluatorCopy.CheckBounds(b, windowSize);
+
+				#pragma omp critical(boundCheckAccum)
+				{
+					if (res)
+					{
+						++passes;
+					}
+
+					++total;
+
+					windowSizeTotal += windowSize;
+				}
+			}
+		}
+
+		std::cout << passes << "/" << total << std::endl;
+		std::cout << "Average window size: " << (windowSizeTotal / total) << std::endl;
+
+		return 0;
+	}
+
+	// we need a mutex here because InitializeSlow needs to print, and it may decide to
+	// print at the same time as the main command loop (if the command loop isn't waiting)
+	std::mutex coutMtx;
+
+	coutMtx.lock();
+
+	// do all the heavy initialization in a thread so we can reply to "protover 2" in time
+	std::thread initThread(InitializeSlow, std::ref(evaluator), std::ref(coutMtx));
+
+	auto waitForSlowInitFunc = [&initThread, &coutMtx]() { coutMtx.unlock(); initThread.join(); coutMtx.lock(); };
 
 	while (true)
 	{
@@ -370,7 +447,7 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "eval")
 		{
-			std::cout << backend.DebugEval() << std::endl;
+			backend.PrintDebugEval();
 		}
 		else if (cmd == "gtb")
 		{

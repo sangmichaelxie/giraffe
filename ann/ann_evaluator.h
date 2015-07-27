@@ -24,6 +24,10 @@ public:
 
 	const static size_t EvalHashSize = 32*MB / sizeof(EvalHashEntry);
 
+	constexpr static float BoundNetErrorAsymmetry = 5.0f;
+
+	constexpr static float BoundNetTargetShift = 0.05f;
+
 	ANNEvaluator();
 
 	ANNEvaluator(const std::string &filename);
@@ -38,11 +42,15 @@ public:
 
 	void TrainLoop(const std::vector<std::string> &positions, const NNMatrixRM &y, int64_t epochs, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions);
 
+	void TrainBounds(const std::vector<std::string> &positions, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions, float learningRate);
+
 	Score EvaluateForWhiteImpl(const Board &b, Score lowerBound, Score upperBound) override;
 
-	void PrintDiag(const std::string &position);
+	void PrintDiag(const Board &board) override;
 
 	void InvalidateCache();
+
+	bool CheckBounds(const Board &board, float &windowSize);
 
 private:
 	NNMatrixRM BoardsToFeatureRepresentation_(const std::vector<std::string> &positions, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions);
@@ -50,9 +58,15 @@ private:
 	NNMatrixRM ComputeErrorDerivatives_(
 		const NNMatrixRM &predictions,
 		const NNMatrixRM &targets,
-		const NNMatrixRM &finalLayerActivations);
+		const NNMatrixRM &finalLayerActivations,
+		float positiveWeight,
+		float negativeWeight);
 
 	EvalNet m_mainAnn;
+
+	EvalNet m_ubAnn;
+
+	EvalNet m_lbAnn;
 
 	std::vector<float> m_convTmp;
 
