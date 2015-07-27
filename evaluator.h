@@ -45,6 +45,9 @@ public:
 
 	// this is the only function evaluators need to implement
 	virtual Score EvaluateForWhiteImpl(const Board &b, Score lowerBound, Score upperBound) = 0;
+
+	// this is optional
+	virtual void PrintDiag(const Board &/*board*/) {}
 };
 
 #endif // EVALUATOR_H
