@@ -33,3 +33,4 @@ engine_log.txt
 *.o
 *.d
 send.sh
+gtb/libgtb.a
