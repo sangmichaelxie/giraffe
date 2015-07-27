@@ -352,7 +352,7 @@ float FCANN<ACTF, ACTFLast>::TrainGDM(const MatrixBase<Derived1> &x, const Matri
 }
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
-void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float /*learningRate*/, float reg)
+void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float learningRate, float reg)
 {
 	assert(grad.weightGradients.size() == m_params.weights.size());
 	assert(grad.biasGradients.size() == m_params.outputBias.size());
@@ -450,9 +450,9 @@ void FCANN<ACTF, ACTFLast>::ApplyWeightUpdates(const Gradients &grad, float /*le
 				//NNMatrix weightDelta = -weightsGradientsBlock.array() * learningRate /*+ weightReg.array()*/;
 				//NNVector biasDelta = -biasGradientsBlock.array() * learningRate;
 
-				weightsBlock += weightDelta;
+				weightsBlock += weightDelta * learningRate;
 				weightsBlock.array() *= weightMaskBlock.array();
-				biasBlock += biasDelta;
+				biasBlock += biasDelta * learningRate;
 
 				FP weightMax = std::max(std::max(weightsBlock.maxCoeff(), -weightsBlock.minCoeff()), std::max(biasBlock.maxCoeff(), -biasBlock.minCoeff()));
 				if (weightMax > MAX_WEIGHT)
