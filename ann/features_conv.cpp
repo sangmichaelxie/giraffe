@@ -1,5 +1,6 @@
 #include "features_conv.h"
 #include "see.h"
+#include "move.h"
 
 #include "bit_ops.h"
 
@@ -7,6 +8,15 @@ namespace
 {
 
 using namespace FeaturesConv;
+
+typedef FixedVector<std::pair<Move, Score>, 31> MoveSEEList;
+
+struct SEEValMap
+{
+	// maximum value of pieces white and black can put on each square
+	int64_t whiteMaxVal[64];
+	int64_t blackMaxVal[64];
+};
 
 float NormalizeCoord(int x)
 {
@@ -114,7 +124,7 @@ template<> void PushPosFloat<FeatureDescription>(std::vector<FeatureDescription>
 }
 
 template <typename T>
-void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, const Board &board, int32_t group = 0)
+void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, const Board &board, int32_t group, size_t numUsefulMoves[64])
 {
 	if (pt == WR || pt == BR || pt == WQ || pt == BQ)
 	{
@@ -179,21 +189,18 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 			PushMobility(ret, NormalizeCount(count, 7), group);
 		}
 	}
+
+	// 16 is the "reasonably maximum", though queens in the centre of an empty board can have up to 27. That's fine.
+	PushMobility(ret, NormalizeCount(exists ? numUsefulMoves[sq] : 0, 16), group);
 }
 
 template <typename T>
-void PushSquareFeatures(std::vector<T> &ret, const Board &board)
+void PushSquareFeatures(std::vector<T> &ret, const Board &board, SEEValMap &seeMap)
 {
 	// we store everything in arrays before actually pushing them, so that features
 	// in the same group will be together (good for performance during eval)
 	int64_t whiteMaterial[64] = { 0 };
 	int64_t blackMaterial[64] = { 0 };
-
-	// smallest attacker of the square from both sides
-	int64_t whiteSee[64] = { 0 };
-	int64_t blackSee[64] = { 0 };
-
-	Board boardCopy = board;
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
@@ -225,29 +232,14 @@ void PushSquareFeatures(std::vector<T> &ret, const Board &board)
 				break;
 			}
 		}
-
-		if (board.GetSideToMove() == WHITE)
-		{
-			whiteSee[sq] = SEE::SSEMap(boardCopy, sq);
-			boardCopy.MakeNullMove();
-			blackSee[sq] = SEE::SSEMap(boardCopy, sq);
-		}
-		else
-		{
-			blackSee[sq] = SEE::SSEMap(boardCopy, sq);
-			boardCopy.MakeNullMove();
-			whiteSee[sq] = SEE::SSEMap(boardCopy, sq);
-		}
-
-		boardCopy.UndoMove();
 	}
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
 		//PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]));
 		//PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]));
-		PushPosFloat(ret, sq, NormalizeCount(whiteSee[sq], SEE::SEE_MAT[WK]));
-		PushPosFloat(ret, sq, NormalizeCount(blackSee[sq], SEE::SEE_MAT[WK]));
+		PushPosFloat(ret, sq, NormalizeCount(-seeMap.blackMaxVal[sq] + SEE::SEE_MAT[WK], SEE::SEE_MAT[WK]));
+		PushPosFloat(ret, sq, NormalizeCount(-seeMap.whiteMaxVal[sq] + SEE::SEE_MAT[WK], SEE::SEE_MAT[WK]));
 	}
 }
 
@@ -323,7 +315,7 @@ void PushPawns(std::vector<T> &ret, uint64_t pawns, int32_t &group)
 }
 
 template <typename T>
-void PushQueens(std::vector<T> &ret, uint64_t queens, PieceType pt, const Board &board, int32_t group)
+void PushQueens(std::vector<T> &ret, uint64_t queens, PieceType pt, const Board &board, int32_t group, size_t numUsefulMoves[64])
 {
 	// queens (we only push the first queen for each side)
 	if (queens)
@@ -331,17 +323,17 @@ void PushQueens(std::vector<T> &ret, uint64_t queens, PieceType pt, const Board 
 		uint32_t pos = BitScanForward(queens);
 
 		PushGlobalCoords(ret, true, pos, group);
-		PushAttacks(ret, pos, pt, true, board, group);
+		PushAttacks(ret, pos, pt, true, board, group, numUsefulMoves);
 	}
 	else
 	{
 		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, 0, pt, false, board, group);
+		PushAttacks(ret, 0, pt, false, board, group, numUsefulMoves);
 	}
 }
 
 template <typename T>
-void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Board &board, int32_t &group)
+void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Board &board, int32_t &group, size_t numUsefulMoves[64])
 {
 	// this is for rooks, bishops, and knights
 	// for these pieces, we only look at the first 2, so there are
@@ -352,10 +344,10 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 	if (pieceCount == 0)
 	{
 		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, 0, pt, false, board, group);
+		PushAttacks(ret, 0, pt, false, board, group, numUsefulMoves);
 		//++group;
 		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, 0, pt, false, board, group);
+		PushAttacks(ret, 0, pt, false, board, group, numUsefulMoves);
 	}
 	else if (pieceCount == 1)
 	{
@@ -368,19 +360,19 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 		{
 			// use the first slot
 			PushGlobalCoords(ret, true, pos, group);
-			PushAttacks(ret, pos, pt, true, board, group);
+			PushAttacks(ret, pos, pt, true, board, group, numUsefulMoves);
 			//++group;
 			PushGlobalCoords(ret, false, 0, group);
-			PushAttacks(ret, pos, pt, false, board, group);
+			PushAttacks(ret, pos, pt, false, board, group, numUsefulMoves);
 		}
 		else
 		{
 			// use the second slot
 			PushGlobalCoords(ret, false, 0, group);
-			PushAttacks(ret, pos, pt, false, board, group);
+			PushAttacks(ret, pos, pt, false, board, group, numUsefulMoves);
 			//++group;
 			PushGlobalCoords(ret, true, pos, group);
-			PushAttacks(ret, pos, pt, true, board, group);
+			PushAttacks(ret, pos, pt, true, board, group, numUsefulMoves);
 		}
 	}
 	else
@@ -396,11 +388,38 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 		}
 
 		PushGlobalCoords(ret, true, pos1, group);
-		PushAttacks(ret, pos1, pt, true, board, group);
+		PushAttacks(ret, pos1, pt, true, board, group, numUsefulMoves);
 		//++group;
 		PushGlobalCoords(ret, true, pos2, group);
-		PushAttacks(ret, pos2, pt, true, board, group);
+		PushAttacks(ret, pos2, pt, true, board, group, numUsefulMoves);
 	}
+}
+
+SEEValMap ComputeSEEMaps(const Board &board)
+{
+	SEEValMap ret;
+
+	Board boardCopy = board;
+
+	for (Square sq = 0; sq < 64; ++sq)
+	{
+		if (board.GetSideToMove() == WHITE)
+		{
+			ret.blackMaxVal[sq] = SEE::SSEMap(boardCopy, sq);
+			boardCopy.MakeNullMove();
+			ret.whiteMaxVal[sq] = SEE::SSEMap(boardCopy, sq);
+		}
+		else
+		{
+			ret.whiteMaxVal[sq] = SEE::SSEMap(boardCopy, sq);
+			boardCopy.MakeNullMove();
+			ret.blackMaxVal[sq] = SEE::SSEMap(boardCopy, sq);
+		}
+
+		boardCopy.UndoMove();
+	}
+
+	return ret;
 }
 
 } // namespace
@@ -449,6 +468,38 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	BMatNP = NormalizeCount(static_cast<int64_t>(BMatNP), MaxTotalMatNP);
 	WMatWP = NormalizeCount(static_cast<int64_t>(WMatWP), MaxTotalMatWP);
 	BMatWP = NormalizeCount(static_cast<int64_t>(BMatWP), MaxTotalMatWP);
+
+	//SEEValMap seeMap = ComputeSEEMaps(board);
+
+	// here we generate moves, and split them up by from square
+	MoveList ml;
+	board.GenerateAllMoves<Board::ALL>(ml);
+
+	Board boardCopy = board;
+
+	// each square has a list of moves originating from that square, with associated SEE score
+	MoveSEEList mlByFromSq[64];
+	size_t numUsefulMoves[64] = { 0 };
+
+	for (size_t i = 0; i < ml.GetSize(); ++i)
+	{
+		Square fromSq = GetFromSquare(ml[i]);
+		PieceType pt = GetPieceType(ml[i]);
+
+		// don't worry about pawns for now, since we aren't using that information
+		if (pt == WP || pt == BP)
+		{
+			continue;
+		}
+
+		Score see = SEE::StaticExchangeEvaluation(boardCopy, ml[i]);
+		mlByFromSq[fromSq].PushBack(std::make_pair(ml[i], see));
+
+		if (see >= 0)
+		{
+			++numUsefulMoves[fromSq];
+		}
+	}
 
 	// material (no need for king) -
 	// these can also be calculated from "pieces exist" flags, they are
@@ -502,38 +553,38 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 
 	// queens
 	++group;
-	PushQueens(ret, board.GetPieceTypeBitboard(WQ), WQ, board, group);
+	PushQueens(ret, board.GetPieceTypeBitboard(WQ), WQ, board, group, numUsefulMoves);
 	PushFCFeatures(ret, group);
 	++group;
-	PushQueens(ret, board.GetPieceTypeBitboard(BQ), BQ, board, group);
+	PushQueens(ret, board.GetPieceTypeBitboard(BQ), BQ, board, group, numUsefulMoves);
 	PushFCFeatures(ret, group);
 
 	// rooks
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(WR), WR, board, group);
+	PushPairPieces(ret, board.GetPieceTypeBitboard(WR), WR, board, group, numUsefulMoves);
 	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
 	PushFCFeatures(ret, group);
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(BR), BR, board, group);
+	PushPairPieces(ret, board.GetPieceTypeBitboard(BR), BR, board, group, numUsefulMoves);
 	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
 	PushFCFeatures(ret, group);
 
 	// bishops
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(WB), WB, board, group);
+	PushPairPieces(ret, board.GetPieceTypeBitboard(WB), WB, board, group, numUsefulMoves);
 	PushFCFeatures(ret, group);
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(BB), BB, board, group);
+	PushPairPieces(ret, board.GetPieceTypeBitboard(BB), BB, board, group, numUsefulMoves);
 	PushFCFeatures(ret, group);
 
 	// knights
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(WN), WN, board, group);
+	PushPairPieces(ret, board.GetPieceTypeBitboard(WN), WN, board, group, numUsefulMoves);
 	PushFCFeatures(ret, group);
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(BN), BN, board, group);
+	PushPairPieces(ret, board.GetPieceTypeBitboard(BN), BN, board, group, numUsefulMoves);
 	PushFCFeatures(ret, group);
 
 	//PushSquareFeatures(ret, board);
