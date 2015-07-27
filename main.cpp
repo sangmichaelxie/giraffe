@@ -112,6 +112,8 @@ int main(int argc, char **argv)
 	Backend backend;
 
 	ANNEvaluator evaluator;
+
+	//backend.SetEvaluator(&Eval::gStaticEvaluator);
 	backend.SetEvaluator(&evaluator);
 
 	// first we handle special operation modes
