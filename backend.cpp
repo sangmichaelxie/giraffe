@@ -224,6 +224,11 @@ Score Backend::DebugEval()
 	return m_evaluator->EvaluateForSTM(m_currentBoard, SCORE_MIN, SCORE_MAX);
 }
 
+void Backend::PrintDebugEval()
+{
+	m_evaluator->PrintDiag(m_currentBoard);
+}
+
 std::string Backend::DebugGTB()
 {
 	GTB::ProbeResult result = GTB::Probe(m_currentBoard);
