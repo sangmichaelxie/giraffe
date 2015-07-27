@@ -5,24 +5,29 @@ CC=gcc-4.9
 
 HGVERSION:= $(shell hg parents --template '{node|short}')
 
-CXXFLAGS_COMMON = \
+CXXFLAGS = \
 	-Wall -Wextra -Wno-unused-function -std=gnu++11 -mtune=native -Wa,-q -ffast-math \
 	-pthread -fopenmp -DHGVERSION="\"${HGVERSION}\""
 	
 CXXFLAGS_DEP = \
 	-std=gnu++11
 
-CXXFLAGS_RELEASE = $(CXXFLAGS_COMMON) -march=native -O3 -flto
-CXXFLAGS_DEBUG = $(CXXFLAGS_COMMON) -g
-
-ifeq ($(DEBUG),1)
-	CXXFLAGS=$(CXXFLAGS_DEBUG)
-else
-	CXXFLAGS=$(CXXFLAGS_RELEASE)
-endif
+LDFLAGS=-L. -Lgtb -lm -ltcmalloc -lgtb
 
 ifeq ($(PG), 1)
-	CXXFLAGS=$(CXXFLAGS_DEBUG) -O2 -pg
+	CXXFLAGS += -g -O2 -pg
+else ifeq ($(DEBUG),1)
+	CXXFLAGS += -g
+else
+	CXXFLAGS += -O3 -flto
+endif
+
+ifeq ($(CLUSTER), 1)
+	CXXFLAGS += -march=sandybridge -static
+	LDFLAGS += -Wl,--whole-archive -lpthread -Wl,--no-whole-archive
+	LDFLAGS := $(filter-out -ltcmalloc,$(LDFLAGS))
+else
+	CXXFLAGS += -march=native
 endif
 
 CXXFILES := \
@@ -33,8 +38,6 @@ CXXFILES := \
 INCLUDES=-I. -IEigen_dev
 
 EXE=giraffe
-
-LDFLAGS=-L. -Lgtb -lm -ltcmalloc -lgtb
 
 OBJS := $(CXXFILES:%.cpp=obj/%.o)
 DEPS := $(CXXFILES:%.cpp=dep/%.d)
@@ -55,7 +58,7 @@ else
 		# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=47785
 		CXXFLAGS += -Wa,-q
 		CXXFLAGS := $(filter-out -flto,$(CXXFLAGS))
-    endif
+	endif
 endif
 
 .PHONY: clean test
