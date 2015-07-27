@@ -6,7 +6,7 @@ INCLUDE = -Isysport/ \
 	-Icompression/huffman/
 
 DEFAULT_DEFINE = -DZ_PREFIX
-DEFAULT_CFLAGS = -Wall -Wextra $(INCLUDE) $(DEFAULT_DEFINE)
+DEFAULT_CFLAGS = -Wall -Wextra $(INCLUDE) $(DEFAULT_DEFINE) -static
 OPTFLAGS = -O3 -march=native -DNDEBUG
 
 SRCFILES := gtb-probe.c gtb-dec.c gtb-att.c sysport/sysport.c \

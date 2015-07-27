@@ -11,7 +11,7 @@ TARGET="/vol/bitbucket/ml614/playground/players/$VER"
 
 ssh ic mkdir $TARGET
 
-rsync -av --exclude '*.epd' --exclude 'Eigen_stable' . ic:$TARGET/
+rsync -avz --exclude '*.epd' --exclude 'Eigen_stable' --exclude '*.o' --exclude '*.a' . ic:$TARGET/
 
 echo $VER > version_tmp.txt
 
