@@ -14,6 +14,21 @@ inline int32_t GetFile(Square sq) { return GetX(sq); }
 inline Square Sq(int32_t x, int32_t y) { return y * 8 + x; }
 inline bool Valid(int32_t x) { return x < 8 && x >= 0; }
 
+inline std::string SquareToString(Square sq)
+{
+	char rank = '1' + (sq / 8);
+	char file = 'a' + (sq % 8);
+
+	if (sq == 0xff)
+	{
+		return std::string("-");
+	}
+	else
+	{
+		return std::string(&file, 1) + std::string(&rank, 1);
+	}
+}
+
 inline int32_t GetDiag0(Square sq)
 {
 	static const uint32_t diag[64] =

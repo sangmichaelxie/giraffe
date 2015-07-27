@@ -20,21 +20,6 @@
 namespace
 {
 
-std::string SquareToString(Square sq)
-{
-	char rank = '1' + (sq / 8);
-	char file = 'a' + (sq % 8);
-
-	if (sq == 0xff)
-	{
-		return std::string("-");
-	}
-	else
-	{
-		return std::string(&file, 1) + std::string(&rank, 1);
-	}
-}
-
 Square StringToSquare(std::string st)
 {
 	if ((st[0] > 'h') || (st[0] < 'a') || st[1] < '1' || st[1] > '8')
