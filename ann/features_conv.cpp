@@ -534,13 +534,11 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	};
 
 	++group;
-	PushGlobalCoords(ret, true, wkPos, group, true);
 	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
 	PushFCFeatures(ret, group);
 
 	++group;
-	PushGlobalCoords(ret, true, bkPos, group, true);
 	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
 	PushFCFeatures(ret, group);

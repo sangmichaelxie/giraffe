@@ -523,6 +523,18 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		layerSizes.push_back(layer0.layerSize);
 		connMatrices.push_back(layer0.connections);
 
+		LayerDescription layer1;
+
+		AddSingleNodes(
+			layer1,
+			layer0.groups.begin(),
+			layer0.groups.end(),
+			1.0f
+		);
+
+		layerSizes.push_back(layer1.layerSize);
+		connMatrices.push_back(layer1.connections);
+
 		/*
 		// for the second layer, each group gets partnered with first group, except for first group (which is passed on)
 		LayerDescription layer1;
