@@ -47,7 +47,6 @@ void ANNEvaluator::Train(const std::vector<std::string> &positions, const NNMatr
 
 	predictions = m_mainAnn.ForwardPropagate(x, act);
 
-	// we are using MSE with linear output, so derivative is just diff
 	NNMatrixRM errorsDerivative = ComputeErrorDerivatives_(predictions, y, act.actIn[act.actIn.size() - 1], 1.0f, 1.0f);
 
 	EvalNet::Gradients grad;
