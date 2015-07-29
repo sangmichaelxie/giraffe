@@ -25,7 +25,7 @@ struct FeatureDescription
 
 	FeatureType featureType;
 
-	// fields for global features
+	// fields for global and pos features
 	int32_t group;
 
 	// fields for pos features
