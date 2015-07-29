@@ -1,4 +1,7 @@
 #include "features_conv.h"
+
+#include <functional>
+
 #include "see.h"
 #include "move.h"
 
@@ -20,13 +23,13 @@ struct SEEValMap
 
 float NormalizeCoord(int x)
 {
-	// map x from 0 - 7 to -1 - 1
-	return -1.0f + 0.2857f * x;
+	// map x from 0 - 7 to 0 - 1
+	return 0.1429 * x;
 }
 
 float NormalizeCount(int x, int typicalMaxCount)
 {
-	return -1.0f + (2.0f / typicalMaxCount) * x;
+	return static_cast<float>(x) / static_cast<float>(typicalMaxCount);
 }
 
 template <typename T> void PushGlobalBool(std::vector<T> &ret, bool x, int32_t group);
@@ -38,7 +41,7 @@ template<> void PushGlobalBool<float>(std::vector<float> &ret, bool x, int32_t /
 	}
 	else
 	{
-		ret.push_back(-1.0f);
+		ret.push_back(0.0f);
 	}
 }
 
@@ -109,18 +112,39 @@ template<> void PushMobility<FeatureDescription>(
 	ret.push_back(fd);
 }
 
-template <typename T> void PushPosFloat(std::vector<T> &ret, Square pos, float x);
-template<> void PushPosFloat<float>(std::vector<float> &ret, Square /*pos*/, float x)
+template <typename T> void PushPosFloat(std::vector<T> &ret, Square pos, float x, int group);
+template<> void PushPosFloat<float>(std::vector<float> &ret, Square /*pos*/, float x, int /*group*/)
 {
 	ret.push_back(x);
 }
 
-template<> void PushPosFloat<FeatureDescription>(std::vector<FeatureDescription> &ret, Square pos, float /*x*/)
+template<> void PushPosFloat<FeatureDescription>(std::vector<FeatureDescription> &ret, Square pos, float /*x*/, int group)
 {
 	FeatureDescription fd;
 	fd.featureType = FeatureDescription::FeatureType_pos;
 	fd.sq = pos;
+	fd.group = group;
 	ret.push_back(fd);
+}
+
+template <typename T>
+void PushThreat(std::vector<T> &ret, Square sq, Color c, bool exists, SEEValMap &seeMap, int32_t group)
+{
+	if (exists)
+	{
+		if (c == WHITE)
+		{
+			PushGlobalFloat(ret, NormalizeCount(seeMap.whiteMaxVal[sq], SEE::SEE_MAT[WK]), group);
+		}
+		else
+		{
+			PushGlobalFloat(ret, NormalizeCount(seeMap.blackMaxVal[sq], SEE::SEE_MAT[WK]), group);
+		}
+	}
+	else
+	{
+		PushGlobalFloat(ret, 0.0f, group);
+	}
 }
 
 template <typename T>
@@ -195,7 +219,7 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 }
 
 template <typename T>
-void PushSquareFeatures(std::vector<T> &ret, const Board &board, SEEValMap &seeMap)
+void PushSquareFeatures(std::vector<T> &ret, const Board &board, SEEValMap &seeMap, int &group)
 {
 	// we store everything in arrays before actually pushing them, so that features
 	// in the same group will be together (good for performance during eval)
@@ -236,11 +260,13 @@ void PushSquareFeatures(std::vector<T> &ret, const Board &board, SEEValMap &seeM
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		//PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]));
-		//PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]));
-		PushPosFloat(ret, sq, NormalizeCount(-seeMap.blackMaxVal[sq] + SEE::SEE_MAT[WK], SEE::SEE_MAT[WK]));
-		PushPosFloat(ret, sq, NormalizeCount(-seeMap.whiteMaxVal[sq] + SEE::SEE_MAT[WK], SEE::SEE_MAT[WK]));
+		PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]), group);
+		PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]), group + 1);
+		PushPosFloat(ret, sq, NormalizeCount(seeMap.blackMaxVal[sq], SEE::SEE_MAT[WK]), group + 2);
+		PushPosFloat(ret, sq, NormalizeCount(seeMap.whiteMaxVal[sq], SEE::SEE_MAT[WK]), group + 3);
 	}
+
+	group += 4;
 }
 
 template <Color color, typename T>
@@ -315,7 +341,15 @@ void PushPawns(std::vector<T> &ret, uint64_t pawns, int32_t &group)
 }
 
 template <typename T>
-void PushQueens(std::vector<T> &ret, uint64_t queens, PieceType pt, const Board &board, int32_t group, size_t numUsefulMoves[64])
+void PushQueens(
+	std::vector<T> &ret,
+	uint64_t queens,
+	PieceType pt,
+	const Board &board,
+	int32_t group,
+	size_t numUsefulMoves[64],
+	SEEValMap &seeMap,
+	std::function<void(std::vector<T> &, int32_t)> pushFCFeaturesFcn)
 {
 	// queens (we only push the first queen for each side)
 	if (queens)
@@ -324,16 +358,30 @@ void PushQueens(std::vector<T> &ret, uint64_t queens, PieceType pt, const Board 
 
 		PushGlobalCoords(ret, true, pos, group);
 		PushAttacks(ret, pos, pt, true, board, group, numUsefulMoves);
+
+		PushThreat(ret, pos, GetColor(pt), true, seeMap, group);
 	}
 	else
 	{
 		PushGlobalCoords(ret, false, 0, group);
 		PushAttacks(ret, 0, pt, false, board, group, numUsefulMoves);
+
+		PushThreat(ret, 0, WHITE, false, seeMap, group);
 	}
+
+	pushFCFeaturesFcn(ret, group);
 }
 
 template <typename T>
-void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Board &board, int32_t &group, size_t numUsefulMoves[64])
+void PushPairPieces(
+	std::vector<T> &ret,
+	uint64_t pieces,
+	PieceType pt,
+	const Board &board,
+	int32_t &group,
+	size_t numUsefulMoves[64],
+	SEEValMap &seeMap,
+	std::function<void(std::vector<T> &, int32_t)> pushFCFeaturesFcn)
 {
 	// this is for rooks, bishops, and knights
 	// for these pieces, we only look at the first 2, so there are
@@ -345,9 +393,13 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 	{
 		PushGlobalCoords(ret, false, 0, group);
 		PushAttacks(ret, 0, pt, false, board, group, numUsefulMoves);
-		//++group;
+		PushThreat(ret, 0, WHITE, false, seeMap, group);
+		pushFCFeaturesFcn(ret, group);
+		++group;
 		PushGlobalCoords(ret, false, 0, group);
 		PushAttacks(ret, 0, pt, false, board, group, numUsefulMoves);
+		PushThreat(ret, 0, WHITE, false, seeMap, group);
+		pushFCFeaturesFcn(ret, group);
 	}
 	else if (pieceCount == 1)
 	{
@@ -361,18 +413,26 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 			// use the first slot
 			PushGlobalCoords(ret, true, pos, group);
 			PushAttacks(ret, pos, pt, true, board, group, numUsefulMoves);
-			//++group;
+			PushThreat(ret, pos, GetColor(pt), true, seeMap, group);
+			pushFCFeaturesFcn(ret, group);
+			++group;
 			PushGlobalCoords(ret, false, 0, group);
 			PushAttacks(ret, pos, pt, false, board, group, numUsefulMoves);
+			PushThreat(ret, 0, WHITE, false, seeMap, group);
+			pushFCFeaturesFcn(ret, group);
 		}
 		else
 		{
 			// use the second slot
 			PushGlobalCoords(ret, false, 0, group);
 			PushAttacks(ret, pos, pt, false, board, group, numUsefulMoves);
-			//++group;
+			PushThreat(ret, 0, WHITE, false, seeMap, group);
+			pushFCFeaturesFcn(ret, group);
+			++group;
 			PushGlobalCoords(ret, true, pos, group);
 			PushAttacks(ret, pos, pt, true, board, group, numUsefulMoves);
+			PushThreat(ret, pos, GetColor(pt), true, seeMap, group);
+			pushFCFeaturesFcn(ret, group);
 		}
 	}
 	else
@@ -389,9 +449,13 @@ void PushPairPieces(std::vector<T> &ret, uint64_t pieces, PieceType pt, const Bo
 
 		PushGlobalCoords(ret, true, pos1, group);
 		PushAttacks(ret, pos1, pt, true, board, group, numUsefulMoves);
-		//++group;
+		PushThreat(ret, pos1, GetColor(pt), true, seeMap, group);
+		pushFCFeaturesFcn(ret, group);
+		++group;
 		PushGlobalCoords(ret, true, pos2, group);
 		PushAttacks(ret, pos2, pt, true, board, group, numUsefulMoves);
+		PushThreat(ret, pos2, GetColor(pt), true, seeMap, group);
+		pushFCFeaturesFcn(ret, group);
 	}
 }
 
@@ -432,8 +496,7 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 {
 	ret.clear(); // this shouldn't actually deallocate memory
 
-	int32_t group = 0;
-
+	// we start by computing values that will be used later
 	size_t WQCount = board.GetPieceCount(WQ);
 	size_t WRCount = board.GetPieceCount(WR);
 	size_t WBCount = board.GetPieceCount(WB);
@@ -458,18 +521,20 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 		SEE::SEE_MAT[BB] * BBCount +
 		SEE::SEE_MAT[BN] * BNCount;
 
-	float WMatWP = WMatNP + SEE::SEE_MAT[WP] * WPCount;
-	float BMatWP = BMatNP + SEE::SEE_MAT[BP] * BPCount;
+	float WMatP = SEE::SEE_MAT[WP] * WPCount;
+	float BMatP = SEE::SEE_MAT[BP] * BPCount;
 
 	int64_t MaxTotalMatNP = SEE::SEE_MAT[WQ] + 2 * SEE::SEE_MAT[WR] + 2 * SEE::SEE_MAT[WB] + 2 * SEE::SEE_MAT[WN];
-	int64_t MaxTotalMatWP = MaxTotalMatNP + 8 * SEE::SEE_MAT[WP];
+	int64_t MaxTotalMatP = 8 * SEE::SEE_MAT[WP];
 
 	WMatNP = NormalizeCount(static_cast<int64_t>(WMatNP), MaxTotalMatNP);
 	BMatNP = NormalizeCount(static_cast<int64_t>(BMatNP), MaxTotalMatNP);
-	WMatWP = NormalizeCount(static_cast<int64_t>(WMatWP), MaxTotalMatWP);
-	BMatWP = NormalizeCount(static_cast<int64_t>(BMatWP), MaxTotalMatWP);
+	WMatP = NormalizeCount(static_cast<int64_t>(WMatP), MaxTotalMatP);
+	BMatP = NormalizeCount(static_cast<int64_t>(BMatP), MaxTotalMatP);
 
-	//SEEValMap seeMap = ComputeSEEMaps(board);
+	float totalMat = NormalizeCount(static_cast<int64_t>(WMatNP + BMatNP + WMatP + BMatP), MaxTotalMatNP * 2 + MaxTotalMatP * 2);
+
+	SEEValMap seeMap = ComputeSEEMaps(board);
 
 	// here we generate moves, and split them up by from square
 	MoveList ml;
@@ -501,6 +566,17 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 		}
 	}
 
+	// now we can start actually forming the groups
+
+	int32_t group = 0;
+
+	// this function pushes important features that should go into all groups
+	auto PushFCFeatures = [totalMat](std::vector<T> &ret, int32_t group)
+	{
+		PushGlobalFloat(ret, totalMat, group);
+	};
+
+	// first group contains piece counts and side to move
 	// material (no need for king) -
 	// these can also be calculated from "pieces exist" flags, they are
 	// almost entirely redundant (except for set-up illegal positions, and promotions)
@@ -522,28 +598,19 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	uint32_t wkPos = board.GetFirstPiecePos(WK);
 	uint32_t bkPos = board.GetFirstPiecePos(BK);
 
-	// this function pushes important features that should go into all groups
-	auto PushFCFeatures = [wkPos, bkPos, WMatNP, BMatNP, WMatWP, BMatWP](std::vector<T> &ret, int32_t group)
-	{
-		PushGlobalCoords(ret, true, wkPos, group, true);
-		PushGlobalCoords(ret, true, bkPos, group, true);
-		PushGlobalFloat(ret, WMatNP, group);
-		PushGlobalFloat(ret, BMatNP, group);
-		PushGlobalFloat(ret, WMatWP, group);
-		PushGlobalFloat(ret, BMatWP, group);
-	};
-
 	++group;
+	PushGlobalCoords(ret, true, wkPos, group, true);
 	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
 	PushFCFeatures(ret, group);
 
 	++group;
+	PushGlobalCoords(ret, true, bkPos, group, true);
 	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
 	PushFCFeatures(ret, group);
 
-	// pawns (all pawns in the same group)
+	// pawns (all pawns are in the same group)
 	++group;
 	PushPawns<WHITE>(ret, board.GetPieceTypeBitboard(WP), group);
 	PushPawns<BLACK>(ret, board.GetPieceTypeBitboard(BP), group);
@@ -551,41 +618,33 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 
 	// queens
 	++group;
-	PushQueens(ret, board.GetPieceTypeBitboard(WQ), WQ, board, group, numUsefulMoves);
-	PushFCFeatures(ret, group);
+	PushQueens<T>(ret, board.GetPieceTypeBitboard(WQ), WQ, board, group, numUsefulMoves, seeMap, PushFCFeatures);
 	++group;
-	PushQueens(ret, board.GetPieceTypeBitboard(BQ), BQ, board, group, numUsefulMoves);
-	PushFCFeatures(ret, group);
+	PushQueens<T>(ret, board.GetPieceTypeBitboard(BQ), BQ, board, group, numUsefulMoves, seeMap, PushFCFeatures);
 
 	// rooks
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(WR), WR, board, group, numUsefulMoves);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WR), WR, board, group, numUsefulMoves, seeMap, PushFCFeatures);
 	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
-	PushFCFeatures(ret, group);
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(BR), BR, board, group, numUsefulMoves);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BR), BR, board, group, numUsefulMoves, seeMap, PushFCFeatures);
 	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
-	PushFCFeatures(ret, group);
 
 	// bishops
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(WB), WB, board, group, numUsefulMoves);
-	PushFCFeatures(ret, group);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WB), WB, board, group, numUsefulMoves, seeMap, PushFCFeatures);
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(BB), BB, board, group, numUsefulMoves);
-	PushFCFeatures(ret, group);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BB), BB, board, group, numUsefulMoves, seeMap, PushFCFeatures);
 
 	// knights
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(WN), WN, board, group, numUsefulMoves);
-	PushFCFeatures(ret, group);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WN), WN, board, group, numUsefulMoves, seeMap, PushFCFeatures);
 	++group;
-	PushPairPieces(ret, board.GetPieceTypeBitboard(BN), BN, board, group, numUsefulMoves);
-	PushFCFeatures(ret, group);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BN), BN, board, group, numUsefulMoves, seeMap, PushFCFeatures);
 
-	//PushSquareFeatures(ret, board);
+	PushSquareFeatures(ret, board, seeMap, group);
 }
 
 template void ConvertBoardToNN<float>(const Board &board, std::vector<float> &ret);
