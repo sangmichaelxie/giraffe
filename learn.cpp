@@ -165,6 +165,9 @@ void TDL(const std::string &positionsFilename)
 				auto positionDist = std::uniform_int_distribution<size_t>(0, rootPositions.size() - 1);
 				auto positionDrawFunc = std::bind(positionDist, rng);
 
+				auto realDist = std::uniform_real_distribution<float>(0, 1.0f);
+				auto realDrawFunc = std::bind(realDist, rng);
+
 				#pragma omp for schedule(dynamic, 1)
 				for (size_t i = 0; i < PositionsPerBatch; ++i)
 				{
@@ -177,30 +180,23 @@ void TDL(const std::string &positionsFilename)
 						continue;
 					}
 
-					// make 2 random moves
-					MoveList ml;
-					rootPos.GenerateAllLegalMovesSlow<Board::ALL>(ml);
-
-					auto movePickerDist = std::uniform_int_distribution<size_t>(0, ml.GetSize() - 1);
-
-					rootPos.ApplyMove(ml[movePickerDist(rng)]);
-
-					if (rootPos.GetGameStatus() != Board::ONGOING)
+					if (realDrawFunc() < 0.3f)
 					{
-						continue;
-					}
+						// make 1 random move
+						// it's very important that we make an odd number of moves, so that if the move is something stupid, the
+						// opponent can take advantage of it (and we will learn that this position is bad) before we have a chance to
+						// fix it
+						MoveList ml;
+						rootPos.GenerateAllLegalMovesSlow<Board::ALL>(ml);
 
-					ml.Clear();
+						auto movePickerDist = std::uniform_int_distribution<size_t>(0, ml.GetSize() - 1);
 
-					rootPos.GenerateAllLegalMovesSlow<Board::ALL>(ml);
+						rootPos.ApplyMove(ml[movePickerDist(rng)]);
 
-					movePickerDist = std::uniform_int_distribution<size_t>(0, ml.GetSize() - 1);
-
-					rootPos.ApplyMove(ml[movePickerDist(rng)]);
-
-					if (rootPos.GetGameStatus() != Board::ONGOING)
-					{
-						continue;
+						if (rootPos.GetGameStatus() != Board::ONGOING)
+						{
+							continue;
+						}
 					}
 
 					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
