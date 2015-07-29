@@ -120,6 +120,8 @@ struct Rows
 	int64_t num;
 };
 
+typedef std::vector<int32_t> Group;
+
 template <typename Derived1>
 void SplitDataset(
 	const Eigen::MatrixBase<Derived1> &x,
@@ -278,113 +280,36 @@ struct LayerDescription
 {
 	size_t layerSize;
 	std::vector<Eigen::Triplet<float> > connections;
-	std::vector<std::vector<int32_t>> groups;
 
 	LayerDescription() : layerSize(0) {}
 };
 
-template <typename ForwardIterator>
-void AddSingleNodes(
+void AddSingleNodesGroup(
 	LayerDescription &layerDescription,
-	ForwardIterator groupsInBegin,
-	ForwardIterator groupsInEnd,
+	const Group &groupIn,
+	Group &groupOut,
 	float nodeCountMultiplier
 	)
 {
-	for (ForwardIterator it = groupsInBegin; it != groupsInEnd; ++it)
-	{
-		auto group = *it;
-
-		size_t nodesInGroup = group.size();
-		size_t nodesForThisGroup = ceil(nodesInGroup * nodeCountMultiplier);
-
-		layerDescription.groups.push_back(std::vector<int32_t>());
-
-		for (size_t i = 0; i < nodesForThisGroup; ++i)
-		{
-			for (auto feature : group)
-			{
-				layerDescription.connections.push_back(Eigen::Triplet<float>(feature, layerDescription.layerSize, 1.0f));
-			}
-
-			layerDescription.groups.back().push_back(layerDescription.layerSize);
-
-			++layerDescription.layerSize;
-		}
-	}
-}
-
-void AddTwoGroupsNodes(
-	LayerDescription &layerDescription,
-	const std::vector<int32_t> &group0,
-	const std::vector<int32_t> &group1,
-	float nodeCountMultiplier
-	)
-{
-	size_t nodesInGroup = group0.size() + group1.size();
+	size_t nodesInGroup = groupIn.size();
 	size_t nodesForThisGroup = ceil(nodesInGroup * nodeCountMultiplier);
 
-	layerDescription.groups.push_back(std::vector<int32_t>());
+	groupOut.clear();
 
 	for (size_t i = 0; i < nodesForThisGroup; ++i)
 	{
-		for (auto feature : group0)
+		for (auto feature : groupIn)
 		{
 			layerDescription.connections.push_back(Eigen::Triplet<float>(feature, layerDescription.layerSize, 1.0f));
 		}
 
-		for (auto feature : group1)
-		{
-			layerDescription.connections.push_back(Eigen::Triplet<float>(feature, layerDescription.layerSize, 1.0f));
-		}
-
-		layerDescription.groups.back().push_back(layerDescription.layerSize);
+		groupOut.push_back(layerDescription.layerSize);
 
 		++layerDescription.layerSize;
 	}
 }
 
-template <typename ForwardIterator>
-void AddPairNodes(
-	LayerDescription &layerDescription,
-	ForwardIterator groupsInBegin,
-	ForwardIterator groupsInEnd,
-	float nodeCountMultiplier
-	)
-{
-	for (ForwardIterator it0 = groupsInBegin + 1; it0 != groupsInEnd; ++it0)
-	{
-		for (ForwardIterator it1 = groupsInBegin; it1 != it0; ++it1)
-		{
-			auto group0 = *it0;
-			auto group1 = *it1;
-
-			size_t nodesInGroup = group0.size() + group1.size();
-			size_t nodesForThisGroup = ceil(nodesInGroup * nodeCountMultiplier);
-
-			layerDescription.groups.push_back(std::vector<int32_t>());
-
-			for (size_t i = 0; i < nodesForThisGroup; ++i)
-			{
-				for (auto feature : group0)
-				{
-					layerDescription.connections.push_back(Eigen::Triplet<float>(feature, layerDescription.layerSize, 1.0f));
-				}
-
-				for (auto feature : group1)
-				{
-					layerDescription.connections.push_back(Eigen::Triplet<float>(feature, layerDescription.layerSize, 1.0f));
-				}
-
-				layerDescription.groups.back().push_back(layerDescription.layerSize);
-
-				++layerDescription.layerSize;
-			}
-		}
-	}
-}
-
-void DebugPrintGroups(const std::vector<std::vector<int32_t>> &groups)
+void DebugPrintGroups(const std::vector<Group> &groups)
 {
 	std::cout << "Groups:" << std::endl;
 	size_t groupNum = 0;
@@ -413,143 +338,90 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 	std::vector<size_t> layerSizes;
 	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
 
-	std::vector<std::vector<int32_t>> featureGroups;
+	std::vector<Group> globalGroups;
+	std::vector<Group> squareGroups(64);
 
 	// get feature descriptions
 	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
 	FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
 
 	// first we make global feature groups
-	std::map<int, std::vector<int32_t>> globalGroups;
+	std::map<int, Group> globalGroupsMap;
 	for (size_t featureNum = 0; featureNum < featureDescriptions.size(); ++featureNum)
 	{
 		auto &fd = featureDescriptions[featureNum];
 
 		if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_global)
 		{
-			globalGroups[fd.group].push_back(featureNum);
+			globalGroupsMap[fd.group].push_back(featureNum);
 		}
-	}
-
-	for (const auto &group : globalGroups)
-	{
-		featureGroups.push_back(group.second);
-	}
-
-	// now we make square-specific groups
-	std::vector<std::vector<int32_t>> xGroups(8);
-	std::vector<std::vector<int32_t>> yGroups(8);
-	std::vector<std::vector<int32_t>> diag0Groups(15);
-	std::vector<std::vector<int32_t>> diag1Groups(15);
-	std::vector<int32_t> allSqGroup;
-
-	const static size_t NumRegions = 9;
-	std::vector<std::vector<int32_t>> regionGroups(NumRegions);
-
-	struct Region
-	{
-		int32_t x;
-		int32_t y;
-		int32_t w;
-		int32_t h;
-
-		bool InRegion(int sqX, int sqY) const
+		else if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_pos)
 		{
-			return (sqX >= x) && (sqX < (x + w)) && (sqY >= y) && (sqY < (y + h));
-		}
-	};
-
-	const static Region Regions[NumRegions] =
-	{
-		{ 0, 0, 4, 4 },
-		{ 2, 0, 4, 4 },
-		{ 4, 0, 4, 4 },
-		{ 0, 2, 4, 4 },
-		{ 2, 2, 4, 4 },
-		{ 4, 2, 4, 4 },
-		{ 0, 4, 4, 4 },
-		{ 2, 4, 4, 4 },
-		{ 4, 4, 4, 4 },
-	};
-
-	for (size_t featureNum = 0; featureNum < featureDescriptions.size(); ++featureNum)
-	{
-		auto &fd = featureDescriptions[featureNum];
-
-		if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_pos)
-		{
-			Square sq = fd.sq;
-
-			int32_t x = GetX(sq);
-			int32_t y = GetY(sq);
-			int32_t diag0 = GetDiag0(sq);
-			int32_t diag1 = GetDiag1(sq);
-
-			xGroups[x].push_back(featureNum);
-			yGroups[y].push_back(featureNum);
-			diag0Groups[diag0].push_back(featureNum);
-			diag1Groups[diag1].push_back(featureNum);
-
-			for (size_t region = 0; region < NumRegions; ++region)
-			{
-				if (Regions[region].InRegion(x, y))
-				{
-					regionGroups[region].push_back(featureNum);
-				}
-			}
-
-			allSqGroup.push_back(featureNum);
+			squareGroups[fd.sq].push_back(featureNum);
 		}
 	}
 
-	//featureGroups.insert(featureGroups.end(), xGroups.begin(), xGroups.end());
-	//featureGroups.insert(featureGroups.end(), yGroups.begin(), yGroups.end());
-	//featureGroups.insert(featureGroups.end(), diag0Groups.begin(), diag0Groups.end());
-	//featureGroups.insert(featureGroups.end(), diag1Groups.begin(), diag1Groups.end());
-
-	featureGroups.push_back(allSqGroup);
+	for (const auto &group : globalGroupsMap)
+	{
+		globalGroups.push_back(group.second);
+	}
 
 	if (!smallNet)
 	{
 		LayerDescription layer0;
 
-		AddSingleNodes(
-			layer0,
-			featureGroups.begin(),
-			featureGroups.end(),
-			1.0f
-		);
+		std::vector<Group> layer0GlobalGroups;
+		std::vector<Group> layer0SquareGroups;
+
+		// first we add the global groups
+		for (size_t i = 0; i < globalGroups.size(); ++i)
+		{
+			Group newGroup;
+			AddSingleNodesGroup(layer0, globalGroups[i], newGroup, 1.0f);
+			layer0GlobalGroups.push_back(newGroup);
+		}
+
+		// then the square groups
+		for (size_t i = 0; i < squareGroups.size(); ++i)
+		{
+			Group newGroup;
+			AddSingleNodesGroup(layer0, squareGroups[i], newGroup, 1.0f);
+			layer0SquareGroups.push_back(newGroup);
+		}
 
 		layerSizes.push_back(layer0.layerSize);
 		connMatrices.push_back(layer0.connections);
 
+		// now we build the second layer
 		LayerDescription layer1;
 
-		AddSingleNodes(
-			layer1,
-			layer0.groups.begin(),
-			layer0.groups.end(),
-			1.0f
-		);
+		std::vector<Group> layer1GlobalGroups;
+		std::vector<Group> layer1SquareGroups;
 
-		layerSizes.push_back(layer1.layerSize);
-		connMatrices.push_back(layer1.connections);
-
-		/*
-		// for the second layer, each group gets partnered with first group, except for first group (which is passed on)
-		LayerDescription layer1;
-
-		AddSingleNodes(layer1, layer0.groups.begin(), layer0.groups.begin() + 1, 1.0f);
-
-		for (int32_t group = 1; group < static_cast<int32_t>(layer0.groups.size()); ++group)
+		for (const auto &globalGroup : layer0GlobalGroups)
 		{
-			AddTwoGroupsNodes(layer1, layer0.groups[0], layer0.groups[group], 1.0f);
+			Group newGroup;
+			AddSingleNodesGroup(layer1, globalGroup, newGroup, 1.0f);
+			layer1GlobalGroups.push_back(newGroup);
 		}
 
+		// in the second layer we merge all the square groups together, to produce very low dim output
+		Group squareMixedGroup;
+
+		for (const auto &squareGroup : layer0SquareGroups)
+		{
+			squareMixedGroup.insert(squareMixedGroup.end(), squareGroup.begin(), squareGroup.end());
+		}
+
+		assert(squareMixedGroup.size() == 256);
+
+		Group layer1SquareMixedGroup;
+		AddSingleNodesGroup(layer1, squareMixedGroup, layer1SquareMixedGroup, 0.25f); // 256 down to 64
+
 		layerSizes.push_back(layer1.layerSize);
 		connMatrices.push_back(layer1.connections);
-		*/
 
+		// in the third layer, we just fully connect everything
 		layerSizes.push_back(64);
 		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
