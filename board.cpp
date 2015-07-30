@@ -221,51 +221,25 @@ void Board::PlacePiece(Square sq, PieceType pt)
 }
 
 template <Board::MOVE_TYPES MT>
-void Board::GenerateAllMoves(MoveList &moveList) const
-{
-	Color sideToMove = m_boardDescU8[SIDE_TO_MOVE];
-
-	GeneratePawnMoves_<MT>(sideToMove, moveList);
-	GenerateKnightMoves_<MT>(sideToMove, moveList);
-	GenerateBishopMoves_<MT>(sideToMove, moveList);
-	GenerateRookMoves_<MT>(sideToMove, moveList);
-	GenerateQueenMoves_<MT>(sideToMove, moveList);
-	GenerateKingMoves_<MT>(sideToMove, moveList);
-
-#ifdef DEBUG
-	if (MT == ALL)
-	{
-		MoveList mlQuiet;
-		MoveList mlViolent;
-		GenerateAllMoves<QUIET>(mlQuiet);
-		GenerateAllMoves<VIOLENT>(mlViolent);
-		assert((mlQuiet.GetSize() + mlViolent.GetSize()) == moveList.GetSize());
-	}
-#endif
-}
-
-template void Board::GenerateAllMoves<Board::ALL> (MoveList &moveList) const;
-template void Board::GenerateAllMoves<Board::QUIET>(MoveList &moveList) const;
-template void Board::GenerateAllMoves<Board::VIOLENT>(MoveList &moveList) const;
-
-template <Board::MOVE_TYPES MT>
-void Board::GenerateAllLegalMovesSlow(MoveList &moveList) const
+void Board::GenerateAllLegalMoves(MoveList &moveList)
 {
 	MoveList pseudoLegalMoves;
-	GenerateAllMoves<MT>(pseudoLegalMoves);
+	GenerateAllPseudoLegalMoves_<MT>(pseudoLegalMoves);
 
-	// we have to make a copy here because this function is const
-	Board boardCopy = *this;
+	CheckInfo ci = ComputeCheckInfo();
 
 	for (size_t i = 0; i < pseudoLegalMoves.GetSize(); ++i)
 	{
-		if (boardCopy.ApplyMove(pseudoLegalMoves[i]))
+		if (CheckLegal(ci, pseudoLegalMoves[i]))
 		{
 			moveList.PushBack(pseudoLegalMoves[i]);
-			boardCopy.UndoMove();
 		}
 	}
 }
+
+template void Board::GenerateAllLegalMoves<Board::ALL>(MoveList &);
+template void Board::GenerateAllLegalMoves<Board::VIOLENT>(MoveList &);
+template void Board::GenerateAllLegalMoves<Board::QUIET>(MoveList &);
 
 void Board::CheckBoardConsistency()
 {
@@ -875,6 +849,146 @@ bool Board::ApplyMove(Move mv)
 #undef REMOVE_PIECE
 }
 
+Board::CheckInfo Board::ComputeCheckInfo()
+{
+	CheckInfo ret;
+
+	Square kingPos = (GetSideToMove() == WHITE ? BitScanForward(m_boardDescBB[WK]) : BitScanForward(m_boardDescBB[BK]));
+	int32_t kingX = GetX(kingPos);
+	int32_t kingY = GetY(kingPos);
+	int32_t kingDiag0 = GetDiag0(kingPos);
+	int32_t kingDiag1 = GetDiag1(kingPos);
+
+	uint64_t opponentQueens = (GetSideToMove() == WHITE ? m_boardDescBB[BQ] : m_boardDescBB[WQ]);
+	uint64_t opponentRooks = (GetSideToMove() == WHITE ? m_boardDescBB[BR] : m_boardDescBB[WR]);
+	uint64_t opponentBishops = (GetSideToMove() == WHITE ? m_boardDescBB[BB] : m_boardDescBB[WB]);
+
+	while (opponentQueens)
+	{
+		Square pos = Extract(opponentQueens);
+
+		// all the cases are mutually exclusive
+		if (GetX(pos) == kingX)
+		{
+			ret.opponentRQOnSameX = true;
+		}
+		else if (GetY(pos) == kingY)
+		{
+			ret.opponentRQOnSameY = true;
+		}
+		else if (GetDiag0(pos) == kingDiag0)
+		{
+			ret.opponentBQOnSameDiag0 = true;
+		}
+		else if (GetDiag1(pos) == kingDiag1)
+		{
+			ret.opponentBQOnSameDiag1 = true;
+		}
+	}
+
+	while (opponentRooks)
+	{
+		Square pos = Extract(opponentRooks);
+
+		// all the cases are mutually exclusive
+		if (GetX(pos) == kingX)
+		{
+			ret.opponentRQOnSameX = true;
+		}
+		else if (GetY(pos) == kingY)
+		{
+			ret.opponentRQOnSameY = true;
+		}
+	}
+
+	while (opponentBishops)
+	{
+		Square pos = Extract(opponentBishops);
+
+		// all the cases are mutually exclusive
+		if (GetDiag0(pos) == kingDiag0)
+		{
+			ret.opponentBQOnSameDiag0 = true;
+		}
+		else if (GetDiag1(pos) == kingDiag1)
+		{
+			ret.opponentBQOnSameDiag1 = true;
+		}
+	}
+
+	return ret;
+}
+
+bool Board::CheckLegal(const CheckInfo &ci, Move mv)
+{
+	// in this function we try to determine legality of moves quickly without doing a full check (by applying the move)
+	PieceType pt = GetPieceType(mv);
+
+	bool doFullCheck = false;
+
+	if (InCheck())
+	{
+		// if we are in check, do a full check because there are many potential ways to get out of check, and we are lazy
+		doFullCheck = true;
+	}
+	else
+	{
+		switch (pt)
+		{
+		case WK:
+		case BK:
+			// if this is a king move, we do a full check because any king move can potentially put the king in check
+			// this includes castling
+			doFullCheck = true;
+			break;
+		case WP:
+		case BP:
+			if (Bit(GetToSquare(mv)) == m_boardDescBB[EN_PASS_SQUARE])
+			{
+				// if this is EP, we do a full check... because EPs are rare, and we are lazy
+				doFullCheck = true;
+				break;
+			}
+			// fall through if this is a pawn move that's not EP
+		default:
+			{
+				doFullCheck = false;
+
+				// now we know we are not moving the king, this is not EP, and the king is not already in check
+				// in this case, the only way this move can put the king in check is if we just moved away a pinned piece
+				// besides EP and castling (both have been dealt with), the only square that will be vacated after a move is the from square
+
+				Square vacatedSquare = GetFromSquare(mv);
+				Square kingPos = BitScanForward(GetSideToMove() == WHITE ? m_boardDescBB[WK] : m_boardDescBB[BK]);
+
+				if ((ci.opponentRQOnSameX && (GetX(vacatedSquare) == GetX(kingPos))) ||
+					(ci.opponentRQOnSameY && (GetY(vacatedSquare) == GetY(kingPos))) ||
+					(ci.opponentBQOnSameDiag0 && (GetDiag0(vacatedSquare) == GetDiag0(kingPos))) ||
+					(ci.opponentBQOnSameDiag1 && (GetDiag1(vacatedSquare) == GetDiag1(kingPos))))
+				{
+					doFullCheck = true;
+				}
+			}
+		}
+	}
+
+	if (doFullCheck)
+	{
+		bool ret = ApplyMove(mv);
+		if (ret)
+		{
+			UndoMove();
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void Board::UndoMove()
 {
 	UndoListBB &ulBB = m_undoStackBB.Top();
@@ -948,7 +1062,7 @@ bool Board::operator==(const Board &other)
 Move Board::ParseMove(std::string str)
 {
 	MoveList moveList;
-	GenerateAllLegalMovesSlow<ALL>(moveList);
+	GenerateAllLegalMoves<ALL>(moveList);
 
 	if (PatternMatch(str, "[a-h][1-8][a-h][1-8]"))
 	{
@@ -1340,7 +1454,7 @@ bool Board::HasInsufficientMaterial(bool relaxed) const
 Board::GameStatus Board::GetGameStatus()
 {
 	MoveList legalMoves;
-	GenerateAllLegalMovesSlow<ALL>(legalMoves);
+	GenerateAllLegalMoves<ALL>(legalMoves);
 
 	if (legalMoves.GetSize() == 0)
 	{
@@ -1607,6 +1721,30 @@ void Board::ApplyVariation(const std::vector<Move> &moves)
 			throw std::runtime_error(std::string("Illegal move in variation! - ") + MoveToAlg(move) + " FEN: " + GetFen());
 		}
 	}
+}
+
+template <Board::MOVE_TYPES MT>
+void Board::GenerateAllPseudoLegalMoves_(MoveList &moveList) const
+{
+	Color sideToMove = m_boardDescU8[SIDE_TO_MOVE];
+
+	GeneratePawnMoves_<MT>(sideToMove, moveList);
+	GenerateKnightMoves_<MT>(sideToMove, moveList);
+	GenerateBishopMoves_<MT>(sideToMove, moveList);
+	GenerateRookMoves_<MT>(sideToMove, moveList);
+	GenerateQueenMoves_<MT>(sideToMove, moveList);
+	GenerateKingMoves_<MT>(sideToMove, moveList);
+
+#ifdef DEBUG
+	if (MT == ALL)
+	{
+		MoveList mlQuiet;
+		MoveList mlViolent;
+		GenerateAllPseudoLegalMoves_<QUIET>(mlQuiet);
+		GenerateAllPseudoLegalMoves_<VIOLENT>(mlViolent);
+		assert((mlQuiet.GetSize() + mlViolent.GetSize()) == moveList.GetSize());
+	}
+#endif
 }
 
 template <Board::MOVE_TYPES MT>
@@ -2102,7 +2240,7 @@ void Board::UpdateHashFull_()
 uint64_t Perft(Board &b, uint32_t depth)
 {
 	MoveList ml;
-	b.GenerateAllMoves<Board::ALL>(ml);
+	b.GenerateAllLegalMoves<Board::ALL>(ml);
 
 	uint64_t sum = 0;
 
@@ -2143,7 +2281,7 @@ uint64_t Perft(Board &b, uint32_t depth)
 uint64_t PerftWithNull(Board &b, uint32_t depth)
 {
 	MoveList ml;
-	b.GenerateAllMoves<Board::ALL>(ml);
+	b.GenerateAllLegalMoves<Board::ALL>(ml);
 
 	uint64_t sum = 0;
 
@@ -2167,27 +2305,27 @@ uint64_t PerftWithNull(Board &b, uint32_t depth)
 	{
 		if (!b.CheckPseudoLegal(ml[i]))
 		{
+			std::cout << b.GetFen() << std::endl;
 			std::cout << b.MoveToAlg(ml[i]) << std::endl;
 			abort();
 		}
 
-		if (b.ApplyMove(ml[i]))
-		{
-			if (depth == 1)
-			{
-				++sum;
-			}
-			else
-			{
-				sum += Perft(b, depth - 1);
-			}
+		b.ApplyMove(ml[i]);
 
-			b.UndoMove();
+		if (depth == 1)
+		{
+			++sum;
+		}
+		else
+		{
+			sum += Perft(b, depth - 1);
+		}
+
+		b.UndoMove();
 
 #ifdef DEBUG
-			assert(b == c);
+		assert(b == c);
 #endif
-		}
 	}
 
 	return sum;

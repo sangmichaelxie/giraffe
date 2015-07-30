@@ -44,13 +44,13 @@ public:
 
 	void TrainBounds(const std::vector<std::string> &positions, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions, float learningRate);
 
-	Score EvaluateForWhiteImpl(const Board &b, Score lowerBound, Score upperBound) override;
+	Score EvaluateForWhiteImpl(Board &b, Score lowerBound, Score upperBound) override;
 
-	void PrintDiag(const Board &board) override;
+	void PrintDiag(Board &board) override;
 
 	void InvalidateCache();
 
-	bool CheckBounds(const Board &board, float &windowSize);
+	bool CheckBounds(Board &board, float &windowSize);
 
 private:
 	NNMatrixRM BoardsToFeatureRepresentation_(const std::vector<std::string> &positions, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions);

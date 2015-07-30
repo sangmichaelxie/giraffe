@@ -13,7 +13,7 @@ namespace Eval
 {
 
 // returns score for white
-Score StaticEvaluate(const Board &b, Score lowerBound, Score upperBound);
+Score StaticEvaluate(Board &b, Score lowerBound, Score upperBound);
 
 // returns score for white
 Score EvaluateMaterial(const Board &b);
@@ -21,7 +21,7 @@ Score EvaluateMaterial(const Board &b);
 class StaticEvaluator : public EvaluatorIface
 {
 public:
-	Score EvaluateForWhiteImpl(const Board &b, Score lowerBound, Score upperBound) override
+	Score EvaluateForWhiteImpl(Board &b, Score lowerBound, Score upperBound) override
 	{
 		(void) lowerBound;
 		(void) upperBound;

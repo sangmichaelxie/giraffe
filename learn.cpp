@@ -86,7 +86,8 @@ void TDL(const std::string &positionsFilename)
 
 	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
 
-	FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
+	Board dummyBoard;
+	FeaturesConv::ConvertBoardToNN(dummyBoard, featureDescriptions);
 
 	int64_t iter = 0;
 
@@ -187,7 +188,7 @@ void TDL(const std::string &positionsFilename)
 						// opponent can take advantage of it (and we will learn that this position is bad) before we have a chance to
 						// fix it
 						MoveList ml;
-						rootPos.GenerateAllLegalMovesSlow<Board::ALL>(ml);
+						rootPos.GenerateAllLegalMoves<Board::ALL>(ml);
 
 						auto movePickerDist = std::uniform_int_distribution<size_t>(0, ml.GetSize() - 1);
 

@@ -60,6 +60,15 @@ public:
 		ONGOING
 	};
 
+	struct CheckInfo
+	{
+		// this struct contains things that can be precomputed once per position, and makes checking all the moves easier
+		bool opponentRQOnSameX = false;
+		bool opponentRQOnSameY = false;
+		bool opponentBQOnSameDiag0 = false;
+		bool opponentBQOnSameDiag1 = false;
+	};
+
 	typedef FixedVector<std::pair<uint8_t, uint64_t>, 7> UndoListBB; // list of bitboards to revert on undo
 	// 6 maximum bitboards (black occupied, white occupied, source piece type, captured piece type, promotion/castling piece type, en passant, hash)
 
@@ -81,8 +90,7 @@ public:
 	void RemovePiece(Square sq);
 	void PlacePiece(Square sq, PieceType pt);
 
-	template <MOVE_TYPES MT> void GenerateAllMoves(MoveList &moveList) const;
-	template <MOVE_TYPES MT> void GenerateAllLegalMovesSlow(MoveList &moveList) const;
+	template <MOVE_TYPES MT> void GenerateAllLegalMoves(MoveList &moveList);
 
 	// debug function to check consistency between occupied bitboards, piece bitboards, MB, and castling rights
 	void CheckBoardConsistency();
@@ -95,6 +103,12 @@ public:
 
 	// returns whether the move is legal (if not, the move is reverted)
 	bool ApplyMove(Move mv);
+
+	CheckInfo ComputeCheckInfo();
+
+	// same as ApplyMove, but doesn't apply the move
+	// it also uses a few shortcuts to do the check faster
+	bool CheckLegal(const CheckInfo &ci, Move mv);
 
 	void UndoMove();
 
@@ -195,6 +209,7 @@ public:
 	void ApplyVariation(const std::vector<Move> &moves);
 
 private:
+	template <MOVE_TYPES MT> void GenerateAllPseudoLegalMoves_(MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateQueenMoves_(Color color, MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateBishopMoves_(Color color, MoveList &moveList) const;

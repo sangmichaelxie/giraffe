@@ -16,7 +16,7 @@ public:
 	constexpr static float EvalFullScale = 10000.0f;
 
 	// return score for side to move
-	Score EvaluateForSTM(const Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	Score EvaluateForSTM(Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
 	{
 		if (b.GetSideToMove() == WHITE)
 		{
@@ -28,7 +28,7 @@ public:
 		}
 	}
 
-	Score EvaluateForWhite(const Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	Score EvaluateForWhite(Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
 	{
 		return EvaluateForWhiteImpl(b, lowerBound, upperBound);
 	}
@@ -44,10 +44,10 @@ public:
 	}
 
 	// this is the only function evaluators need to implement
-	virtual Score EvaluateForWhiteImpl(const Board &b, Score lowerBound, Score upperBound) = 0;
+	virtual Score EvaluateForWhiteImpl(Board &b, Score lowerBound, Score upperBound) = 0;
 
 	// this is optional
-	virtual void PrintDiag(const Board &/*board*/) {}
+	virtual void PrintDiag(Board &/*board*/) {}
 };
 
 #endif // EVALUATOR_H

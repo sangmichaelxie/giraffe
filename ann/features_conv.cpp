@@ -459,28 +459,34 @@ void PushPairPieces(
 	}
 }
 
-SEEValMap ComputeSEEMaps(const Board &board)
+SEEValMap ComputeSEEMaps(Board &board)
 {
 	SEEValMap ret;
-
-	Board boardCopy = board;
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
 		if (board.GetSideToMove() == WHITE)
 		{
-			ret.blackMaxVal[sq] = SEE::SSEMap(boardCopy, sq);
-			boardCopy.MakeNullMove();
-			ret.whiteMaxVal[sq] = SEE::SSEMap(boardCopy, sq);
+			ret.blackMaxVal[sq] = SEE::SSEMap(board, sq);
+
+			if (!board.InCheck())
+			{
+				board.MakeNullMove();
+				ret.whiteMaxVal[sq] = SEE::SSEMap(board, sq);
+				board.UndoMove();
+			}
 		}
 		else
 		{
-			ret.whiteMaxVal[sq] = SEE::SSEMap(boardCopy, sq);
-			boardCopy.MakeNullMove();
-			ret.blackMaxVal[sq] = SEE::SSEMap(boardCopy, sq);
-		}
+			ret.whiteMaxVal[sq] = SEE::SSEMap(board, sq);
 
-		boardCopy.UndoMove();
+			if (!board.InCheck())
+			{
+				board.MakeNullMove();
+				ret.blackMaxVal[sq] = SEE::SSEMap(board, sq);
+				board.UndoMove();
+			}
+		}
 	}
 
 	return ret;
@@ -492,7 +498,7 @@ namespace FeaturesConv
 {
 
 template <typename T>
-void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
+void ConvertBoardToNN(Board &board, std::vector<T> &ret)
 {
 	ret.clear(); // this shouldn't actually deallocate memory
 
@@ -538,9 +544,7 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 
 	// here we generate moves, and split them up by from square
 	MoveList ml;
-	board.GenerateAllMoves<Board::ALL>(ml);
-
-	Board boardCopy = board;
+	board.GenerateAllLegalMoves<Board::ALL>(ml);
 
 	// each square has a list of moves originating from that square, with associated SEE score
 	MoveSEEList mlByFromSq[64];
@@ -557,7 +561,7 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 			continue;
 		}
 
-		Score see = SEE::StaticExchangeEvaluation(boardCopy, ml[i]);
+		Score see = SEE::StaticExchangeEvaluation(board, ml[i]);
 		mlByFromSq[fromSq].PushBack(std::make_pair(ml[i], see));
 
 		if (see >= 0)
@@ -647,7 +651,7 @@ void ConvertBoardToNN(const Board &board, std::vector<T> &ret)
 	PushSquareFeatures(ret, board, seeMap, group);
 }
 
-template void ConvertBoardToNN<float>(const Board &board, std::vector<float> &ret);
-template void ConvertBoardToNN<FeatureDescription>(const Board &board, std::vector<FeatureDescription> &ret);
+template void ConvertBoardToNN<float>(Board &board, std::vector<float> &ret);
+template void ConvertBoardToNN<FeatureDescription>(Board &board, std::vector<FeatureDescription> &ret);
 
 } // namespace FeaturesConv

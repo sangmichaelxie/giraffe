@@ -56,7 +56,7 @@ struct FeatureDescription
 // T can either be float (to get actual values) or
 // FeatureDescription (to get feature descriptions)
 template <typename T>
-void ConvertBoardToNN(const Board &board, std::vector<T> &ret);
+void ConvertBoardToNN(Board &board, std::vector<T> &ret);
 
 }
 

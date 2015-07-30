@@ -109,7 +109,7 @@ void ANNEvaluator::TrainBounds(const std::vector<std::string> &positions, const 
 	InvalidateCache();
 }
 
-Score ANNEvaluator::EvaluateForWhiteImpl(const Board &b, Score /*lowerBound*/, Score /*upperBound*/)
+Score ANNEvaluator::EvaluateForWhiteImpl(Board &b, Score /*lowerBound*/, Score /*upperBound*/)
 {
 	uint64_t hash = b.GetHash();
 	EvalHashEntry *entry = &m_evalHash[hash % EvalHashSize];
@@ -134,7 +134,7 @@ Score ANNEvaluator::EvaluateForWhiteImpl(const Board &b, Score /*lowerBound*/, S
 	return nnRet;
 }
 
-void ANNEvaluator::PrintDiag(const Board &board)
+void ANNEvaluator::PrintDiag(Board &board)
 {
 	FeaturesConv::ConvertBoardToNN(board, m_convTmp);
 
@@ -153,7 +153,7 @@ void ANNEvaluator::InvalidateCache()
 	}
 }
 
-bool ANNEvaluator::CheckBounds(const Board &board, float &windowSize)
+bool ANNEvaluator::CheckBounds(Board &board, float &windowSize)
 {
 	FeaturesConv::ConvertBoardToNN(board, m_convTmp);
 
@@ -182,7 +182,8 @@ NNMatrixRM ANNEvaluator::BoardsToFeatureRepresentation_(const std::vector<std::s
 			#pragma omp for
 			for (size_t i = 0; i < positions.size(); ++i)
 			{
-				FeaturesConv::ConvertBoardToNN(Board(positions[i]), features);
+				Board b(positions[i]);
+				FeaturesConv::ConvertBoardToNN(b, features);
 
 				if (features.size() != featureDescriptions.size())
 				{

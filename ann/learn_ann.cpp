@@ -343,7 +343,8 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 
 	// get feature descriptions
 	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
-	FeaturesConv::ConvertBoardToNN(Board(), featureDescriptions);
+	Board dummyBoard;
+	FeaturesConv::ConvertBoardToNN(dummyBoard, featureDescriptions);
 
 	// first we make global feature groups
 	std::map<int, Group> globalGroupsMap;

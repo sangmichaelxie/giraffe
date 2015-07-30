@@ -234,7 +234,7 @@ void MovePicker::EnterStage_()
 	{
 	case QUEEN_PROMOTIONS:
 		// on entering this stage, we have to generate all violent moves, and sort them by SEE
-		m_board.GenerateAllMoves<Board::VIOLENT>(m_moveListViolent);
+		m_board.GenerateAllLegalMoves<Board::VIOLENT>(m_moveListViolent);
 
 		m_i = 0;
 		break;
@@ -247,7 +247,7 @@ void MovePicker::EnterStage_()
 		break;
 	case OTHER_NON_CAPTURES:
 		// at this point we have to generate quiet moves
-		m_board.GenerateAllMoves<Board::QUIET>(m_moveListQuiet);
+		m_board.GenerateAllLegalMoves<Board::QUIET>(m_moveListQuiet);
 
 		m_i = 0;
 		break;
@@ -317,13 +317,13 @@ void MovePicker::RemoveScores_(MoveList &ml)
 void DebugMovePicker(Board &b, uint32_t depth, Killer &killer)
 {
 	MoveList ml;
-	b.GenerateAllMoves<Board::ALL>(ml);
+	b.GenerateAllLegalMoves<Board::ALL>(ml);
 
 	MoveList mlq;
-	b.GenerateAllMoves<Board::VIOLENT>(mlq);
+	b.GenerateAllLegalMoves<Board::VIOLENT>(mlq);
 
 	MoveList mlqu;
-	b.GenerateAllMoves<Board::QUIET>(mlqu);
+	b.GenerateAllLegalMoves<Board::QUIET>(mlqu);
 
 	assert((mlq.GetSize() + mlqu.GetSize()) == ml.GetSize());
 

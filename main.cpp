@@ -457,8 +457,8 @@ int main(int argc, char **argv)
 		}
 		else if (cmd == "runtests")
 		{
-			SEE::DebugRunSeeTests();
-			DebugRunMovePickerTests();
+			//SEE::DebugRunSeeTests();
+			//DebugRunMovePickerTests();
 			DebugRunPerftTests();
 			std::cout << "All passed!" << std::endl;
 		}
