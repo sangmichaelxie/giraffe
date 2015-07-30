@@ -341,6 +341,8 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 	std::vector<Group> globalGroups;
 	std::vector<Group> squareGroups(64);
 
+	Group mixedSquareGroup;
+
 	// get feature descriptions
 	std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
 	Board dummyBoard;
@@ -359,8 +361,11 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		else if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_pos)
 		{
 			squareGroups[fd.sq].push_back(featureNum);
+			mixedSquareGroup.push_back(featureNum);
 		}
 	}
+
+	assert(mixedSquareGroup.size() == (2*64));
 
 	for (const auto &group : globalGroupsMap)
 	{
@@ -372,7 +377,8 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		LayerDescription layer0;
 
 		std::vector<Group> layer0GlobalGroups;
-		std::vector<Group> layer0SquareGroups;
+		//std::vector<Group> layer0SquareGroups;
+		Group layer0MixedSquareGroup;
 
 		// first we add the global groups
 		for (size_t i = 0; i < globalGroups.size(); ++i)
@@ -383,21 +389,26 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		}
 
 		// then the square groups
+		/*
 		for (size_t i = 0; i < squareGroups.size(); ++i)
 		{
 			Group newGroup;
 			AddSingleNodesGroup(layer0, squareGroups[i], newGroup, 1.0f);
 			layer0SquareGroups.push_back(newGroup);
 		}
+		*/
+
+		// mixed square group
+		AddSingleNodesGroup(layer0, mixedSquareGroup, layer0MixedSquareGroup, 0.5f);
 
 		layerSizes.push_back(layer0.layerSize);
 		connMatrices.push_back(layer0.connections);
 
 		// now we build the second layer
+		/*
 		LayerDescription layer1;
 
 		std::vector<Group> layer1GlobalGroups;
-		std::vector<Group> layer1SquareGroups;
 
 		for (const auto &globalGroup : layer0GlobalGroups)
 		{
@@ -421,6 +432,7 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 
 		layerSizes.push_back(layer1.layerSize);
 		connMatrices.push_back(layer1.connections);
+		*/
 
 		// in the third layer, we just fully connect everything
 		layerSizes.push_back(64);

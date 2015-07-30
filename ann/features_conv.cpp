@@ -219,10 +219,11 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 }
 
 template <typename T>
-void PushSquareFeatures(std::vector<T> &ret, const Board &board, SEEValMap &seeMap, int &group)
+void PushSquareFeatures(std::vector<T> &ret, const Board &/*board*/, SEEValMap &seeMap, int &group)
 {
 	// we store everything in arrays before actually pushing them, so that features
 	// in the same group will be together (good for performance during eval)
+	/*
 	int64_t whiteMaterial[64] = { 0 };
 	int64_t blackMaterial[64] = { 0 };
 
@@ -257,16 +258,17 @@ void PushSquareFeatures(std::vector<T> &ret, const Board &board, SEEValMap &seeM
 			}
 		}
 	}
+	*/
 
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]), group);
-		PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]), group + 1);
-		PushPosFloat(ret, sq, NormalizeCount(seeMap.blackMaxVal[sq], SEE::SEE_MAT[WK]), group + 2);
-		PushPosFloat(ret, sq, NormalizeCount(seeMap.whiteMaxVal[sq], SEE::SEE_MAT[WK]), group + 3);
+		PushPosFloat(ret, sq, NormalizeCount(seeMap.blackMaxVal[sq], SEE::SEE_MAT[WK]), group);
+		PushPosFloat(ret, sq, NormalizeCount(seeMap.whiteMaxVal[sq], SEE::SEE_MAT[WK]), group + 1);
+		//PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]), group + 2);
+		//PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]), group + 3);
 	}
 
-	group += 4;
+	group += 2;
 }
 
 template <Color color, typename T>
