@@ -198,8 +198,11 @@ public:
 
 	size_t GetSize() const { return m_size; }
 
-	T *Begin() { return m_data; }
-	T *End() { return m_data + m_size; }
+	const T *begin() const { return m_data; }
+	const T *end() const { return m_data + m_size; }
+
+	T *begin() { return m_data; }
+	T *end() { return m_data + m_size; }
 
 private:
 	T m_data[MAX_SIZE];

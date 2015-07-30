@@ -13,7 +13,8 @@ Backend::Backend()
 	  m_whiteClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
 	  m_blackClock(ChessClock::CONVENTIONAL_INCREMENTAL_MODE, 0, 300, 0),
 	  m_tTable(DEFAULT_TTABLE_SIZE / sizeof(TTEntry)),
-	  m_evaluator(&Eval::gStaticEvaluator)
+	  m_evaluator(&Eval::gStaticEvaluator),
+	  m_moveEvaluator(&gStaticMoveEvaluator)
 {
 }
 
@@ -229,6 +230,11 @@ void Backend::PrintDebugEval()
 	m_evaluator->PrintDiag(m_currentBoard);
 }
 
+void Backend::PrintDebugMoveEval()
+{
+	m_moveEvaluator->PrintDiag(m_currentBoard);
+}
+
 std::string Backend::DebugGTB()
 {
 	GTB::ProbeResult result = GTB::Probe(m_currentBoard);
@@ -314,6 +320,7 @@ void Backend::StartSearch_(Search::SearchType searchType)
 	m_searchContext->killer = &m_killer;
 
 	m_searchContext->evaluator = m_evaluator;
+	m_searchContext->moveEvaluator = m_moveEvaluator;
 
 	m_searchContext->thinkingOutputFunc =
 	[this](Search::ThinkingOutput &to)

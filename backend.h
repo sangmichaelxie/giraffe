@@ -9,6 +9,8 @@
 #include "chessclock.h"
 #include "ttable.h"
 #include "killer.h"
+#include "move_evaluator.h"
+#include "static_move_evaluator.h"
 
 class Backend
 {
@@ -52,11 +54,19 @@ public:
 
 	void SetEvaluator(EvaluatorIface *newEvaluator) { m_evaluator = newEvaluator; }
 
+	EvaluatorIface *GetEvaluator() { return m_evaluator; }
+
+	void SetMoveEvaluator(MoveEvaluatorIface *newMoveEvaluator) { m_moveEvaluator = newMoveEvaluator; }
+
+	MoveEvaluatorIface *GetMoveEvaluator() { return m_moveEvaluator; }
+
 	void DebugPrintBoard();
 	void DebugRunPerft(int32_t depth);
 	void DebugRunPerftWithNull(int32_t depth);
 	Score DebugEval();
 	void PrintDebugEval();
+
+	void PrintDebugMoveEval();
 
 	std::string DebugGTB();
 
@@ -95,6 +105,7 @@ private:
 	Killer m_killer;
 
 	EvaluatorIface *m_evaluator;
+	MoveEvaluatorIface *m_moveEvaluator;
 };
 
 #endif // BACKEND_H

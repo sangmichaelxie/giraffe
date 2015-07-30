@@ -29,7 +29,8 @@ SOURCES += main.cpp \
     learn.cpp \
     random_device.cpp \
     gtb.cpp \
-    ann/ann_evaluator.cpp
+    ann/ann_evaluator.cpp \
+    static_move_evaluator.cpp
 
 HEADERS += \
 	board_consts.h \
@@ -62,5 +63,7 @@ HEADERS += \
     omp_scoped_thread_limiter.h \
     random_device.h \
     gtb.h \
-    stats.h
+    stats.h \
+    move_evaluator.h \
+    static_move_evaluator.h
 

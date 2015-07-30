@@ -92,6 +92,11 @@ inline PieceType GetPromoType(Move mv)
 	return (mv >> MoveConstants::PROMO_SHIFT) & MoveConstants::PROMO_MASK;
 }
 
+inline bool IsPromotion(Move mv)
+{
+	return GetPromoType(mv) != 0;
+}
+
 inline void SetPromoType(Move &mv, PieceType pt)
 {
 #ifdef DEBUG

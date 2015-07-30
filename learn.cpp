@@ -22,6 +22,8 @@
 #include "killer.h"
 #include "random_device.h"
 #include "ann/ann_evaluator.h"
+#include "move_evaluator.h"
+#include "static_move_evaluator.h"
 #include "util.h"
 #include "stats.h"
 
@@ -200,7 +202,7 @@ void TDL(const std::string &positionsFilename)
 						}
 					}
 
-					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
+					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable);
 
 					Board leafPos = rootPos;
 					leafPos.ApplyVariation(rootResult.pv);
@@ -227,7 +229,7 @@ void TDL(const std::string &positionsFilename)
 
 						for (int64_t m = 0; m < HalfMovesToMake; ++m)
 						{
-							Search::SearchResult result = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &thread_killer, &thread_ttable);
+							Search::SearchResult result = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable);
 
 							float scoreWhiteUnscaled = thread_annEvaluator.UnScale(result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f)) * absoluteDiscount;
 

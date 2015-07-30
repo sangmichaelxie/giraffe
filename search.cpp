@@ -11,7 +11,6 @@
 #include "util.h"
 #include "eval/eval.h"
 #include "see.h"
-#include "movepicker.h"
 #include "gtb.h"
 
 namespace
@@ -343,138 +342,30 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		}
 	}
 
-	bool legalMoveFound = false;
-
 	bool inCheck = board.InCheck();
 
 	bool futilityAllowed = ENABLE_FUTILITY_PRUNING && !inCheck && !IsMateScore(alpha) && !IsMateScore(beta) && (depth < FUTILITY_MAX_DEPTH);
 
-	Killer dummyKiller;
+	MoveEvaluatorIface::MoveInfoList miList;
 
-	MovePicker::MovePickerStage moveStage;
+	MoveEvaluatorIface::SearchInfo si;
 
-	MovePicker movePicker(board, tEntry ? tEntry->bestMove : 0, ENABLE_KILLERS ? *(context.killer) : dummyKiller, false, ply);
-
-	Move mv = 0;
-
-	int numMovesSearched = -1;
-
-	std::vector<Move> subPv;
-
-	bool alphaRaised = false;
-
-	while ((mv = movePicker.GetNextMove(moveStage)))
+	if (tEntry)
 	{
-		Score seeScore = GetScoreBiased(mv);
-
-		if (board.ApplyMove(mv))
-		{
-			bool isViolent = board.IsViolent(mv);
-
-			legalMoveFound = true;
-
-			++numMovesSearched;
-
-			// see if we can do futility pruning
-			// futility pruning is when we are near the leaf, and are so far below alpha, that we only want to search
-			// moves that can potentially improve alpha
-			// TODO: don't prune if it's a passed pawn to 7th or 8th rank
-			bool fut = !isRoot && futilityAllowed && !isViolent && !board.InCheck() &&
-						((staticEval + seeScore + FUTILITY_MARGINS[depth]) <= alpha);
-			if (fut)
-			{
-				board.UndoMove();
-				continue;
-			}
-
-			Score score = 0;
-
-			// only search the first move with full window, since everything else is expected to fail low
-			// if this is a null window search anyways, don't bother
-			if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && depth > 1)
-			{
-				score = -Search(context, subPv, board, -alpha - 1, -alpha, depth - 1, ply + 1);
-
-				if (score > alpha && score < beta)
-				{
-					// if the move didn't actually fail low, this is now the PV, and we have to search with
-					// full window
-					score = -Search(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
-				}
-			}
-			else
-			{
-				score = -Search(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
-			}
-
-			board.UndoMove();
-
-			if (context.Stopping())
-			{
-				return 0;
-			}
-
-			AdjustIfMateScore(score);
-
-			if (score > alpha)
-			{
-				alpha = score;
-				alphaRaised = true;
-				pv.clear();
-				pv.push_back(ClearScore(mv));
-				pv.insert(pv.end(), subPv.begin(), subPv.end());
-			}
-
-			if (score >= beta)
-			{
-				if (ENABLE_TT)
-				{
-					context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, originalDepth, LOWERBOUND);
-				}
-
-				// we don't want to store captures because those are searched before killers anyways
-				if (!board.IsViolent(mv))
-				{
-					context.killer->Notify(ply, ClearScore(mv));
-				}
-
-				return score;
-			}
-		}
+		si.hashMove = tEntry->bestMove;
 	}
 
-	// we don't have to check whether we are doing futility pruning here, because we still make those moves
-	// anyways to check for legality
-	if (legalMoveFound)
+	if (ENABLE_KILLERS)
 	{
-		if (!context.Stopping())
-		{
-			if (alphaRaised)
-			{
-				// if we have a bestMove, that means we have a PV node
-				if (ENABLE_TT)
-				{
-					context.transpositionTable->Store(board.GetHash(), pv[0], alpha, originalDepth, EXACT);
-				}
-
-				if (!board.IsViolent(pv[0]))
-				{
-					context.killer->Notify(ply, pv[0]);
-				}
-			}
-			else
-			{
-				// otherwise we failed low
-				if (ENABLE_TT)
-				{
-					context.transpositionTable->Store(board.GetHash(), 0, alpha, originalDepth, UPPERBOUND);
-				}
-			}
-		}
-
-		return alpha;
+		si.killer = context.killer;
 	}
-	else
+
+	si.isQS = false;
+	si.ply = ply;
+
+	context.moveEvaluator->GenerateAndEvaluateMoves(board, si, miList);
+
+	if (miList.GetSize() == 0)
 	{
 		// the game has ended
 		if (board.InCheck())
@@ -488,6 +379,118 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			return 0;
 		}
 	}
+
+	int numMovesSearched = -1;
+
+	std::vector<Move> subPv;
+
+	bool alphaRaised = false;
+
+	for (auto &mi : miList)
+	{
+		Move mv = mi.move;
+
+		Score seeScore = GetScoreBiased(mv);
+
+		board.ApplyMove(mv);
+
+		bool isViolent = board.IsViolent(mv);
+
+		++numMovesSearched;
+
+		// see if we can do futility pruning
+		// futility pruning is when we are near the leaf, and are so far below alpha, that we only want to search
+		// moves that can potentially improve alpha
+		// TODO: don't prune if it's a passed pawn to 7th or 8th rank
+		bool fut = !isRoot && futilityAllowed && !isViolent && !board.InCheck() &&
+					((staticEval + seeScore + FUTILITY_MARGINS[depth]) <= alpha);
+		if (fut)
+		{
+			board.UndoMove();
+			continue;
+		}
+
+		Score score = 0;
+
+		// only search the first move with full window, since everything else is expected to fail low
+		// if this is a null window search anyways, don't bother
+		if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && depth > 1)
+		{
+			score = -Search(context, subPv, board, -alpha - 1, -alpha, depth - 1, ply + 1);
+
+			if (score > alpha && score < beta)
+			{
+				// if the move didn't actually fail low, this is now the PV, and we have to search with
+				// full window
+				score = -Search(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
+			}
+		}
+		else
+		{
+			score = -Search(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
+		}
+
+		board.UndoMove();
+
+		if (context.Stopping())
+		{
+			return 0;
+		}
+
+		AdjustIfMateScore(score);
+
+		if (score > alpha)
+		{
+			alpha = score;
+			alphaRaised = true;
+			pv.clear();
+			pv.push_back(ClearScore(mv));
+			pv.insert(pv.end(), subPv.begin(), subPv.end());
+		}
+
+		if (score >= beta)
+		{
+			if (ENABLE_TT)
+			{
+				context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, originalDepth, LOWERBOUND);
+			}
+
+			// we don't want to store captures because those are searched before killers anyways
+			if (!board.IsViolent(mv))
+			{
+				context.killer->Notify(ply, ClearScore(mv));
+			}
+
+			return score;
+		}
+	}
+
+	if (!context.Stopping())
+	{
+		if (alphaRaised)
+		{
+			// if we have a bestMove, that means we have a PV node
+			if (ENABLE_TT)
+			{
+				context.transpositionTable->Store(board.GetHash(), pv[0], alpha, originalDepth, EXACT);
+			}
+
+			if (!board.IsViolent(pv[0]))
+			{
+				context.killer->Notify(ply, pv[0]);
+			}
+		}
+		else
+		{
+			// otherwise we failed low
+			if (ENABLE_TT)
+			{
+				context.transpositionTable->Store(board.GetHash(), 0, alpha, originalDepth, UPPERBOUND);
+			}
+		}
+	}
+
+	return alpha;
 }
 
 Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply)
@@ -501,7 +504,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	}
 
 	// if we are in check, switch back to normal search (we have to do this before stand-pat)
-	if (board.InCheck())
+	if (board.InCheck() && ply < 20)
 	{
 		return Search(context, pv, board, alpha, beta, 1, ply, false);
 	}
@@ -569,19 +572,31 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 		alpha = staticEval;
 	}
 
-	MovePicker::MovePickerStage moveStage;
+	MoveEvaluatorIface::MoveInfoList miList;
 
-	// now we start searching
-	MovePicker movePicker(board, tEntry ? tEntry->bestMove : 0, *(context.killer), true, ply);
+	MoveEvaluatorIface::SearchInfo si;
 
-	Move mv = 0;
+	if (tEntry)
+	{
+		si.hashMove = tEntry->bestMove;
+	}
 
-	size_t i = 0;
+	if (ENABLE_KILLERS)
+	{
+		si.killer = context.killer;
+	}
+
+	si.isQS = true;
+	si.ply = ply;
+
+	context.moveEvaluator->GenerateAndEvaluateMoves(board, si, miList);
 
 	std::vector<Move> subPv;
 
-	while ((mv = movePicker.GetNextMove(moveStage)))
+	for (auto &mi : miList)
 	{
+		Move mv = mi.move;
+
 #ifdef DEBUG
 		Score seeScoreCalculated = SEE::StaticExchangeEvaluation(board, mv);
 		// extract the SEE score
@@ -589,40 +604,37 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 		assert(seeScore == seeScoreCalculated);
 #endif
-		if (board.ApplyMove(mv))
+		board.ApplyMove(mv);
+
+		Score score = 0;
+
+		score = -QSearch(context, subPv, board, -beta, -alpha, ply + 1);
+
+		board.UndoMove();
+
+		if (context.Stopping())
 		{
-			Score score = 0;
-
-			score = -QSearch(context, subPv, board, -beta, -alpha, ply + 1);
-
-			board.UndoMove();
-
-			if (context.Stopping())
-			{
-				return 0;
-			}
-
-			if (score > alpha)
-			{
-				alpha = score;
-				pv.clear();
-				pv.push_back(ClearScore(mv));
-				pv.insert(pv.end(), subPv.begin(), subPv.end());
-			}
-
-			if (score >= beta)
-			{
-				return score;
-			}
+			return 0;
 		}
 
-		++i;
+		if (score > alpha)
+		{
+			alpha = score;
+			pv.clear();
+			pv.push_back(ClearScore(mv));
+			pv.insert(pv.end(), subPv.begin(), subPv.end());
+		}
+
+		if (score >= beta)
+		{
+			return score;
+		}
 	}
 
 	return alpha;
 }
 
-SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator, Killer *killer, TTable *ttable)
+SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer, TTable *ttable)
 {
 	SearchResult ret;
 	RootSearchContext context;
@@ -653,6 +665,7 @@ SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface 
 	}
 
 	context.evaluator = evaluator;
+	context.moveEvaluator = moveEvaluator;
 
 	context.searchType = SearchType_infinite;
 	context.maxDepth = depth;

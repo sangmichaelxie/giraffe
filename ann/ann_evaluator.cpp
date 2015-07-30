@@ -1,5 +1,8 @@
 #include "ann_evaluator.h"
 
+constexpr float ANNEvaluator::BoundNetErrorAsymmetry;
+constexpr float ANNEvaluator::BoundNetTargetShift;
+
 ANNEvaluator::ANNEvaluator()
 	: m_evalHash(EvalHashSize)
 {
