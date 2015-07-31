@@ -49,6 +49,11 @@ private:
 				// winning captures (excluding underpromoting captures)
 				mi.nodeAllocation = 1.007f;
 			}
+			else if (si.isQS)
+			{
+				// the above categories are the only ones we want to look at for QS
+				mi.nodeAllocation = 0.0f;
+			}
 			else if (killerMoves.Exists(mv) && !isViolent)
 			{
 				// killer
