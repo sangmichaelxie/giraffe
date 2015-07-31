@@ -291,13 +291,6 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		}
 	}
 
-	// if we have a hit with insufficient depth, but enough to indicate that null move will be fruitless, skip it
-	bool avoidNullTT = false;
-	if (tEntry && (tEntry->entryType == UPPERBOUND || tEntry->entryType == EXACT) && tEntry->score < beta)
-	{
-		avoidNullTT = true;
-	}
-
 	Score staticEval = context.evaluator->EvaluateForSTM(board, alpha, beta);
 
 	// try null move
@@ -305,12 +298,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	{
 		Depth reduction = NULL_MOVE_REDUCTION;
 
-		if (ENABLE_ADAPTIVE_NULL_MOVE && depth >= ADAPTIVE_NULL_MOVE_THRESHOLD)
-		{
-			reduction += 1;
-		}
-
-		if (depth > 1 && !board.InCheck() && (!board.IsZugzwangProbable() || NM_REDUCE_INSTEAD_OF_PRUNE) && nullMoveAllowed && !avoidNullTT)
+		if (depth > 1 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed)
 		{
 			board.MakeNullMove();
 
@@ -321,30 +309,15 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 			if (nmScore >= beta)
 			{
-				if (NM_REDUCE_INSTEAD_OF_PRUNE)
+				if (ENABLE_TT)
 				{
-					depth -= NMR_DR;
+					context.transpositionTable->Store(board.GetHash(), 0, nmScore, originalDepth, LOWERBOUND);
+				}
 
-					if (depth <= 0)
-					{
-						return QSearch(context, pv, board, alpha, beta, ply);
-					}
-				}
-				else
-				{
-					if (ENABLE_TT)
-					{
-						context.transpositionTable->Store(board.GetHash(), 0, nmScore, originalDepth, LOWERBOUND);
-					}
-					return beta;
-				}
+				return beta;
 			}
 		}
 	}
-
-	bool inCheck = board.InCheck();
-
-	bool futilityAllowed = ENABLE_FUTILITY_PRUNING && !inCheck && !IsMateScore(alpha) && !IsMateScore(beta) && (depth < FUTILITY_MAX_DEPTH);
 
 	MoveEvaluatorIface::MoveInfoList miList;
 
@@ -390,25 +363,9 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	{
 		Move mv = mi.move;
 
-		Score seeScore = GetScoreBiased(mv);
-
 		board.ApplyMove(mv);
 
-		bool isViolent = board.IsViolent(mv);
-
 		++numMovesSearched;
-
-		// see if we can do futility pruning
-		// futility pruning is when we are near the leaf, and are so far below alpha, that we only want to search
-		// moves that can potentially improve alpha
-		// TODO: don't prune if it's a passed pawn to 7th or 8th rank
-		bool fut = !isRoot && futilityAllowed && !isViolent && !board.InCheck() &&
-					((staticEval + seeScore + FUTILITY_MARGINS[depth]) <= alpha);
-		if (fut)
-		{
-			board.UndoMove();
-			continue;
-		}
 
 		Score score = 0;
 

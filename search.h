@@ -23,22 +23,14 @@ namespace Search
 typedef int32_t Depth;
 
 static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
-static const bool ENABLE_ADAPTIVE_NULL_MOVE = false;
 
-static const bool NM_REDUCE_INSTEAD_OF_PRUNE = false;
+static const Depth NULL_MOVE_REDUCTION = 3;
 
 static const bool ENABLE_TT = true;
 
 static const bool ENABLE_IID = false;
 static const bool ENABLE_PVS = true;
 static const bool ENABLE_KILLERS = true;
-static const bool ENABLE_FUTILITY_PRUNING = false;
-
-static const Depth NULL_MOVE_REDUCTION = 3;
-static const int32_t ADAPTIVE_NULL_MOVE_THRESHOLD = 6;
-
-// how many plies to reduce if a null move fails high (this is only used if NM_REDUCE_INSTEAD_OF_PRUNE is set)
-static const Depth NMR_DR = 4;
 
 static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;
 
@@ -48,12 +40,6 @@ static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;
 static const Score ASPIRATION_WINDOW_HALF_SIZE_THRESHOLD = 500;
 
 static const Score ASPIRATION_WINDOW_WIDEN_MULTIPLIER = 4; // how much to widen the window every time we fail high/low
-
-// futility thresholds indexed by parent remaining depth
-// these values are from Crafty
-//static const Score FUTILITY_MARGINS[] = { 0, 100, 100, 200, 200, 300, 300, 400 };
-static const Score FUTILITY_MARGINS[] = { 0, 200, 500 };
-static const int32_t FUTILITY_MAX_DEPTH = 3; // this is actually 1 + max depth
 
 static const Score DRAW_SCORE = 0;
 static const size_t NUM_MOVES_TO_LOOK_FOR_DRAW = 8; // how many moves past to look for draws (we are only looking for 2-fold)
