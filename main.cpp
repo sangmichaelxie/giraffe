@@ -17,7 +17,6 @@
 #include "backend.h"
 #include "chessclock.h"
 #include "util.h"
-#include "movepicker.h"
 #include "ann/learn_ann.h"
 #include "ann/features_conv.h"
 #include "ann/ann_evaluator.h"
@@ -466,7 +465,6 @@ int main(int argc, char **argv)
 		else if (cmd == "runtests")
 		{
 			//SEE::DebugRunSeeTests();
-			//DebugRunMovePickerTests();
 			DebugRunPerftTests();
 			std::cout << "All passed!" << std::endl;
 		}

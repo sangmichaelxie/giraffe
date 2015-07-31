@@ -595,6 +595,11 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 	for (auto &mi : miList)
 	{
+		if (mi.nodeAllocation == 0.0f)
+		{
+			continue;
+		}
+
 		Move mv = mi.move;
 
 #ifdef DEBUG

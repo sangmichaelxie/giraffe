@@ -21,16 +21,15 @@ SOURCES += main.cpp \
 	zobrist.cpp \
 	ttable.cpp \
 	killer.cpp \
-	movepicker.cpp \
 	ann/ann.cpp \
 	tools/gen_bitboard_consts.cpp \
 	ann/learn_ann.cpp \
 	ann/features_conv.cpp \
-    learn.cpp \
-    random_device.cpp \
-    gtb.cpp \
-    ann/ann_evaluator.cpp \
-    static_move_evaluator.cpp
+	learn.cpp \
+	random_device.cpp \
+	gtb.cpp \
+	ann/ann_evaluator.cpp \
+	static_move_evaluator.cpp
 
 HEADERS += \
 	board_consts.h \
@@ -51,7 +50,6 @@ HEADERS += \
 	zobrist.h \
 	ttable.h \
 	killer.h \
-	movepicker.h \
 	ann/ann.h \
 	ann/ann_impl.h \
 	ann/learn_ann.h \
@@ -59,11 +57,11 @@ HEADERS += \
 	matrix_ops.h \
 	evaluator.h \
 	ann/ann_evaluator.h \
-    learn.h \
-    omp_scoped_thread_limiter.h \
-    random_device.h \
-    gtb.h \
-    stats.h \
-    move_evaluator.h \
-    static_move_evaluator.h
+	learn.h \
+	omp_scoped_thread_limiter.h \
+	random_device.h \
+	gtb.h \
+	stats.h \
+	move_evaluator.h \
+	static_move_evaluator.h
 
