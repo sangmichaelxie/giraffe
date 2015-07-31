@@ -202,7 +202,7 @@ void TDL(const std::string &positionsFilename)
 						}
 					}
 
-					Search::SearchResult rootResult = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable);
+					Search::SearchResult rootResult = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable);
 
 					Board leafPos = rootPos;
 					leafPos.ApplyVariation(rootResult.pv);
@@ -229,7 +229,7 @@ void TDL(const std::string &positionsFilename)
 
 						for (int64_t m = 0; m < HalfMovesToMake; ++m)
 						{
-							Search::SearchResult result = Search::SyncSearchDepthLimited(rootPos, SearchDepth, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable);
+							Search::SearchResult result = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable);
 
 							float scoreWhiteUnscaled = thread_annEvaluator.UnScale(result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f)) * absoluteDiscount;
 

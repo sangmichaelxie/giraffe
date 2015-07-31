@@ -162,12 +162,14 @@ int main(int argc, char **argv)
 	{
 		InitializeSlowBlocking(evaluator);
 
-		Search::SyncSearchDepthLimited(Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), 7, backend.GetEvaluator(), backend.GetMoveEvaluator());
-		Search::SyncSearchDepthLimited(Board("2r2rk1/pp3pp1/b2Pp3/P1Q4p/RPqN2n1/8/2P2PPP/2B1R1K1 w - - 0 1"), 7, backend.GetEvaluator(), backend.GetMoveEvaluator());
-		Search::SyncSearchDepthLimited(Board("8/1nr3pk/p3p1r1/4p3/P3P1q1/4PR1N/3Q2PK/5R2 w - - 0 1"), 7, backend.GetEvaluator(), backend.GetMoveEvaluator());
-		Search::SyncSearchDepthLimited(Board("5R2/8/7r/7P/5RPK/1k6/4r3/8 w - - 0 1"), 7, backend.GetEvaluator(), backend.GetMoveEvaluator());
-		Search::SyncSearchDepthLimited(Board("r5k1/2p2pp1/1nppr2p/8/p2PPp2/PPP2P1P/3N2P1/R3RK2 w - - 0 1"), 7, backend.GetEvaluator(), backend.GetMoveEvaluator());
-		Search::SyncSearchDepthLimited(Board("8/R7/8/1k6/1p1Bq3/8/4NK2/8 w - - 0 1"), 7, backend.GetEvaluator(), backend.GetMoveEvaluator());
+		static const Search::NodeBudget BenchNodeBudget = 1024;
+
+		Search::SyncSearchNodeLimited(Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
+		Search::SyncSearchNodeLimited(Board("2r2rk1/pp3pp1/b2Pp3/P1Q4p/RPqN2n1/8/2P2PPP/2B1R1K1 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
+		Search::SyncSearchNodeLimited(Board("8/1nr3pk/p3p1r1/4p3/P3P1q1/4PR1N/3Q2PK/5R2 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
+		Search::SyncSearchNodeLimited(Board("5R2/8/7r/7P/5RPK/1k6/4r3/8 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
+		Search::SyncSearchNodeLimited(Board("r5k1/2p2pp1/1nppr2p/8/p2PPp2/PPP2P1P/3N2P1/R3RK2 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
+		Search::SyncSearchNodeLimited(Board("8/R7/8/1k6/1p1Bq3/8/4NK2/8 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
 
 		return 0;
 	}

@@ -94,6 +94,9 @@ private:
 	std::unique_ptr<Search::AsyncSearch> m_search;
 	std::unique_ptr<Search::RootSearchContext> m_searchContext;
 
+	// this is the max depth set by the protocol
+	// we aren't doing depth limited search, so we have to convert it to node budget
+	// when we actually do a search
 	Search::Depth m_maxDepth;
 
 	bool m_showThinking;

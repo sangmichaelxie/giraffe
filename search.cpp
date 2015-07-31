@@ -19,12 +19,22 @@ namespace
 	// if more than 1/x of the allocated time has been used at the end of an iteration,
 	// a new iteration won't be started
 	const static double ESTIMATED_MIN_BRANCHING_FACTOR = 5.0;
+
+	// how much to increase node budget by in each iteration of ID
+	const static float MinNodeBudgetMultiplier = 2.0f;
+
+	// how much to increase node budget by in each iteration of ID
+	const static float MaxNodeBudgetMultiplier = 32.0f;
+
+	// with node count based search we can potentially go very deep, so we
+	// have to call it a day at some point to avoid stack overflow
+	const static Search::Depth MaxRecursionDepth = 64;
 }
 
 namespace Search
 {
 
-static const Depth ID_MAX_DEPTH = 200;
+static const NodeBudget ID_MAX_NODE_BUDGET = 100000000000LL;
 
 AsyncSearch::AsyncSearch(RootSearchContext &context)
 	: m_context(context), m_done(false)
@@ -59,21 +69,39 @@ void AsyncSearch::RootSearch_()
 		m_searchTimerThread = std::move(searchTimerThread);
 	}
 
-	if (m_context.maxDepth == 0 || m_context.maxDepth > ID_MAX_DEPTH)
+	if (m_context.nodeBudget == 0 || m_context.nodeBudget > ID_MAX_NODE_BUDGET)
 	{
-		m_context.maxDepth = ID_MAX_DEPTH;
+		m_context.nodeBudget = ID_MAX_NODE_BUDGET;
 	}
 
 	m_context.onePlyDone = false;
 
 	latestResult.score = 0;
 
-	for (Depth depth = 1;
-			(depth <= m_context.maxDepth) &&
+	int32_t iteration = 0;
+
+	MoveList ml;
+	m_context.startBoard.GenerateAllLegalMoves<Board::ALL>(ml);
+
+	float nodeBudgetMultiplier = ml.GetSize();
+
+	if (nodeBudgetMultiplier > MaxNodeBudgetMultiplier)
+	{
+		nodeBudgetMultiplier = MaxNodeBudgetMultiplier;
+	}
+	else if (nodeBudgetMultiplier < MinNodeBudgetMultiplier)
+	{
+		nodeBudgetMultiplier = MinNodeBudgetMultiplier;
+	}
+
+	for (NodeBudget nodeBudget = 1;
+			(nodeBudget <= m_context.nodeBudget) &&
 			((CurrentTime() < endTime) || (m_context.searchType == SearchType_infinite) || !m_context.onePlyDone) &&
 			(!m_context.Stopping());
-		 ++depth)
+		 nodeBudget *= nodeBudgetMultiplier)
 	{
+		++iteration;
+
 		// aspiration search
 		Score lastIterationScore = latestResult.score;
 		Score highBoundOffset = ASPIRATION_WINDOW_HALF_SIZE;
@@ -93,7 +121,7 @@ void AsyncSearch::RootSearch_()
 				m_context.startBoard,
 				lowBoundOpen ? SCORE_MIN : (lastIterationScore - lowBoundOffset),
 				highBoundOpen ? SCORE_MAX : (lastIterationScore + highBoundOffset),
-				depth,
+				nodeBudget,
 				0);
 
 			if (latestResult.score >= (lastIterationScore + highBoundOffset) && !highBoundOpen)
@@ -118,7 +146,7 @@ void AsyncSearch::RootSearch_()
 			}
 			else
 			{
-				// we are in window, so we are done!
+				// we are in window, so we are done (for this iteration)!
 				break;
 			}
 		}
@@ -129,7 +157,7 @@ void AsyncSearch::RootSearch_()
 
 			ThinkingOutput thinkingOutput;
 			thinkingOutput.nodeCount = m_context.nodeCount;
-			thinkingOutput.ply = depth;
+			thinkingOutput.ply = iteration;
 
 			// build the text pv
 			Board b = m_context.startBoard;
@@ -196,10 +224,11 @@ void AsyncSearch::SearchTimer_(double time)
 	m_context.stopRequest = true;
 }
 
-Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed)
+Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, NodeBudget nodeBudget, int32_t ply, bool nullMoveAllowed)
 {
-	// switch to QSearch if we are at depth 0
-	if (depth <= 0)
+	// switch to QSearch if we are out of nodes
+	// using < 1 guarantees that a root search with nodeBudget 1 will always do a full ply
+	if (nodeBudget < 1 || ply > MaxRecursionDepth)
 	{
 		return QSearch(context, pv, board, alpha, beta, ply);
 	}
@@ -229,7 +258,9 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		return DRAW_SCORE;
 	}
 
-	Depth originalDepth = depth;
+	NodeBudget originalNodeBudget = nodeBudget;
+
+	--nodeBudget; // for this node
 
 	bool isPV = (beta - alpha) != 1;
 
@@ -253,10 +284,10 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	// internal iterative deepening
 	if (ENABLE_IID && ENABLE_TT)
 	{
-		if (isPV && (!tEntry || tEntry->bestMove == 0) && depth > 4)
+		if (isPV && (!tEntry || tEntry->bestMove == 0) && nodeBudget > MinNodeBudgetForIID)
 		{
 			std::vector<Move> iidPv;
-			Search(context, iidPv, board, alpha, beta, depth - 2, ply);
+			Search(context, iidPv, board, alpha, beta, nodeBudget * IIDNodeBudgetMultiplier, ply);
 
 			tEntry = context.transpositionTable->Probe(board.GetHash());
 		}
@@ -265,7 +296,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	if (tEntry)
 	{
 		// try to get a cutoff from ttable, unless we are in PV (it can shorten PV)
-		if (tEntry->depth >= depth && !isPV)
+		if (tEntry->nodeBudget >= nodeBudget && !isPV)
 		{
 			if (tEntry->entryType == EXACT)
 			{
@@ -296,14 +327,15 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	// try null move
 	if (ENABLE_NULL_MOVE_HEURISTICS && staticEval >= beta && !isPV)
 	{
-		Depth reduction = NULL_MOVE_REDUCTION;
-
-		if (depth > 1 && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed)
+		if (nodeBudget >= MinNodeBudgetForNullMove && !board.InCheck() && !board.IsZugzwangProbable() && nullMoveAllowed)
 		{
 			board.MakeNullMove();
 
 			std::vector<Move> pvNN;
-			Score nmScore = -Search(context, pvNN, board, -beta, -beta + 1, depth - reduction, ply + 1, false);
+
+			NodeBudget nmNodeBudget = nodeBudget * NullMoveNodeBudgetMultiplier;
+
+			Score nmScore = -Search(context, pvNN, board, -beta, -beta + 1, nmNodeBudget, ply + 1, false);
 
 			board.UndoMove();
 
@@ -311,7 +343,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			{
 				if (ENABLE_TT)
 				{
-					context.transpositionTable->Store(board.GetHash(), 0, nmScore, originalDepth, LOWERBOUND);
+					context.transpositionTable->Store(board.GetHash(), 0, nmScore, originalNodeBudget, LOWERBOUND);
 				}
 
 				return beta;
@@ -371,20 +403,20 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 		// only search the first move with full window, since everything else is expected to fail low
 		// if this is a null window search anyways, don't bother
-		if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && depth > 1)
+		if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && nodeBudget > MinNodeBudgetForPVS)
 		{
-			score = -Search(context, subPv, board, -alpha - 1, -alpha, depth - 1, ply + 1);
+			score = -Search(context, subPv, board, -alpha - 1, -alpha, nodeBudget * mi.nodeAllocation, ply + 1);
 
 			if (score > alpha && score < beta)
 			{
 				// if the move didn't actually fail low, this is now the PV, and we have to search with
 				// full window
-				score = -Search(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
+				score = -Search(context, subPv, board, -beta, -alpha, nodeBudget * mi.nodeAllocation, ply + 1);
 			}
 		}
 		else
 		{
-			score = -Search(context, subPv, board, -beta, -alpha, depth - 1, ply + 1);
+			score = -Search(context, subPv, board, -beta, -alpha, nodeBudget * mi.nodeAllocation, ply + 1);
 		}
 
 		board.UndoMove();
@@ -409,7 +441,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		{
 			if (ENABLE_TT)
 			{
-				context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, originalDepth, LOWERBOUND);
+				context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, originalNodeBudget, LOWERBOUND);
 			}
 
 			// we don't want to store captures because those are searched before killers anyways
@@ -429,7 +461,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			// if we have a bestMove, that means we have a PV node
 			if (ENABLE_TT)
 			{
-				context.transpositionTable->Store(board.GetHash(), pv[0], alpha, originalDepth, EXACT);
+				context.transpositionTable->Store(board.GetHash(), pv[0], alpha, originalNodeBudget, EXACT);
 			}
 
 			if (!board.IsViolent(pv[0]))
@@ -442,7 +474,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			// otherwise we failed low
 			if (ENABLE_TT)
 			{
-				context.transpositionTable->Store(board.GetHash(), 0, alpha, originalDepth, UPPERBOUND);
+				context.transpositionTable->Store(board.GetHash(), 0, alpha, originalNodeBudget, UPPERBOUND);
 			}
 		}
 	}
@@ -596,7 +628,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	return alpha;
 }
 
-SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer, TTable *ttable)
+SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer, TTable *ttable)
 {
 	SearchResult ret;
 	RootSearchContext context;
@@ -630,12 +662,12 @@ SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface 
 	context.moveEvaluator = moveEvaluator;
 
 	context.searchType = SearchType_infinite;
-	context.maxDepth = depth;
+	context.nodeBudget = nodeBudget;
 
 	context.stopRequest = false;
 	context.onePlyDone = false;
 
-	ret.score = Search(context, ret.pv, context.startBoard, SCORE_MIN, SCORE_MAX, depth, 0);
+	ret.score = Search(context, ret.pv, context.startBoard, SCORE_MIN, SCORE_MAX, nodeBudget, 0);
 
 	return ret;
 }

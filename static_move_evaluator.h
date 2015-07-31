@@ -37,17 +37,17 @@ private:
 			if (mv == si.hashMove)
 			{
 				// hash move
-				mi.nodeAllocation = 1.009f;
+				mi.nodeAllocation = 1.0009f;
 			}
 			else if (isQueenPromo && seeScore >= 0)
 			{
 				// queen promos that aren't losing
-				mi.nodeAllocation = 1.008f;
+				mi.nodeAllocation = 1.0008f;
 			}
 			else if (isViolent && seeScore >= 0 && !isUnderPromo)
 			{
 				// winning captures (excluding underpromoting captures)
-				mi.nodeAllocation = 1.007f;
+				mi.nodeAllocation = 1.0007f;
 			}
 			else if (si.isQS)
 			{
@@ -57,7 +57,7 @@ private:
 			else if (killerMoves.Exists(mv) && !isViolent)
 			{
 				// killer
-				mi.nodeAllocation = 1.006f;
+				mi.nodeAllocation = 1.0006f;
 
 				for (size_t slot = 0; slot < killerMoves.GetSize(); ++slot)
 				{
@@ -71,12 +71,12 @@ private:
 			else if (seeScore >= 0 && !isUnderPromo)
 			{
 				// other non-losing moves (excluding underpomotions)
-				mi.nodeAllocation = 1.005f;
+				mi.nodeAllocation = 1.0005f;
 			}
 			else
 			{
 				// losing moves and captures, and underpromos
-				mi.nodeAllocation = 1.004f;
+				mi.nodeAllocation = 1.0004f;
 			}
 		}
 

@@ -9,6 +9,8 @@
 #include <functional>
 #include <condition_variable>
 
+#include <cmath>
+
 #include "types.h"
 #include "board.h"
 #include "ttable.h"
@@ -22,14 +24,29 @@ namespace Search
 
 typedef int32_t Depth;
 
+// we use int64_t here because 61 bits is more than enough, and this way we don't have to deal with underflows
+typedef int64_t NodeBudget;
+
+// this function is for converting CEPT/UCI depth settings to some estimate of node budget
+inline NodeBudget DepthToNodeBudget(Depth d)
+{
+	return std::pow(4, d);
+}
+
 static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
 
-static const Depth NULL_MOVE_REDUCTION = 3;
+static const NodeBudget MinNodeBudgetForNullMove = 0;
+static const float NullMoveNodeBudgetMultiplier = 0.0003f;
 
 static const bool ENABLE_TT = true;
 
 static const bool ENABLE_IID = false;
+static const NodeBudget MinNodeBudgetForIID = 512;
+static const float IIDNodeBudgetMultiplier = 0.1f;
+
 static const bool ENABLE_PVS = true;
+static const NodeBudget MinNodeBudgetForPVS = 16;
+
 static const bool ENABLE_KILLERS = true;
 
 static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;
@@ -88,7 +105,7 @@ struct RootSearchContext
 
 	SearchType searchType;
 
-	Depth maxDepth;
+	NodeBudget nodeBudget;
 
 	TTable *transpositionTable;
 	Killer *killer;
@@ -139,13 +156,13 @@ private:
 	std::thread m_searchTimerThread;
 };
 
-Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, Depth depth, int32_t ply, bool nullMoveAllowed = true);
+Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, NodeBudget nodeBudget, int32_t ply, bool nullMoveAllowed = true);
 
 Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply);
 
 // perform a synchronous search (no thread creation)
 // this is used in training only, where we don't want to do a typical root search, and don't want all the overhead
-SearchResult SyncSearchDepthLimited(const Board &b, Depth depth, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer = nullptr, TTable *ttable = nullptr);
+SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer = nullptr, TTable *ttable = nullptr);
 
 }
 
