@@ -166,12 +166,6 @@ private:
 		bool weightsSemiSparseCurrent;
 		std::vector<SemiSparseMatrix<WeightType>> weightsSemiSparse;
 
-		// these are temporary variables in case we want to do multiplications on GPU
-		std::vector<VCLMatrix> weightsGpuTmp;
-		std::vector<VCLMatrixRM> weightsTransGpuTmp;
-		std::vector<VCLMatrixRM> xGpuTmp;
-		std::vector<VCLMatrixRM> errorTermGpuTmp;
-
 		// these are temporary variables for evaluating the net, so we don't have to keep allocating and de-allocating
 		std::vector<NNMatrixRM> evalTmp;
 		std::vector<NNVector> evalSingleTmp;

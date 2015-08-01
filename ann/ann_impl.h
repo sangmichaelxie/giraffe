@@ -39,8 +39,6 @@ FCANN<ACTF, ACTFLast>::FCANN(
 		size_t in_size = (layer == 0) ? inputs : hiddenLayers[layer - 1];
 		size_t out_size = (layer == hiddenLayers.size()) ? outputs : hiddenLayers[layer];
 
-		// we do initialization in eigen types even when using OpenCL, because element-wise access
-		// from GPU is very slow
 		NNMatrix weightMatrix(in_size, out_size);
 		NNVector biasVector(out_size);
 
@@ -116,11 +114,6 @@ FCANN<ACTF, ACTFLast>::FCANN(
 		m_params.weightsRMSd2.push_back(NNMatrix::Zero(in_size, out_size));
 	}
 
-	m_params.weightsGpuTmp.resize(hiddenLayers.size() + 1);
-	m_params.weightsTransGpuTmp.resize(hiddenLayers.size() + 1);
-	m_params.xGpuTmp.resize(hiddenLayers.size() + 2); // we also need tmp for result of final layer
-	m_params.errorTermGpuTmp.resize(hiddenLayers.size() + 2);
-
 	m_params.evalTmp.resize(hiddenLayers.size() + 2);
 	m_params.evalSingleTmp.resize(hiddenLayers.size() + 2);
 
@@ -178,11 +171,7 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ForwardPropagate(const MatrixBase<Derived> &in
 
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
-#ifdef VIENNACL_WITH_OPENCL
-		MultiplyGPU(x, m_params.weights[layer], m_params.xGpuTmp[layer], m_params.weightsGpuTmp[layer], m_params.xGpuTmp[layer + 1]);
-#else
 		x *= m_params.weights[layer];
-#endif
 
 		x.rowwise() += m_params.outputBias[layer];
 
@@ -279,12 +268,7 @@ void FCANN<ACTF, ACTFLast>::BackwardPropagateComputeGrad(const MatrixBase<Derive
 		ActivateDerivative_(derivatives);
 
 		// then we calculate error for the next (previous) layer
-#ifdef VIENNACL_WITH_OPENCL
-		NNMatrixRM weightsTrans = m_params.weights[layer].transpose();
-		MultiplyGPU(errorTerms, weightsTrans, m_params.errorTermGpuTmp[layer], m_params.weightsTransGpuTmp[layer], m_params.errorTermGpuTmp[layer + 1]);
-#else
 		errorTerms *= m_params.weights[layer].transpose();
-#endif
 		errorTerms.array() *= derivatives.array();
 	}
 }

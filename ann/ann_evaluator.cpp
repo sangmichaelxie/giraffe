@@ -1,5 +1,7 @@
 #include "ann_evaluator.h"
 
+#include <fstream>
+
 constexpr float ANNEvaluator::BoundNetErrorAsymmetry;
 constexpr float ANNEvaluator::BoundNetTargetShift;
 
