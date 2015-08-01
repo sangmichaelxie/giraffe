@@ -24,6 +24,7 @@ namespace
 	const static float MinNodeBudgetMultiplier = 2.0f;
 
 	// how much to increase node budget by in each iteration of ID
+	// if this is changed, make sure ID_MAX_NODE_BUDGET is updated as well
 	const static float MaxNodeBudgetMultiplier = 32.0f;
 
 	// with node count based search we can potentially go very deep, so we
@@ -34,7 +35,10 @@ namespace
 namespace Search
 {
 
-static const NodeBudget ID_MAX_NODE_BUDGET = 100000000000LL;
+// this is mostly just to prevent overflow
+// this number multiplied by maximum node budget multiplier must be less than 2^63
+// it needs to be very high because node budget != node count (it also includes node counts for prunned nodes)
+static const NodeBudget ID_MAX_NODE_BUDGET = 200000000000000000LL;
 
 AsyncSearch::AsyncSearch(RootSearchContext &context)
 	: m_context(context), m_done(false)
