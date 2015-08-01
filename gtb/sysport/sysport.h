@@ -9,6 +9,12 @@
 |
 */
 
+#if defined(__MINGW32__)
+	#if !defined(MINGW)
+		#define MINGW
+	#endif
+#endif
+
 #if defined(MINGW)
 	#include <windows.h>
 	#if !defined(MVSC)

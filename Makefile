@@ -49,6 +49,8 @@ else
 endif
 
 ifeq ($(OS),Windows_NT)
+	# mingw builds crash with LTO
+	CXXFLAGS := $(filter-out -flto,$(CXXFLAGS))
 else
 	UNAME_S := $(shell uname -s)
 	ifeq ($(UNAME_S),Linux)
@@ -61,7 +63,7 @@ else
 	endif
 endif
 
-.PHONY: clean test
+.PHONY: clean test windows
 
 default: $(EXE)
 
@@ -82,6 +84,14 @@ test:
 	
 clean:
 	-$(Q) rm -f $(DEPS) $(OBJS) $(EXE)
+	
+windows:
+	$(Q) cd gtb && make windows_clean && make CFLAGS=-m32
+	g++ $(CXXFLAGS) -m32 -mtune=native -static $(INCLUDES) -O3 -static $(CXXFILES) -o giraffe_w32.exe -Lgtb -lgtb
+	strip -g -s giraffe_w32.exe
+	$(Q) cd gtb && make windows_clean && make CFLAGS=-m64
+	g++ $(CXXFLAGS) -m64 -mtune=native -static $(INCLUDES) -O3 -static $(CXXFILES) -o giraffe_w64.exe -Lgtb -lgtb
+	strip -g -s giraffe_w64.exe
 
 ifneq ($(MAKECMDGOALS),clean)
     -include $(DEPS)
