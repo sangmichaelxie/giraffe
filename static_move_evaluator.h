@@ -2,15 +2,41 @@
 #define STATIC_MOVE_EVALUATOR_H
 
 #include <iostream>
+#include <random>
+#include <vector>
+#include <string>
 
 #include "move_evaluator.h"
 #include "see.h"
+#include "random_device.h"
+
+// in sampling mode, we are collecting internal nodes for training
+#define SAMPLING
 
 class StaticMoveEvaluator : public MoveEvaluatorIface
 {
+public:
+#ifdef SAMPLING
+	std::vector<std::string> samples;
+#endif // SAMPLING
+
 private:
 	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list) override
 	{
+#ifdef SAMPLING
+		static std::uniform_real_distribution<float> dist;
+		static auto mt = gRd.MakeMT();
+
+		if (dist(mt) < 0.002f)
+		{
+			std::string fen = board.GetFen();
+			#pragma omp critical(sampleInsert)
+			{
+				samples.push_back(std::move(fen));
+			}
+		}
+#endif // SAMPLING
+
 		KillerMoveList killerMoves;
 
 		if (si.killer)

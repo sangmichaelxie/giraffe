@@ -232,6 +232,57 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "sample_internal")
+	{
+		// MUST UNCOMMENT "#define SAMPLING" in static move evaluator
+
+		InitializeSlowBlocking(evaluator);
+
+		if (argc < 4)
+		{
+			std::cout << "Usage: " << argv[0] << " sample_internal <EPD/FEN file> <output file>" << std::endl;
+			return 0;
+		}
+
+		std::ifstream infile(argv[2]);
+		std::ofstream outfile(argv[3]);
+
+		if (!infile)
+		{
+			std::cerr << "Failed to open " << argv[2] << " for reading" << std::endl;
+			return 1;
+		}
+
+		std::string fen;
+		std::vector<std::string> fens;
+		static const uint64_t maxPositions = 5000000;
+		uint64_t numPositions = 0;
+		while (std::getline(infile, fen) && numPositions < maxPositions)
+		{
+			fens.push_back(fen);
+			++numPositions;
+		}
+
+		#pragma omp parallel
+		{
+			auto evaluatorCopy = evaluator;
+
+			#pragma omp for
+			for (size_t i = 0; i < fens.size(); ++i)
+			{
+				Board b(fens[i]);
+
+				Search::SyncSearchNodeLimited(b, 1000, &evaluatorCopy, &gStaticMoveEvaluator, nullptr, nullptr);
+			}
+		}
+
+		for (const auto &pos : gStaticMoveEvaluator.samples)
+		{
+			outfile << pos << std::endl;
+		}
+
+		return 0;
+	}
 
 	// we need a mutex here because InitializeSlow needs to print, and it may decide to
 	// print at the same time as the main command loop (if the command loop isn't waiting)
