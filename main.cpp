@@ -283,6 +283,91 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "label_bm")
+	{
+		InitializeSlowBlocking(evaluator);
+
+		if (argc < 4)
+		{
+			std::cout << "Usage: " << argv[0] << " label_bm <EPD/FEN file> <output file>" << std::endl;
+			return 0;
+		}
+
+		std::ifstream infile(argv[2]);
+		std::ofstream outfile(argv[3]);
+
+		if (!infile)
+		{
+			std::cerr << "Failed to open " << argv[2] << " for reading" << std::endl;
+			return 1;
+		}
+
+		std::string fen;
+		std::vector<std::string> fens;
+		static const uint64_t maxPositions = 5000000;
+		uint64_t numPositions = 0;
+		while (std::getline(infile, fen) && numPositions < maxPositions)
+		{
+			Board b(fen);
+
+			if (b.GetGameStatus() != Board::ONGOING)
+			{
+				continue;
+			}
+
+			fens.push_back(fen);
+			++numPositions;
+		}
+
+		std::vector<std::string> bm(fens.size());
+
+		uint64_t numPositionsDone = 0;
+
+		double lastPrintTime = CurrentTime();
+		size_t lastDoneCount = 0;
+
+		#pragma omp parallel
+		{
+			auto evaluatorCopy = evaluator;
+
+			#pragma omp for schedule(dynamic)
+			for (size_t i = 0; i < fens.size(); ++i)
+			{
+				Board b(fens[i]);
+
+				Search::SearchResult result = Search::SyncSearchNodeLimited(b, 10000, &evaluatorCopy, &gStaticMoveEvaluator, nullptr, nullptr);
+
+				bm[i] = b.MoveToAlg(result.pv[0]);
+
+				#pragma omp critical(numPositionsDoneUpdate)
+				{
+					++numPositionsDone;
+
+					if (omp_get_thread_num() == 0)
+					{
+						double currentTime = CurrentTime();
+						double timeDiff = currentTime - lastPrintTime;
+						if (timeDiff > 1.0)
+						{
+							std::cout << numPositionsDone << '/' << fens.size() << std::endl;
+							std::cout << "Positions per second: " << static_cast<double>(numPositionsDone - lastDoneCount) / timeDiff << std::endl;
+
+							lastPrintTime = currentTime;
+							lastDoneCount = numPositionsDone;
+						}
+					}
+				}
+			}
+		}
+
+		for (size_t i = 0; i < fens.size(); ++i)
+		{
+			outfile << fens[i] << std::endl;
+			outfile << bm[i] << std::endl;
+		}
+
+		return 0;
+	}
 
 	// we need a mutex here because InitializeSlow needs to print, and it may decide to
 	// print at the same time as the main command loop (if the command loop isn't waiting)
