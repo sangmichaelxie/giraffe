@@ -37,17 +37,17 @@ private:
 			if (mv == si.hashMove)
 			{
 				// hash move
-				mi.nodeAllocation = 1.0009f;
+				mi.nodeAllocation = 3.0009f;
 			}
 			else if (isQueenPromo && seeScore >= 0)
 			{
 				// queen promos that aren't losing
-				mi.nodeAllocation = 1.0008f;
+				mi.nodeAllocation = 2.0008f;
 			}
 			else if (isViolent && seeScore >= 0 && !isUnderPromo)
 			{
 				// winning captures (excluding underpromoting captures)
-				mi.nodeAllocation = 1.0007f;
+				mi.nodeAllocation = 2.0007f;
 			}
 			else if (si.isQS)
 			{
@@ -76,7 +76,7 @@ private:
 			else
 			{
 				// losing moves and captures, and underpromos
-				mi.nodeAllocation = 1.0004f;
+				mi.nodeAllocation = 0.01f;
 			}
 		}
 
@@ -88,7 +88,7 @@ private:
 				}
 				else
 				{
-					// sort based on SEE
+					// sort based on SEE (or another source of score)
 					return GetScoreBiased(a.move) > GetScoreBiased(b.move);
 				}
 			}
