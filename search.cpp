@@ -250,8 +250,9 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	// we have to check for draws before probing the transposition table, because the ttable
 	// can potentially hide repetitions
 
-	// first we check for hard draws
-	if (board.HasInsufficientMaterial())
+	// first we check for hard draws (if ply > 0, we use relaxed rules, which we can't do at ply = 0, because
+	// it would result in empty pv)
+	if (board.HasInsufficientMaterial(ply > 0))
 	{
 		return DRAW_SCORE;
 	}
