@@ -11,14 +11,12 @@
 #include "random_device.h"
 
 // in sampling mode, we are collecting internal nodes for training
-#define SAMPLING
+//#define SAMPLING
 
 class StaticMoveEvaluator : public MoveEvaluatorIface
 {
 public:
-#ifdef SAMPLING
 	std::vector<std::string> samples;
-#endif // SAMPLING
 
 private:
 	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list) override
