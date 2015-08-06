@@ -168,9 +168,6 @@ void TDL(const std::string &positionsFilename)
 				auto positionDist = std::uniform_int_distribution<size_t>(0, rootPositions.size() - 1);
 				auto positionDrawFunc = std::bind(positionDist, rng);
 
-				auto realDist = std::uniform_real_distribution<float>(0, 1.0f);
-				auto realDrawFunc = std::bind(realDist, rng);
-
 				#pragma omp for schedule(dynamic, 1)
 				for (size_t i = 0; i < PositionsPerBatch; ++i)
 				{
@@ -183,7 +180,7 @@ void TDL(const std::string &positionsFilename)
 						continue;
 					}
 
-					if (realDrawFunc() < 0.3f)
+					//if (realDrawFunc() < 0.3f)
 					{
 						// make 1 random move
 						// it's very important that we make an odd number of moves, so that if the move is something stupid, the
@@ -235,10 +232,13 @@ void TDL(const std::string &positionsFilename)
 
 							absoluteDiscount *= AbsLambda;
 
-							// compute error contribution
-							accumulatedError += tdDiscount * (scoreWhiteUnscaled - lastScore);
-							lastScore = scoreWhiteUnscaled;
-							tdDiscount *= TDLambda;
+							// compute error contribution (only if same side)
+							if (m % 2 == 1)
+							{
+								accumulatedError += tdDiscount * (scoreWhiteUnscaled - lastScore);
+								lastScore = scoreWhiteUnscaled;
+								tdDiscount *= TDLambda;
+							}
 
 							if ((rootPos.GetGameStatus() != Board::ONGOING) || (result.pv.size() == 0))
 							{
