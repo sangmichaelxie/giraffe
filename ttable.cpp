@@ -3,26 +3,18 @@
 #include <iostream>
 
 TTable::TTable(size_t size)
-	: m_size(size), m_currentGeneration(0)
+	: m_data(size), m_currentGeneration(0)
 {
-	m_data = static_cast<TTEntry *>(malloc(m_size * sizeof(TTEntry)));
 }
 
 void TTable::Resize(size_t newSize)
 {
-	m_size = newSize;
-
-	if (m_data)
-	{
-		free(m_data);
-	}
-
-	m_data = static_cast<TTEntry *>(malloc(m_size * sizeof(TTEntry)));
+	m_data.resize(newSize);
 }
 
 void TTable::Store(uint64_t hash, MoveNoScore bestMove, Score score, int64_t nodeBudget, TTEntryType entryType)
 {
-	TTEntry *slot = &m_data[hash % m_size];
+	TTEntry *slot = &m_data[hash % m_data.size()];
 
 	// always replace for now
 	bool replace = true;

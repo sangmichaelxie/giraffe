@@ -372,6 +372,10 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 	si.isQS = false;
 	si.ply = ply;
+	si.tt = context.transpositionTable;
+
+	si.lowerBound = alpha;
+	si.upperBound = beta;
 
 	context.moveEvaluator->GenerateAndEvaluateMoves(board, si, miList);
 
@@ -495,12 +499,6 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	{
 		// if global stop request is set, we just return any value since it won't be used anyways
 		return 0;
-	}
-
-	// if we are in check, switch back to normal search (we have to do this before stand-pat)
-	if (board.InCheck() && ply < 20)
-	{
-		return Search(context, pv, board, alpha, beta, 1, ply, false);
 	}
 
 	pv.clear();

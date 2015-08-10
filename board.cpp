@@ -1631,6 +1631,28 @@ bool Board::GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to)
 	return false;
 }
 
+PieceType Board::GetCapturedPieceType(Move violentMove)
+{
+	Square to = GetToSquare(violentMove);
+
+	PieceType pieceAtSquare = GetPieceAtSquare(to);
+
+	if (pieceAtSquare != EMPTY)
+	{
+		return pieceAtSquare;
+	}
+	else if (GetY(to) == 2 || GetY(to) == 5)
+	{
+		// if Y is 2 or 5, this is en passant
+		return (GetSideToMove() == WHITE) ? BP : WP;
+	}
+	else
+	{
+		// this must be a non-capturing promotion
+		return EMPTY;
+	}
+}
+
 uint64_t Board::SpeculateHashAfterMove(Move mv)
 {
 	uint64_t hash = m_boardDescBB[HASH];

@@ -194,6 +194,9 @@ public:
 	void UndoMoveSee();
 	bool GenerateSmallestCaptureSee(PieceType &pt, Square &from, Square to); // to doesn't need to be returned, because it's the target square
 
+	// undefined behaviour if move is not violent
+	PieceType GetCapturedPieceType(Move violentMove);
+
 	uint64_t SpeculateHashAfterMove(Move mv);
 
 	size_t GetPieceCount(PieceType pt) const { return PopCount(m_boardDescBB[pt]); }

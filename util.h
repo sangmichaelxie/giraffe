@@ -2,6 +2,7 @@
 #define UTIL_H
 
 #include <chrono>
+#include <fstream>
 #include <regex>
 #include <sstream>
 
@@ -35,6 +36,13 @@ inline std::string ToStr(const T &x)
 	std::stringstream ss;
 	ss << x;
 	return ss.str();
+}
+
+inline bool FileReadable(const std::string &filename)
+{
+	std::ifstream infile(filename);
+
+	return infile.good();
 }
 
 #endif // UTIL_H

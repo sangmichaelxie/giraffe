@@ -240,6 +240,44 @@ float FCANN<ACTF, ACTFLast>::ForwardPropagateSingle(const MatrixBase<Derived> &v
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
+float FCANN<ACTF, ACTFLast>::ForwardPropagateSingleWithSignature(const MatrixBase<Derived> &vec, float *signOut)
+{
+	if (!m_params.weightsSemiSparseCurrent)
+	{
+		UpdateWeightSemiSparse_();
+	}
+
+	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
+	{
+		if (layer == 0)
+		{
+			MultiplyWithSemiSparse(vec, m_params.weightsSemiSparse[layer], m_params.evalSingleTmp[layer]);
+		}
+		else
+		{
+			MultiplyWithSemiSparse(m_params.evalSingleTmp[layer - 1], m_params.weightsSemiSparse[layer], m_params.evalSingleTmp[layer]);
+		}
+
+		m_params.evalSingleTmp[layer] += m_params.outputBias[layer];
+
+		Activate_(m_params.evalSingleTmp[layer], layer == (m_params.weights.size() - 1));
+
+		if (layer == (m_params.weights.size() - 2))
+		{
+			size_t signatureSize = m_params.weights[layer].cols();
+
+			for (size_t i = 0; i < signatureSize; ++i)
+			{
+				signOut[i] = m_params.evalSingleTmp[layer](0, i);
+			}
+		}
+	}
+
+	return m_params.evalSingleTmp[m_params.weights.size() - 1](0, 0);
+}
+
+template <ActivationFunc ACTF, ActivationFunc ACTFLast>
+template <typename Derived>
 void FCANN<ACTF, ACTFLast>::BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad)
 {
 	assert(grad.weightGradients.size() == m_params.weights.size());
@@ -518,6 +556,21 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFunc(
 			ret(i, 0) = e;
 		}
 	}
+	else if (ACTFLast == Logsig)
+	{
+		// cross-entropy
+		// - target * log(p) - (1 - target) * log(1-p)
+
+		ret.resize(pred.rows(), pred.cols());
+
+		for (int64_t i = 0; i < pred.rows(); ++i)
+		{
+			for (int64_t j = 0; j < pred.cols(); ++j)
+			{
+				ret(i, j) = -targets(i, j) * log(pred(i, j)) -(1.0f - targets(i, j)) * log(1.0f - pred(i, j));
+			}
+		}
+	}
 	else assert(false);
 
 	return ret;
@@ -567,6 +620,12 @@ NNMatrixRM FCANN<ACTF, ACTFLast>::ErrorFuncDerivative(
 		// cross-entropy
 		// curiously,
 		// http://www.willamette.edu/~gorr/classes/cs449/classify.html
+		ret = pred - targets;
+	}
+	else if (ACTFLast == Logsig)
+	{
+		// with cross-entropy
+		// http://cs229.stanford.edu/notes/cs229-notes1.pdf
 		ret = pred - targets;
 	}
 	else assert(false);
@@ -619,6 +678,11 @@ void FCANN<ACTF, ACTFLast>::Activate_(MatrixBase<Derived> &x, bool last) const
 
 		// then normalize all the elements
 		x.array().colwise() /= norm.array();
+	}
+	else if (actf == Logsig)
+	{
+		// 1 / (exp(-x) + 1)
+		x = (1.0f / ((-x).array().exp() + 1)).matrix();
 	}
 	else assert(false);
 }

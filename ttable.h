@@ -36,7 +36,6 @@ class TTable
 {
 public:
 	TTable(size_t size);
-	~TTable() { free(m_data); }
 
 	TTable(const TTable&) = delete;
 	TTable &operator=(const TTable&) = delete;
@@ -45,7 +44,7 @@ public:
 
 	TTEntry *Probe(uint64_t hash)
 	{
-		size_t idx = hash % m_size;
+		size_t idx = hash % m_data.size();
 		TTEntry *entry = &m_data[idx];
 		if (entry->hash == hash)
 		{
@@ -59,7 +58,7 @@ public:
 
 	void Prefetch(uint64_t hash)
 	{
-		__builtin_prefetch(&m_data[hash % m_size]);
+		__builtin_prefetch(&m_data[hash % m_data.size()]);
 	}
 
 	void Store(uint64_t hash, MoveNoScore bestMove, Score score, int64_t nodeBudget, TTEntryType entryType);
@@ -71,15 +70,14 @@ public:
 
 	void InvalidateAllEntries()
 	{
-		for (size_t i = 0; i < m_size; ++i)
+		for (size_t i = 0; i < m_data.size(); ++i)
 		{
 			m_data[i].hash = 0;
 		}
 	}
 
 private:
-	TTEntry *m_data;
-	size_t m_size;
+	std::vector<TTEntry> m_data;
 
 	int32_t m_currentGeneration;
 };

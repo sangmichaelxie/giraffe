@@ -29,6 +29,7 @@
 #include "types.h"
 #include "random_device.h"
 #include "features_conv.h"
+#include "consts.h"
 
 namespace
 {
@@ -333,7 +334,7 @@ void DebugPrintGroups(const std::vector<Group> &groups)
 namespace LearnAnn
 {
 
-EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
+EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 {
 	std::vector<size_t> layerSizes;
 	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
@@ -435,7 +436,7 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		*/
 
 		// in the third layer, we just fully connect everything
-		layerSizes.push_back(64);
+		layerSizes.push_back(BoardSignatureSize);
 		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 		// fully connected output layer
@@ -452,6 +453,23 @@ EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 	}
 
 	return EvalNet(inputDims, outputDims, layerSizes, connMatrices);
+}
+
+MoveEvalNet BuildMoveEvalNet(int64_t inputDims, int64_t outputDims)
+{
+	std::vector<size_t> layerSizes;
+	std::vector<std::vector<Eigen::Triplet<float> > > connMatrices;
+
+	layerSizes.push_back(64);
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	layerSizes.push_back(48);
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	// fully connected output layer
+	connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
+
+	return MoveEvalNet(inputDims, outputDims, layerSizes, connMatrices);
 }
 
 template <typename Derived1, typename Derived2>

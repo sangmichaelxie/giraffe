@@ -2,6 +2,8 @@
 
 #include <fstream>
 
+#include "consts.h"
+
 constexpr float ANNEvaluator::BoundNetErrorAsymmetry;
 constexpr float ANNEvaluator::BoundNetTargetShift;
 
@@ -20,9 +22,9 @@ ANNEvaluator::ANNEvaluator(const std::string &filename)
 
 void ANNEvaluator::BuildANN(int64_t inputDims)
 {
-	m_mainAnn = LearnAnn::BuildNet(inputDims, 1, false);
-	m_ubAnn = LearnAnn::BuildNet(inputDims, 1, true);
-	m_lbAnn = LearnAnn::BuildNet(inputDims, 1, true);
+	m_mainAnn = LearnAnn::BuildEvalNet(inputDims, 1, false);
+	m_ubAnn = LearnAnn::BuildEvalNet(inputDims, 1, true);
+	m_lbAnn = LearnAnn::BuildEvalNet(inputDims, 1, true);
 }
 
 void ANNEvaluator::Serialize(std::ostream &os)

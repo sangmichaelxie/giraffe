@@ -72,10 +72,14 @@ const static Color WHITE = 0x0;
 const static Color BLACK = 0x8;
 const static uint32_t COLOR_MASK = 0x8;
 
+inline int32_t GetEqY(Square sq, Color c) { int32_t y = GetY(sq); return (c == WHITE) ? y : 7 - y; }
+
 typedef uint32_t PieceType;
 
 const static uint32_t NUM_PIECETYPES = 12;
 const static uint32_t PIECE_TYPE_INDICES[] = { 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd };
+
+const static uint32_t COMPRESS_PT_IDX[14] = { 0, 1, 2, 3, 4, 5, 0, 0, 6, 7, 8, 9, 10, 11 };
 
 // remember to update material tables if these assignments change
 

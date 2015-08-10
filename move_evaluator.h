@@ -3,11 +3,13 @@
 
 #include <algorithm>
 #include <iostream>
+#include <limits>
 
 #include "move.h"
 #include "types.h"
 #include "killer.h"
 #include "board.h"
+#include "ttable.h"
 
 class MoveEvaluatorIface
 {
@@ -16,15 +18,23 @@ public:
 	{
 		Move move;
 		float nodeAllocation;
+
+		// used internally by ANN move evaluator
+		float expectedScore;
 	};
 
 	// this struct stores things that may be useful for move ordering
 	struct SearchInfo
 	{
 		Killer *killer = nullptr;
+		TTable *tt = nullptr;
 		int32_t ply = 0;
 		Move hashMove = 0;
 		bool isQS = false;
+
+		// alpha and beta are from STM's perspective
+		Score lowerBound = std::numeric_limits<Score>::min();
+		Score upperBound = std::numeric_limits<Score>::max();
 	};
 
 	typedef FixedVector<MoveInfo, MAX_LEGAL_MOVES> MoveInfoList;
@@ -51,22 +61,9 @@ public:
 			list.PushBack(mi);
 		}
 
-		EvaluateMoves(board, si, list);
+		EvaluateMoves(board, si, list, ml);
 
-		float sum = 0.0f;
-
-		for (auto &mi : list)
-		{
-			sum += mi.nodeAllocation;
-		}
-
-		if (sum != 0.0f)
-		{
-			for (auto &mi : list)
-			{
-				mi.nodeAllocation /= sum;
-			}
-		}
+		NormalizeMoveInfoList(list);
 	}
 
 	virtual void PrintDiag(Board &b)
@@ -84,11 +81,28 @@ public:
 		}
 	}
 
-private:
+	void NormalizeMoveInfoList(MoveInfoList &list)
+	{
+		float sum = 0.0f;
+
+		for (auto &mi : list)
+		{
+			sum += mi.nodeAllocation;
+		}
+
+		if (sum != 0.0f)
+		{
+			for (auto &mi : list)
+			{
+				mi.nodeAllocation /= sum;
+			}
+		}
+	}
+
 	// implementations must override this function
-	// the caller will handle normalization, but this function must handle sorting
+	// the caller will handle normalization, but this function must handle sorting (this is to allow non-node-allocation based search order)
 	// implementation can assume that list is already populated with legal moves of the correct type (QS vs non-QS)
-	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list) = 0;
+	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list, MoveList &ml) = 0;
 };
 
 #endif // MOVE_EVALUATOR_H

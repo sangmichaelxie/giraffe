@@ -20,6 +20,7 @@
 #include "ann/learn_ann.h"
 #include "ann/features_conv.h"
 #include "ann/ann_evaluator.h"
+#include "ann/ann_move_evaluator.h"
 #include "learn.h"
 #include "zobrist.h"
 #include "gtb.h"
@@ -27,6 +28,9 @@
 #include "static_move_evaluator.h"
 
 #include "Eigen/Dense"
+
+const std::string EvalNetFilename = "eval.net";
+const std::string MoveEvalNetFilename = "meval.net";
 
 std::string gVersion;
 
@@ -49,19 +53,22 @@ void GetVersion()
 #endif
 }
 
-void InitializeSlow(ANNEvaluator &evaluator, std::mutex &mtx)
+void InitializeSlow(ANNEvaluator &evaluator, ANNMoveEvaluator &mevaluator, std::mutex &mtx)
 {
 	std::string initOutput;
 
-	std::ifstream evalNet("eval.net");
+	std::ifstream evalNet(EvalNetFilename);
 
 	if (evalNet)
 	{
 		evaluator.Deserialize(evalNet);
 	}
-	else
+
+	std::ifstream mevalNet(MoveEvalNetFilename);
+
+	if (mevalNet)
 	{
-		initOutput += "# eval.net not found, ANN evaluator not initialized\n";
+		mevaluator.Deserialize(mevalNet);
 	}
 
 	initOutput += GTB::Init();
@@ -70,10 +77,10 @@ void InitializeSlow(ANNEvaluator &evaluator, std::mutex &mtx)
 	std::cout << initOutput;
 }
 
-void InitializeSlowBlocking(ANNEvaluator &evaluator)
+void InitializeSlowBlocking(ANNEvaluator &evaluator, ANNMoveEvaluator &mevaluator)
 {
 	std::mutex mtx;
-	InitializeSlow(evaluator, mtx);
+	InitializeSlow(evaluator, mevaluator, mtx);
 }
 
 // fast initialization steps that can be done in main thread
@@ -114,15 +121,41 @@ int main(int argc, char **argv)
 
 	ANNEvaluator evaluator;
 
-	//backend.SetEvaluator(&Eval::gStaticEvaluator);
-	backend.SetEvaluator(&evaluator);
+	ANNMoveEvaluator mevaluator(evaluator);
 
-	backend.SetMoveEvaluator(&gStaticMoveEvaluator);
+	// if eval.net exists, use the ANN evaluator
+	// if both eval.net and meval.net exist, use the ANN move evaluator
+
+	if (FileReadable(EvalNetFilename))
+	{
+		backend.SetEvaluator(&evaluator);
+
+		std::cout << "# Using ANN evaluator" << std::endl;
+
+		if (FileReadable(MoveEvalNetFilename))
+		{
+			std::cout << "# Using ANN move evaluator" << std::endl;
+			backend.SetMoveEvaluator(&mevaluator);
+		}
+		else
+		{
+			std::cout << "# Using static move evaluator" << std::endl;
+			backend.SetMoveEvaluator(&gStaticMoveEvaluator);
+		}
+	}
+	else
+	{
+		std::cout << "# Using static evaluator" << std::endl;
+		std::cout << "# Using static move evaluator" << std::endl;
+
+		backend.SetEvaluator(&Eval::gStaticEvaluator);
+		backend.SetMoveEvaluator(&gStaticMoveEvaluator);
+	}
 
 	// first we handle special operation modes
 	if (argc >= 2 && std::string(argv[1]) == "tdl")
 	{
-		InitializeSlowBlocking(evaluator);
+		InitializeSlowBlocking(evaluator, mevaluator);
 
 		if (argc < 3)
 		{
@@ -136,7 +169,7 @@ int main(int argc, char **argv)
 	}
 	else if (argc >= 2 && std::string(argv[1]) == "conv")
 	{
-		InitializeSlowBlocking(evaluator);
+		InitializeSlowBlocking(evaluator, mevaluator);
 
 		if (argc < 3)
 		{
@@ -158,11 +191,53 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "mconv")
+	{
+		InitializeSlowBlocking(evaluator, mevaluator);
+
+		if (argc < 3)
+		{
+			std::cout << "Usage: " << argv[0] << " mconv FEN" << std::endl;
+			return 0;
+		}
+
+		std::stringstream ss;
+
+		for (int i = 2; i < argc; ++i)
+		{
+			ss << argv[i] << ' ';
+		}
+
+		Board b(ss.str());
+
+		MoveList moves;
+		b.GenerateAllLegalMoves<Board::ALL>(moves);
+
+		std::vector<std::vector<float>> ret;
+
+		FeaturesConv::ConvertMovesInfo convInfo;
+
+		FeaturesConv::ConvertMovesToNN(b, convInfo, moves, ret);
+
+		for (const auto &entry : ret)
+		{
+			for (const auto &field : entry)
+			{
+				std::cout << field << ' ';
+			}
+
+			std::cout << std::endl;
+		}
+
+		return 0;
+	}
 	else if (argc >= 2 && std::string(argv[1]) == "bench")
 	{
-		InitializeSlowBlocking(evaluator);
+		InitializeSlowBlocking(evaluator, mevaluator);
 
-		static const Search::NodeBudget BenchNodeBudget = 1024;
+		double startTime = CurrentTime();
+
+		static const Search::NodeBudget BenchNodeBudget = 1024*1024;
 
 		Search::SyncSearchNodeLimited(Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
 		Search::SyncSearchNodeLimited(Board("2r2rk1/pp3pp1/b2Pp3/P1Q4p/RPqN2n1/8/2P2PPP/2B1R1K1 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
@@ -171,11 +246,13 @@ int main(int argc, char **argv)
 		Search::SyncSearchNodeLimited(Board("r5k1/2p2pp1/1nppr2p/8/p2PPp2/PPP2P1P/3N2P1/R3RK2 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
 		Search::SyncSearchNodeLimited(Board("8/R7/8/1k6/1p1Bq3/8/4NK2/8 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
 
+		std::cout << "Time: " << (CurrentTime() - startTime) << "s" << std::endl;
+
 		return 0;
 	}
 	else if (argc >= 2 && std::string(argv[1]) == "check_bounds")
 	{
-		InitializeSlowBlocking(evaluator);
+		InitializeSlowBlocking(evaluator, mevaluator);
 
 		if (argc < 3)
 		{
@@ -236,7 +313,7 @@ int main(int argc, char **argv)
 	{
 		// MUST UNCOMMENT "#define SAMPLING" in static move evaluator
 
-		InitializeSlowBlocking(evaluator);
+		InitializeSlowBlocking(evaluator, mevaluator);
 
 		if (argc < 4)
 		{
@@ -285,7 +362,7 @@ int main(int argc, char **argv)
 	}
 	else if (argc >= 2 && std::string(argv[1]) == "label_bm")
 	{
-		InitializeSlowBlocking(evaluator);
+		InitializeSlowBlocking(evaluator, mevaluator);
 
 		if (argc < 4)
 		{
@@ -368,6 +445,82 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "train_move_eval")
+	{
+		InitializeSlowBlocking(evaluator, mevaluator);
+
+		if (argc < 4)
+		{
+			std::cout << "Usage: " << argv[0] << " train_move_eval <EPD/FEN file> <output file>" << std::endl;
+			return 0;
+		}
+
+		std::ifstream infile(argv[2]);
+
+		if (!infile)
+		{
+			std::cerr << "Failed to open " << argv[2] << " for reading" << std::endl;
+			return 1;
+		}
+
+		std::cout << "Reading positions from " << argv[2] << std::endl;
+
+		std::string fen;
+		std::string bestMove;
+		std::vector<std::string> fens;
+		std::vector<std::string> bestMoves;
+		static const uint64_t MaxPositions = 5000000;
+		uint64_t numPositions = 0;
+		while (std::getline(infile, fen) && std::getline(infile, bestMove) && numPositions < MaxPositions)
+		{
+			Board b(fen);
+
+			if (b.GetGameStatus() != Board::ONGOING)
+			{
+				continue;
+			}
+
+			fens.push_back(fen);
+			bestMoves.push_back(bestMove);
+
+			++numPositions;
+		}
+
+		assert(bestMoves.size() == fens.size());
+
+		// now we split a part of it out into a withheld test set
+		size_t numTrainExamples = fens.size() * 0.9f;
+		std::vector<std::string> fensTest(fens.begin() + numTrainExamples, fens.end());
+		std::vector<std::string> bestMovesTest(bestMoves.begin() + numTrainExamples, bestMoves.end());
+
+		static const uint64_t MaxTestingPositions = 10000;
+
+		if (fensTest.size() > MaxTestingPositions)
+		{
+			fensTest.resize(MaxTestingPositions);
+			bestMovesTest.resize(MaxTestingPositions);
+		}
+
+		fens.resize(numTrainExamples);
+		bestMoves.resize(numTrainExamples);
+
+		std::cout << "Num training examples: " << numTrainExamples << std::endl;
+		std::cout << "Num testing examples: " << fensTest.size() << std::endl;
+
+		std::cout << "Starting training" << std::endl;
+
+		ANNMoveEvaluator meval(evaluator);
+
+		meval.Train(fens, bestMoves);
+
+		meval.Test(fensTest, bestMovesTest);
+
+		std::ofstream outfile(argv[3]);
+
+		meval.Serialize(outfile);
+
+		return 0;
+	}
 
 	// we need a mutex here because InitializeSlow needs to print, and it may decide to
 	// print at the same time as the main command loop (if the command loop isn't waiting)
@@ -376,7 +529,7 @@ int main(int argc, char **argv)
 	coutMtx.lock();
 
 	// do all the heavy initialization in a thread so we can reply to "protover 2" in time
-	std::thread initThread(InitializeSlow, std::ref(evaluator), std::ref(coutMtx));
+	std::thread initThread(InitializeSlow, std::ref(evaluator), std::ref(mevaluator), std::ref(coutMtx));
 
 	auto waitForSlowInitFunc = [&initThread, &coutMtx]() { coutMtx.unlock(); initThread.join(); coutMtx.lock(); };
 
@@ -605,6 +758,22 @@ int main(int argc, char **argv)
 			//SEE::DebugRunSeeTests();
 			DebugRunPerftTests();
 			std::cout << "All passed!" << std::endl;
+		}
+		else if (cmd == "gee")
+		{
+			std::vector<Move> pv;
+
+			Board b = backend.GetBoard();
+
+			SEE::GlobalExchangeEvaluation(b, pv);
+
+			for (size_t i = 0; i < pv.size(); ++i)
+			{
+				std::cout << b.MoveToAlg(pv[i]) << ' ';
+				b.ApplyMove(pv[i]);
+			}
+
+			std::cout << std::endl;
 		}
 		else if (backend.IsAMove(cmd))
 		{

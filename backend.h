@@ -74,6 +74,8 @@ public:
 
 	bool IsAMove(const std::string &s);
 
+	Board &GetBoard() { return m_currentBoard; }
+
 private:
 	// these 2 functions take a lock_guard to remind the caller that m_mutex should be locked when calling
 	// these functions, since these functions will temporarily unlock the mutex while waiting for search

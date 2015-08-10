@@ -6,6 +6,7 @@ CONFIG -= qt
 INCLUDEPATH += $$PWD/eval
 INCLUDEPATH += $$PWD/ann
 INCLUDEPATH += $$PWD
+INCLUDEPATH += $$PWD/..
 
 SOURCES += main.cpp \
 	giraffe.cpp \
@@ -29,7 +30,8 @@ SOURCES += main.cpp \
 	random_device.cpp \
 	gtb.cpp \
 	ann/ann_evaluator.cpp \
-	static_move_evaluator.cpp
+	static_move_evaluator.cpp \
+	ann/ann_move_evaluator.cpp
 
 HEADERS += \
 	board_consts.h \
@@ -63,5 +65,6 @@ HEADERS += \
 	gtb.h \
 	stats.h \
 	move_evaluator.h \
-	static_move_evaluator.h
-
+	static_move_evaluator.h \
+	ann/ann_move_evaluator.h \
+	consts.h

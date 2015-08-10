@@ -469,29 +469,57 @@ SEEValMap ComputeSEEMaps(Board &board)
 	{
 		if (board.GetSideToMove() == WHITE)
 		{
-			ret.blackMaxVal[sq] = SEE::SSEMap(board, sq);
+			ret.blackMaxVal[sq] = SEE::SEEMap(board, sq);
 
 			if (!board.InCheck())
 			{
 				board.MakeNullMove();
-				ret.whiteMaxVal[sq] = SEE::SSEMap(board, sq);
+				ret.whiteMaxVal[sq] = SEE::SEEMap(board, sq);
 				board.UndoMove();
 			}
 		}
 		else
 		{
-			ret.whiteMaxVal[sq] = SEE::SSEMap(board, sq);
+			ret.whiteMaxVal[sq] = SEE::SEEMap(board, sq);
 
 			if (!board.InCheck())
 			{
 				board.MakeNullMove();
-				ret.blackMaxVal[sq] = SEE::SSEMap(board, sq);
+				ret.blackMaxVal[sq] = SEE::SEEMap(board, sq);
 				board.UndoMove();
 			}
 		}
 	}
 
 	return ret;
+}
+
+// push number of elements above, below, and equal to x
+void PushRelativePlace(std::vector<float> &ret, const std::vector<float> &v, float x)
+{
+	float above = 0.0f;
+	float below = 0.0f;
+	float equal = 0.0f;
+
+	for (const auto &v_x : v)
+	{
+		if (v_x > x)
+		{
+			above += 1.0f;
+		}
+		else if (v_x < x)
+		{
+			below += 1.0f;
+		}
+		else
+		{
+			equal += 1.0f;
+		}
+	}
+
+	ret.push_back(above / static_cast<float>(v.size()));
+	ret.push_back(below / static_cast<float>(v.size()));
+	ret.push_back(equal / static_cast<float>(v.size()));
 }
 
 } // namespace
@@ -655,5 +683,176 @@ void ConvertBoardToNN(Board &board, std::vector<T> &ret)
 
 template void ConvertBoardToNN<float>(Board &board, std::vector<float> &ret);
 template void ConvertBoardToNN<FeatureDescription>(Board &board, std::vector<FeatureDescription> &ret);
+
+void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, std::vector<std::vector<float>> &ret)
+{
+	convInfo.evalDeltas.resize(ml.GetSize());
+
+	// first we generate the features shared between all moves
+	std::vector<float> sharedFeatures;
+
+	size_t numLegalMoves = ml.GetSize();
+	sharedFeatures.push_back(NormalizeCount(numLegalMoves, 40));
+
+	Color stm = board.GetSideToMove();
+	sharedFeatures.push_back(stm == WHITE ? 1.0f : 0.0f);
+
+	bool inCheck = board.InCheck();
+	sharedFeatures.push_back(inCheck ? 1.0f : 0.0f);
+
+	if (stm == WHITE)
+	{
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WQ), 1.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WR), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WB), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WN), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WP), 8.0f));
+
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BQ), 1.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BR), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BB), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BN), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BP), 8.0f));
+	}
+	else
+	{
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BQ), 1.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BR), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BB), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BN), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BP), 8.0f));
+
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WQ), 1.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WR), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WB), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WN), 2.0f));
+		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WP), 8.0f));
+	}
+
+	sharedFeatures.push_back(convInfo.evalBefore);
+
+	std::vector<float> seeList(ml.GetSize());
+
+	// expected material loss if we don't move this piece
+	std::vector<float> nmSeeList(ml.GetSize());
+
+	// we first compute things like SEE values, so we can do ranking, etc
+	for (size_t moveNum = 0; moveNum < ml.GetSize(); ++moveNum)
+	{
+		Move mv = ml[moveNum];
+
+		Square from = GetFromSquare(mv);
+
+		PieceType pt = GetPieceType(mv);
+
+		Score see = SEE::StaticExchangeEvaluation(board, mv);
+		seeList[moveNum] = NormalizeCount(see, SEE::SEE_MAT[WK]);
+
+		// see if we will lose the piece if we didn't move it
+		Score nmSee = 0; // value of the largest piece we can have on the square
+		if (!board.InCheck())
+		{
+			board.MakeNullMove();
+			nmSee = std::max<int64_t>(SEE::SEE_MAT[pt] - SEE::SEEMap(board, from), 0);
+			board.UndoMove();
+		}
+		else
+		{
+			// if we are in check, we can't do a null move
+			// TODO: find a better value to set this to
+			nmSee = 0;
+		}
+
+		nmSeeList[moveNum] = NormalizeCount(nmSee, SEE::SEE_MAT[WK]);
+	}
+
+	assert(!seeList.empty());
+	assert(!nmSeeList.empty());
+
+	float minSee = *(std::min_element(seeList.begin(), seeList.end()));
+	float maxSee = *(std::max_element(seeList.begin(), seeList.end()));
+
+	float minNmSee = *(std::min_element(nmSeeList.begin(), nmSeeList.end()));
+	float maxNmSee = *(std::max_element(nmSeeList.begin(), nmSeeList.end()));
+
+	sharedFeatures.push_back(minSee);
+	sharedFeatures.push_back(maxSee);
+
+	sharedFeatures.push_back(minNmSee);
+	sharedFeatures.push_back(maxNmSee);
+
+	// eval deltas of non-violent moves
+	// indices for this vector are not the same as for everything else!
+	std::vector<float> nvEvalDelta;
+
+	for (size_t moveNum = 0; moveNum < ml.GetSize(); ++moveNum)
+	{
+		if (!board.IsViolent(ml[moveNum]))
+		{
+			nvEvalDelta.push_back(convInfo.evalDeltas[moveNum]);
+		}
+	}
+
+	if (!nvEvalDelta.empty())
+	{
+		sharedFeatures.push_back(*(std::max_element(nvEvalDelta.begin(), nvEvalDelta.end())));
+		sharedFeatures.push_back(*(std::min_element(nvEvalDelta.begin(), nvEvalDelta.end())));
+	}
+	else
+	{
+		sharedFeatures.push_back(0.0f);
+		sharedFeatures.push_back(0.0f);
+	}
+
+	ret.resize(ml.GetSize());
+
+	for (size_t moveNum = 0; moveNum < ml.GetSize(); ++moveNum)
+	{
+		std::vector<float> moveFeatures = sharedFeatures;
+
+		Move mv = ml[moveNum];
+
+		Square from = GetFromSquare(mv);
+		Square to = GetToSquare(mv);
+
+		moveFeatures.push_back(NormalizeCoord(GetX(from)));
+		moveFeatures.push_back(NormalizeCoord(GetEqY(from, stm)));
+		moveFeatures.push_back(NormalizeCoord(GetX(to)));
+		moveFeatures.push_back(NormalizeCoord(GetEqY(to, stm)));
+
+		PieceType pt = GetPieceType(mv);
+
+		bool isPT[6] = { false };
+
+		assert(pt != EMPTY);
+
+		isPT[COMPRESS_PT_IDX[StripColor(pt)]] = true;
+
+		for (size_t i = 0; i < 6; ++i)
+		{
+			moveFeatures.push_back(isPT[i] ? 1.0f : 0.0f);
+		}
+
+		moveFeatures.push_back(maxSee - seeList[moveNum]);
+		PushRelativePlace(moveFeatures, seeList, seeList[moveNum]);
+
+		moveFeatures.push_back(maxNmSee - nmSeeList[moveNum]);
+		PushRelativePlace(moveFeatures, nmSeeList, nmSeeList[moveNum]);
+
+		moveFeatures.push_back(convInfo.evalDeltas[moveNum]);
+
+		if (board.IsViolent(mv))
+		{
+			PushRelativePlace(moveFeatures, convInfo.evalDeltas, convInfo.evalDeltas[moveNum]);
+		}
+		else
+		{
+			// nvEvalDelta cannot possibly be empty, because we have a non-violent move here!
+			PushRelativePlace(moveFeatures, nvEvalDelta, convInfo.evalDeltas[moveNum]);
+		}
+
+		ret[moveNum] = std::move(moveFeatures);
+	}
+}
 
 } // namespace FeaturesConv

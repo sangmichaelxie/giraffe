@@ -8,7 +8,9 @@
 namespace LearnAnn
 {
 
-EvalNet BuildNet(int64_t inputDims, int64_t outputDims, bool smallNet);
+EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet);
+
+MoveEvalNet BuildMoveEvalNet(int64_t inputDims, int64_t outputDims);
 
 template <typename Derived1, typename Derived2>
 void TrainANN(

@@ -11,6 +11,9 @@
 #include "ann.h"
 #include "board.h"
 #include "types.h"
+#include "containers.h"
+#include "move.h"
+#include "consts.h"
 
 namespace FeaturesConv
 {
@@ -57,6 +60,16 @@ struct FeatureDescription
 // FeatureDescription (to get feature descriptions)
 template <typename T>
 void ConvertBoardToNN(Board &board, std::vector<T> &ret);
+
+// additional info for conversion
+struct ConvertMovesInfo
+{
+	// evals from the perspective of moving side (not white!)
+	float evalBefore = 0.0f;
+	std::vector<float> evalDeltas;
+};
+
+void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, std::vector<std::vector<float>> &ret);
 
 }
 

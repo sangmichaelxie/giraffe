@@ -18,8 +18,7 @@ class StaticMoveEvaluator : public MoveEvaluatorIface
 public:
 	std::vector<std::string> samples;
 
-private:
-	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list) override
+	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list, MoveList &/*ml*/) override
 	{
 #ifdef SAMPLING
 		static std::uniform_real_distribution<float> dist;

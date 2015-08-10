@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "board.h"
+#include "see.h"
 
 #include <limits>
 
@@ -33,6 +34,23 @@ public:
 		return EvaluateForWhiteImpl(b, lowerBound, upperBound);
 	}
 
+	Score EvaluateForSTMGEE(Board &board, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	{
+		if (board.GetSideToMove() == WHITE)
+		{
+			return EvaluateForWhiteGEEImpl(board, lowerBound, upperBound);
+		}
+		else
+		{
+			return -EvaluateForWhiteGEEImpl(board, -upperBound, -lowerBound);
+		}
+	}
+
+	Score EvaluateForWhiteGEE(Board &board, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	{
+		return EvaluateForWhiteGEEImpl(board, lowerBound, upperBound);
+	}
+
 	float UnScale(float x)
 	{
 		float ret = x / EvalFullScale;
@@ -45,6 +63,22 @@ public:
 
 	// this is the only function evaluators need to implement
 	virtual Score EvaluateForWhiteImpl(Board &b, Score lowerBound, Score upperBound) = 0;
+
+	// evaluates the board from the perspective of the moving side by running eval on the leaf of a GEE
+	// this is a generic implementation that can be overridden
+	Score EvaluateForWhiteGEEImpl(Board &board, Score lowerBound, Score upperBound)
+	{
+		Score result = 0;
+
+		auto staticEvalCallback = [this, &result, lowerBound, upperBound](Board &board)
+		{
+			result = EvaluateForWhiteImpl(board, lowerBound, upperBound);
+		};
+
+		SEE::GEERunFunc(board, staticEvalCallback);
+
+		return result;
+	}
 
 	// this is optional
 	virtual void PrintDiag(Board &/*board*/) {}

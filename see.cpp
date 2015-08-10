@@ -1,7 +1,10 @@
 #include "see.h"
 #include "eval/eval_params.h"
 
+#include <algorithm>
 #include <iostream>
+#include <utility>
+#include <vector>
 
 #include <cstdint>
 
@@ -41,7 +44,7 @@ Score StaticExchangeEvaluation(Board &board, Move mv)
 	return ret;
 }
 
-Score SSEMap(Board &board, Square sq)
+Score SEEMap(Board &board, Square sq)
 {
 	board.ResetSee();
 
@@ -84,6 +87,79 @@ Score StaticExchangeEvaluationSq(Board &board, Square sq, bool forced)
 	}
 
 	return ret;
+}
+
+Score GlobalExchangeEvaluation(Board &board, std::vector<Move> &pv, Score currentEval, Score lowerBound, Score upperBound)
+{
+	assert(pv.empty());
+
+	// try standpat
+	if (currentEval >= upperBound)
+	{
+		return currentEval;
+	}
+	else if (currentEval > lowerBound)
+	{
+		lowerBound = currentEval;
+	}
+
+	MoveList captures;
+	board.GenerateAllLegalMoves<Board::VIOLENT>(captures);
+
+	std::vector<Move> subPv;
+
+	for (size_t i = 0; i < captures.GetSize(); ++i)
+	{
+		Score see = StaticExchangeEvaluation(board, captures[i]);
+
+		// we only want to search positive SEEs (not even neutral ones), and only if it can possibly improve lowerBound
+		if ((see < 0) || ((currentEval + see) <= lowerBound))
+		{
+			continue;
+		}
+
+		subPv.clear();
+
+		PieceType capturedPt = board.GetCapturedPieceType(captures[i]);
+
+		board.ApplyMove(captures[i]);
+
+		Score score = -GlobalExchangeEvaluation(board, subPv, -(currentEval + SEE_MAT[capturedPt]), -upperBound, -lowerBound);
+
+		board.UndoMove();
+
+		if (score >= upperBound)
+		{
+			return score;
+		}
+
+		if (score > lowerBound)
+		{
+			lowerBound = score;
+
+			pv.clear();
+			pv.push_back(captures[i]);
+			pv.insert(pv.end(), subPv.begin(), subPv.end());
+		}
+	}
+
+	return lowerBound;
+}
+
+void GEERunFunc(Board &board, std::function<void(Board &b)> func)
+{
+	std::vector<Move> pv;
+
+	GlobalExchangeEvaluation(board, pv);
+
+	board.ApplyVariation(pv);
+
+	func(board);
+
+	for (size_t i = 0; i < pv.size(); ++i)
+	{
+		board.UndoMove();
+	}
 }
 
 bool RunSeeTest(std::string fen, std::string move, Score expectedScore)

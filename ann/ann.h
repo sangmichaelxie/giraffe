@@ -24,7 +24,8 @@ enum ActivationFunc
 	Linear,
 	Tanh,
 	Relu,
-	Softmax
+	Softmax,
+	Logsig
 };
 
 template <ActivationFunc ACTF, ActivationFunc ACTFLast>
@@ -86,6 +87,10 @@ public:
 	// special case for 1 board and single-valued output - this is used in gameplay (NOT REENTRANT!!)
 	template <typename Derived>
 	float ForwardPropagateSingle(const MatrixBase<Derived> &vec);
+
+	// special case for eval while also reading out signature
+	template <typename Derived>
+	float ForwardPropagateSingleWithSignature(const MatrixBase<Derived> &vec, float *signOut);
 
 	template <typename Derived>
 	void BackwardPropagateComputeGrad(const MatrixBase<Derived> &err, const Activations &act, Gradients &grad);
@@ -183,7 +188,7 @@ private:
 };
 
 typedef FCANN<Relu, Tanh> EvalNet;
-typedef FCANN<Relu, Softmax> MixingNet;
+typedef FCANN<Relu, Logsig> MoveEvalNet;
 
 template <typename T>
 void SerializeNet(T &net, std::ostream &s);

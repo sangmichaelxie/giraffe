@@ -10,6 +10,7 @@
 #include "ann/ann.h"
 #include "ann/features_conv.h"
 #include "matrix_ops.h"
+#include "consts.h"
 
 #include "learn_ann.h"
 
