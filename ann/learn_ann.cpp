@@ -366,7 +366,7 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		}
 	}
 
-	assert(mixedSquareGroup.size() == (2*64));
+	//assert(mixedSquareGroup.size() == (2*64));
 
 	for (const auto &group : globalGroupsMap)
 	{
@@ -379,7 +379,7 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 
 		std::vector<Group> layer0GlobalGroups;
 		//std::vector<Group> layer0SquareGroups;
-		Group layer0MixedSquareGroup;
+		//Group layer0MixedSquareGroup;
 
 		// first we add the global groups
 		for (size_t i = 0; i < globalGroups.size(); ++i)
@@ -400,10 +400,12 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		*/
 
 		// mixed square group
+		/*
 		AddSingleNodesGroup(layer0, mixedSquareGroup, layer0MixedSquareGroup, 0.5f);
 
 		layerSizes.push_back(layer0.layerSize);
 		connMatrices.push_back(layer0.connections);
+		*/
 
 		// now we build the second layer
 		/*
