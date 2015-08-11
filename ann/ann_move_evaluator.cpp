@@ -108,7 +108,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 			{
 				if (bestMove == ml[moveNum])
 				{
-					trainingTargetBatch.push_back(1.0f);
+					trainingTargetBatch.push_back(static_cast<float>(ml.GetSize()) / 30.0f);
 				}
 				else
 				{
@@ -303,17 +303,13 @@ void ANNMoveEvaluator::Deserialize(std::istream &is)
 
 void ANNMoveEvaluator::GenerateMoveConvInfo_(Board &board, MoveList &ml, FeaturesConv::ConvertMovesInfo &convInfo, ANNEvaluator &evaluator, SearchInfo &/*si*/)
 {
-	auto evaluateUnscaled = [&evaluator](Board &b) -> float
-	{
-		return evaluator.UnScale(evaluator.EvaluateForSTMGEE(b));
-	};
-
-	convInfo.evalBefore = evaluateUnscaled(board);
+	convInfo.evalBefore = evaluator.UnScale(evaluator.EvaluateForSTMGEE(board));
 
 	for (size_t i = 0; i < ml.GetSize(); ++i)
 	{
 		board.ApplyMove(ml[i]);
-		convInfo.evalDeltas.push_back(-evaluateUnscaled(board) - convInfo.evalBefore);
+		float newScore = -evaluator.UnScale(evaluator.EvaluateForSTMGEE(board));
+		convInfo.evalDeltas.push_back(newScore - convInfo.evalBefore);
 		board.UndoMove();
 	}
 }

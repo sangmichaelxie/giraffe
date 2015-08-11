@@ -17,7 +17,7 @@ public:
 	constexpr static float EvalFullScale = 10000.0f;
 
 	// return score for side to move
-	Score EvaluateForSTM(Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	virtual Score EvaluateForSTM(Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
 	{
 		if (b.GetSideToMove() == WHITE)
 		{
@@ -29,12 +29,12 @@ public:
 		}
 	}
 
-	Score EvaluateForWhite(Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	virtual Score EvaluateForWhite(Board &b, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
 	{
 		return EvaluateForWhiteImpl(b, lowerBound, upperBound);
 	}
 
-	Score EvaluateForSTMGEE(Board &board, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	virtual Score EvaluateForSTMGEE(Board &board, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
 	{
 		if (board.GetSideToMove() == WHITE)
 		{
@@ -46,12 +46,42 @@ public:
 		}
 	}
 
-	Score EvaluateForWhiteGEE(Board &board, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	virtual Score EvaluateForWhiteGEE(Board &board, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
 	{
 		return EvaluateForWhiteGEEImpl(board, lowerBound, upperBound);
 	}
 
-	float UnScale(float x)
+	virtual void BatchEvaluateForSTMGEE(std::vector<Board> &positions, std::vector<Score> &results, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	{
+		// check that they all have the same stm
+		Color stm = positions[0].GetSideToMove();
+
+		for (size_t i = 1; i < positions.size(); ++i)
+		{
+			assert(positions[i].GetSideToMove() == stm);
+		}
+
+		if (stm == WHITE)
+		{
+			BatchEvaluateForWhiteGEEImpl(positions, results, lowerBound, upperBound);
+		}
+		else
+		{
+			BatchEvaluateForWhiteGEEImpl(positions, results, -upperBound, -lowerBound);
+
+			for (auto &x : results)
+			{
+				x *= -1;
+			}
+		}
+	}
+
+	virtual void BatchEvaluateForWhiteGEE(std::vector<Board> &positions, std::vector<Score> &results, Score lowerBound = SCORE_MIN, Score upperBound = SCORE_MAX)
+	{
+		BatchEvaluateForWhiteGEEImpl(positions, results, lowerBound, upperBound);
+	}
+
+	virtual float UnScale(float x)
 	{
 		float ret = x / EvalFullScale;
 
@@ -64,9 +94,21 @@ public:
 	// this is the only function evaluators need to implement
 	virtual Score EvaluateForWhiteImpl(Board &b, Score lowerBound, Score upperBound) = 0;
 
+	// this allows evaluators to evaluate multiple positions at once
+	// default implementation does it one at a time
+	virtual void BatchEvaluateForWhiteImpl(std::vector<Board> &positions, std::vector<Score> &results, Score lowerBound, Score upperBound)
+	{
+		results.resize(positions.size());
+
+		for (size_t i = 0; i < positions.size(); ++i)
+		{
+			results[i] = EvaluateForWhiteImpl(positions[i], lowerBound, upperBound);
+		}
+	}
+
 	// evaluates the board from the perspective of the moving side by running eval on the leaf of a GEE
 	// this is a generic implementation that can be overridden
-	Score EvaluateForWhiteGEEImpl(Board &board, Score lowerBound, Score upperBound)
+	virtual Score EvaluateForWhiteGEEImpl(Board &board, Score lowerBound, Score upperBound)
 	{
 		Score result = 0;
 
@@ -78,6 +120,25 @@ public:
 		SEE::GEERunFunc(board, staticEvalCallback);
 
 		return result;
+	}
+
+	virtual void BatchEvaluateForWhiteGEEImpl(std::vector<Board> &positions, std::vector<Score> &results, Score lowerBound, Score upperBound)
+	{
+		std::vector<Board> leafPositions;
+
+		leafPositions.reserve(positions.size());
+
+		auto vectorInsertCallback = [this, &leafPositions](Board &board)
+		{
+			leafPositions.push_back(board);
+		};
+
+		for (size_t i = 0; i < positions.size(); ++i)
+		{
+			SEE::GEERunFunc(positions[i], vectorInsertCallback);
+		}
+
+		BatchEvaluateForWhiteImpl(leafPositions, results, lowerBound, upperBound);
 	}
 
 	// this is optional

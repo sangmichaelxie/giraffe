@@ -47,6 +47,9 @@ public:
 
 	Score EvaluateForWhiteImpl(Board &b, Score lowerBound, Score upperBound) override;
 
+	// we override this function to provide faster implementation using matrix-matrix multiplications instead of matrix-vector
+	void BatchEvaluateForWhiteImpl(std::vector<Board> &positions, std::vector<Score> &results, Score lowerBound, Score upperBound) override;
+
 	void PrintDiag(Board &board) override;
 
 	void InvalidateCache();
@@ -62,6 +65,31 @@ private:
 		const NNMatrixRM &finalLayerActivations,
 		float positiveWeight,
 		float negativeWeight);
+
+	Optional<Score> HashProbe_(const Board &b)
+	{
+		Optional<Score> ret;
+
+		uint64_t hash = b.GetHash();
+		EvalHashEntry *entry = &m_evalHash[hash % EvalHashSize];
+
+		if (entry->hash == hash)
+		{
+			*ret = entry->val;
+		}
+
+		return ret;
+	}
+
+	void HashStore_(const Board &b, Score score)
+	{
+		uint64_t hash = b.GetHash();
+
+		EvalHashEntry *entry = &m_evalHash[hash % EvalHashSize];
+
+		entry->hash = hash;
+		entry->val = score;
+	}
 
 	EvalNet m_mainAnn;
 

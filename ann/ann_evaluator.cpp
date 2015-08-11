@@ -118,12 +118,11 @@ void ANNEvaluator::TrainBounds(const std::vector<std::string> &positions, const 
 
 Score ANNEvaluator::EvaluateForWhiteImpl(Board &b, Score /*lowerBound*/, Score /*upperBound*/)
 {
-	uint64_t hash = b.GetHash();
-	EvalHashEntry *entry = &m_evalHash[hash % EvalHashSize];
+	auto hashResult = HashProbe_(b);
 
-	if (entry->hash == hash)
+	if (hashResult)
 	{
-		return entry->val;
+		return *hashResult;
 	}
 
 	FeaturesConv::ConvertBoardToNN(b, m_convTmp);
@@ -135,10 +134,61 @@ Score ANNEvaluator::EvaluateForWhiteImpl(Board &b, Score /*lowerBound*/, Score /
 
 	Score nnRet = annOut * EvalFullScale;
 
-	entry->hash = hash;
-	entry->val = nnRet;
+	HashStore_(b, nnRet);
 
 	return nnRet;
+}
+
+void ANNEvaluator::BatchEvaluateForWhiteImpl(std::vector<Board> &positions, std::vector<Score> &results, Score /*lowerBound*/, Score /*upperBound*/)
+{
+	// some entries may already be in cache
+	// these are the ones we need to evaluate
+	std::vector<size_t> toEvaluate;
+
+	results.resize(positions.size());
+
+	for (size_t i = 0; i < positions.size(); ++i)
+	{
+		auto hashResult = HashProbe_(positions[i]);
+
+		if (hashResult)
+		{
+			results[i] = *hashResult;
+		}
+		else
+		{
+			toEvaluate.push_back(i);
+		}
+	}
+
+	if (m_convTmp.size() == 0)
+	{
+		Board b;
+		FeaturesConv::ConvertBoardToNN(b, m_convTmp);
+	}
+
+	NNMatrixRM xNN(static_cast<int64_t>(toEvaluate.size()), static_cast<int64_t>(m_convTmp.size()));
+
+	for (size_t idx = 0; idx < toEvaluate.size(); ++idx)
+	{
+		FeaturesConv::ConvertBoardToNN(positions[toEvaluate[idx]], m_convTmp);
+
+		for (size_t i = 0; i < m_convTmp.size(); ++i)
+		{
+			xNN(idx, i) = m_convTmp[i];
+		}
+	}
+
+	auto annResults = m_mainAnn.ForwardPropagateFast(xNN);
+
+	for (size_t idx = 0; idx < toEvaluate.size(); ++idx)
+	{
+		Score result = annResults(idx, 0) * EvalFullScale;
+
+		results[toEvaluate[idx]] = result;
+
+		HashStore_(positions[toEvaluate[idx]], result);
+	}
 }
 
 void ANNEvaluator::PrintDiag(Board &board)

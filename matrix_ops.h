@@ -135,4 +135,16 @@ void MultiplyWithSemiSparse(const EigenA &a, const SemiSparseMatrix<EigenB> &b, 
 	}
 }
 
+template <typename EigenA, typename EigenB, typename EigenC>
+void MatrixMultiplyWithSemiSparse(const EigenA &a, const SemiSparseMatrix<EigenB> &b, EigenC &c)
+{
+	// c = a * b
+	c = EigenC::Zero(a.rows(), b.cols);
+
+	for (const auto &subMatrix : b.subMatrices)
+	{
+		c.block(0, subMatrix.j, c.rows(), subMatrix.m.cols()) += a.block(0, subMatrix.i, a.rows(), subMatrix.m.rows()) * subMatrix.m;
+	}
+}
+
 #endif // MATRIX_OPS_H

@@ -189,15 +189,24 @@ template <ActivationFunc ACTF, ActivationFunc ACTFLast>
 template <typename Derived>
 NNMatrixRM FCANN<ACTF, ACTFLast>::ForwardPropagateFast(const MatrixBase<Derived> &in)
 {
+	/*
+	if (!m_params.weightsSemiSparseCurrent)
+	{
+		UpdateWeightSemiSparse_();
+	}
+	*/
+
 	for (size_t layer = 0; layer < m_params.weights.size(); ++layer)
 	{
 		if (layer == 0)
 		{
 			m_params.evalTmp[layer].noalias() = in * m_params.weights[layer];
+			//MatrixMultiplyWithSemiSparse(in, m_params.weightsSemiSparse[layer], m_params.evalTmp[layer]);
 		}
 		else
 		{
 			m_params.evalTmp[layer].noalias() = m_params.evalTmp[layer - 1] * m_params.weights[layer];
+			//MatrixMultiplyWithSemiSparse(m_params.evalTmp[layer - 1], m_params.weightsSemiSparse[layer], m_params.evalTmp[layer]);
 		}
 
 		m_params.evalTmp[layer].rowwise() += m_params.outputBias[layer];
