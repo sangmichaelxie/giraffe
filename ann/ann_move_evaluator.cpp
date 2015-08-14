@@ -1,6 +1,7 @@
 #include "ann_move_evaluator.h"
 
 #include "random_device.h"
+#include "search.h"
 #include "static_move_evaluator.h"
 
 #include <algorithm>
@@ -67,7 +68,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 	size_t positionsPerBatch = std::min<size_t>(positions.size(), 16);
 
 	const static size_t NumIterations = 10000;
-	const static size_t IterationsPerPrint = 1000;
+	const static size_t IterationsPerPrint = 100;
 
 	auto rng = gRd.MakeMT();
 	auto positionDist = std::uniform_int_distribution<size_t>(0, positions.size() - 1);
@@ -83,7 +84,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 		trainingSet.clear();
 		trainingTarget.clear();
 
-		for (size_t i = 0; i < positionsPerBatch; ++i)
+		for (size_t positionNum = 0; positionNum < positionsPerBatch; ++positionNum)
 		{
 			size_t idx = positionDrawFunc();
 
@@ -100,6 +101,17 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 
 			SearchInfo si;
 
+			auto searchFunc = [this](Board &pos, Score /*lowerBound*/, Score /*upperBound*/, int64_t nodeBudget, int32_t /*ply*/) -> Score
+			{
+				Search::SearchResult result = Search::SyncSearchNodeLimited(pos, nodeBudget, &m_annEval, &gStaticMoveEvaluator);
+
+				return result.score;
+			};
+
+			si.totalNodeBudget = 10000;
+
+			si.searchFunc = searchFunc;
+
 			GenerateMoveConvInfo_(pos, ml, convInfo, m_annEval, si);
 
 			FeaturesConv::ConvertMovesToNN(pos, convInfo, ml, trainingSetBatch);
@@ -108,7 +120,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 			{
 				if (bestMove == ml[moveNum])
 				{
-					trainingTargetBatch.push_back(static_cast<float>(ml.GetSize()) / 30.0f);
+					trainingTargetBatch.push_back(1.0f);
 				}
 				else
 				{
@@ -158,6 +170,17 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 			list.PushBack(mi);
 		}
 
+		si.totalNodeBudget = 10000;
+
+		auto searchFunc = [this](Board &pos, Score /*lowerBound*/, Score /*upperBound*/, int64_t nodeBudget, int32_t /*ply*/) -> Score
+		{
+			Search::SearchResult result = Search::SyncSearchNodeLimited(pos, nodeBudget, &m_annEval, &gStaticMoveEvaluator);
+
+			return result.score;
+		};
+
+		si.searchFunc = searchFunc;
+
 		EvaluateMoves(board, si, list, ml);
 
 		NormalizeMoveInfoList(list);
@@ -199,18 +222,35 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 
 void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list, MoveList &ml)
 {
-	if (si.isQS)
-	{
-		// delegate it to the static evaluator, since we just need to be very fast in QS,
-		// and we don't do node allocations anyways (since QS is not node-limited)
-		gStaticMoveEvaluator.EvaluateMoves(board, si, list, ml);
+	// call static evaluator now
+	// in case of QS or low node budget, we will return right away
+	// otherwise, we still use it for sorting (we will just overwrite the allocations)
+	gStaticMoveEvaluator.EvaluateMoves(board, si, list, ml);
 
+	if (si.isQS || si.totalNodeBudget < MinimumNodeBudget)
+	{
 		return;
 	}
 
 	if (ml.GetSize() == 0)
 	{
 		return;
+	}
+
+	// only do crazy stuff if we have a PV node
+	if ((si.upperBound - si.lowerBound) <= 1)
+	{
+		return;
+	}
+
+	//Score expectedScore = si.searchFunc(board, si.lowerBound, si.upperBound, si.totalNodeBudget / 10000, si.ply);
+
+	// since static evaluator only sorts the MoveInfoList, now we have to copy it back to ml
+	assert(list.GetSize() == ml.GetSize());
+
+	for (size_t i = 0; i < list.GetSize(); ++i)
+	{
+		ml[i] = list[i].move;
 	}
 
 	std::vector<std::vector<float>> features;
@@ -222,10 +262,12 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 	FeaturesConv::ConvertMovesToNN(board, convInfo, ml, features);
 
 	// copy expected scores over to MoveInfoList for use later
+	/*
 	for (size_t i = 0; i < list.GetSize(); ++i)
 	{
 		list[i].expectedScore = convInfo.evalBefore + convInfo.evalDeltas[i];
 	}
+	*/
 
 	NNMatrixRM xNN;
 	FeaturesToXNN(features, xNN);
@@ -236,7 +278,7 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 
 	for (int64_t i = 0; i < results.size(); ++i)
 	{
-		list[i].nodeAllocation = std::max(0.0001f, results(i));
+		list[i].nodeAllocation = results(i);
 
 		if (results(i) > maxAllocation)
 		{
@@ -244,10 +286,26 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		}
 	}
 
+	NormalizeMoveInfoList(list);
+
+	// apply minimum
+	for (size_t i = 0; i < list.GetSize(); ++i)
+	{
+		list[i].nodeAllocation = std::max(0.01f, list[i].nodeAllocation);
+	}
+
+	/*
 	float upperBoundUnscaled = m_annEval.UnScale(si.upperBound);
 	float lowerBoundUnscaled = m_annEval.UnScale(si.lowerBound);
 
-	std::sort(list.begin(), list.end(), [&si, &upperBoundUnscaled, &lowerBoundUnscaled](const MoveInfo &a, const MoveInfo &b)
+	KillerMoveList killerMoves;
+
+	if (si.killer)
+	{
+		si.killer->GetKillers(killerMoves, si.ply);
+	}
+
+	std::sort(list.begin(), list.end(), [&si, &upperBoundUnscaled, &lowerBoundUnscaled, &killerMoves](const MoveInfo &a, const MoveInfo &b)
 	{
 		// hash move first
 		if (a.move == si.hashMove)
@@ -286,9 +344,51 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		}
 		else
 		{
-			return a.expectedScore > b.expectedScore;
+			// for moves where neither is an expected cut, we test killers if at least one of them is a killer
+			bool isKillerA = killerMoves.Exists(a.move);
+			bool isKillerB = killerMoves.Exists(b.move);
+
+			if (isKillerA && !isKillerB)
+			{
+				return true;
+			}
+			else if (!isKillerA && isKillerB)
+			{
+				return false;
+			}
+			else
+			{
+				return a.expectedScore > b.expectedScore;
+			}
 		}
 	});
+	*/
+}
+
+void ANNMoveEvaluator::PrintDiag(Board &b)
+{
+	SearchInfo si;
+	si.isQS = false;
+
+	si.totalNodeBudget = 100000;
+
+	auto searchFunc = [this](Board &pos, Score /*lowerBound*/, Score /*upperBound*/, int64_t nodeBudget, int32_t /*ply*/) -> Score
+	{
+		Search::SearchResult result = Search::SyncSearchNodeLimited(pos, nodeBudget, &m_annEval, &gStaticMoveEvaluator);
+
+		return result.score;
+	};
+
+	si.searchFunc = searchFunc;
+
+	MoveInfoList list;
+
+	GenerateAndEvaluateMoves(b, si, list);
+
+	for (auto &mi : list)
+	{
+		std::cout << b.MoveToAlg(mi.move) << ": " << mi.nodeAllocation << std::endl;
+	}
 }
 
 void ANNMoveEvaluator::Serialize(std::ostream &os)
@@ -301,14 +401,21 @@ void ANNMoveEvaluator::Deserialize(std::istream &is)
 	DeserializeNet(m_ann, is);
 }
 
-void ANNMoveEvaluator::GenerateMoveConvInfo_(Board &board, MoveList &ml, FeaturesConv::ConvertMovesInfo &convInfo, ANNEvaluator &evaluator, SearchInfo &/*si*/)
+void ANNMoveEvaluator::GenerateMoveConvInfo_(Board &board, MoveList &ml, FeaturesConv::ConvertMovesInfo &convInfo, ANNEvaluator &evaluator, SearchInfo &si)
 {
-	convInfo.evalBefore = evaluator.UnScale(evaluator.EvaluateForSTMGEE(board));
+	auto evalFunc = [&evaluator, &si](Board &board, Score lowerBound, Score upperBound, int64_t nodeBudget, int32_t ply) -> float
+	{
+		return evaluator.UnScale(si.searchFunc(board, lowerBound, upperBound, nodeBudget, ply));
+	};
+
+	//convInfo.evalBefore = evaluator.UnScale(evaluator.EvaluateForSTMGEE(board));
+	convInfo.evalBefore = evalFunc(board, si.lowerBound, si.upperBound, si.totalNodeBudget / 10000, si.ply);
 
 	for (size_t i = 0; i < ml.GetSize(); ++i)
 	{
 		board.ApplyMove(ml[i]);
-		float newScore = -evaluator.UnScale(evaluator.EvaluateForSTMGEE(board));
+		//float newScore = -evaluator.UnScale(evaluator.EvaluateForSTMGEE(board));
+		float newScore = -evalFunc(board, -si.upperBound, -si.lowerBound, si.totalNodeBudget / 100000, si.ply + 1);
 		convInfo.evalDeltas.push_back(newScore - convInfo.evalBefore);
 		board.UndoMove();
 	}

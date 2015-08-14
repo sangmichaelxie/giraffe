@@ -2,6 +2,7 @@
 #define MOVE_EVALUATOR_H
 
 #include <algorithm>
+#include <functional>
 #include <iostream>
 #include <limits>
 
@@ -31,10 +32,13 @@ public:
 		int32_t ply = 0;
 		Move hashMove = 0;
 		bool isQS = false;
+		int64_t totalNodeBudget = 0;
 
 		// alpha and beta are from STM's perspective
 		Score lowerBound = std::numeric_limits<Score>::min();
 		Score upperBound = std::numeric_limits<Score>::max();
+
+		std::function<Score (Board &pos, Score lowerBound, Score upperBound, int64_t nodeBudget, int32_t ply)> searchFunc;
 	};
 
 	typedef FixedVector<MoveInfo, MAX_LEGAL_MOVES> MoveInfoList;
@@ -70,6 +74,8 @@ public:
 	{
 		SearchInfo si;
 		si.isQS = false;
+
+		si.totalNodeBudget = 100000;
 
 		MoveInfoList list;
 

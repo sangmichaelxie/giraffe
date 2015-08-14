@@ -16,6 +16,11 @@
 class ANNMoveEvaluator : public MoveEvaluatorIface
 {
 public:
+	// if total node budget is less than this number, switch back to static allocator
+	// doesn't make sense to spend more time deciding what to search than actually
+	// searching
+	const static int64_t MinimumNodeBudget = 10000;
+
 	ANNMoveEvaluator(ANNEvaluator &annEval);
 
 	void Train(const std::vector<std::string> &positions, const std::vector<std::string> &bestMoves);
@@ -23,6 +28,8 @@ public:
 	void Test(const std::vector<std::string> &positions, const std::vector<std::string> &bestMoves);
 
 	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list, MoveList &ml);
+
+	virtual void PrintDiag(Board &b) override;
 
 	void Serialize(std::ostream &os);
 	void Deserialize(std::istream &is);
