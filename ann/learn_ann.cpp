@@ -342,6 +342,8 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 	std::vector<Group> globalGroups;
 	std::vector<Group> squareGroups(64);
 
+	Group group0; // group 0 is special, because we want to pass it directly to second layer
+	Group mixedGlobalGroup;
 	Group mixedSquareGroup;
 
 	// get feature descriptions
@@ -357,7 +359,13 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 
 		if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_global)
 		{
+			if (fd.group == 0)
+			{
+				group0.push_back(featureNum);
+			}
+
 			globalGroupsMap[fd.group].push_back(featureNum);
+			mixedGlobalGroup.push_back(featureNum);
 		}
 		else if (fd.featureType == FeaturesConv::FeatureDescription::FeatureType_pos)
 		{
@@ -366,7 +374,8 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		}
 	}
 
-	//assert(mixedSquareGroup.size() == (2*64));
+	assert(mixedSquareGroup.size() == (2*64));
+	assert(group0.size() > 5 && group0.size() < 20);
 
 	for (const auto &group : globalGroupsMap)
 	{
@@ -377,67 +386,41 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 	{
 		LayerDescription layer0;
 
-		std::vector<Group> layer0GlobalGroups;
-		//std::vector<Group> layer0SquareGroups;
-		//Group layer0MixedSquareGroup;
+		Group layer0Group0;
+		Group layer0MixedGlobalGroup;
+		Group layer0MixedSquareGroup;
 
-		// first we add the global groups
-		for (size_t i = 0; i < globalGroups.size(); ++i)
-		{
-			Group newGroup;
-			AddSingleNodesGroup(layer0, globalGroups[i], newGroup, 1.0f);
-			layer0GlobalGroups.push_back(newGroup);
-		}
-
-		// then the square groups
-		/*
-		for (size_t i = 0; i < squareGroups.size(); ++i)
-		{
-			Group newGroup;
-			AddSingleNodesGroup(layer0, squareGroups[i], newGroup, 1.0f);
-			layer0SquareGroups.push_back(newGroup);
-		}
-		*/
+		// first we add the mixed global group
+		AddSingleNodesGroup(layer0, mixedGlobalGroup, layer0MixedGlobalGroup, 0.5f);
 
 		// mixed square group
-		/*
 		AddSingleNodesGroup(layer0, mixedSquareGroup, layer0MixedSquareGroup, 0.5f);
+
+		// pass through group 0 (this contains game phase information)
+		AddSingleNodesGroup(layer0, group0, layer0Group0, 1.0f);
 
 		layerSizes.push_back(layer0.layerSize);
 		connMatrices.push_back(layer0.connections);
-		*/
 
-		// now we build the second layer
-		/*
 		LayerDescription layer1;
 
-		std::vector<Group> layer1GlobalGroups;
+		Group layer1Group0;
+		Group layer1MixedGlobalGroup;
+		Group layer1MixedSquareGroup;
 
-		for (const auto &globalGroup : layer0GlobalGroups)
-		{
-			Group newGroup;
-			AddSingleNodesGroup(layer1, globalGroup, newGroup, 1.0f);
-			layer1GlobalGroups.push_back(newGroup);
-		}
+		// first we add the mixed global group
+		AddSingleNodesGroup(layer1, layer0MixedGlobalGroup, layer1MixedGlobalGroup, 0.25f);
 
-		// in the second layer we merge all the square groups together, to produce very low dim output
-		Group squareMixedGroup;
+		// mixed square group
+		AddSingleNodesGroup(layer1, layer0MixedSquareGroup, layer1MixedSquareGroup, 0.25f);
 
-		for (const auto &squareGroup : layer0SquareGroups)
-		{
-			squareMixedGroup.insert(squareMixedGroup.end(), squareGroup.begin(), squareGroup.end());
-		}
-
-		assert(squareMixedGroup.size() == 256);
-
-		Group layer1SquareMixedGroup;
-		AddSingleNodesGroup(layer1, squareMixedGroup, layer1SquareMixedGroup, 0.25f); // 256 down to 64
+		// pass through group 0 (this contains game phase information)
+		AddSingleNodesGroup(layer1, layer0Group0, layer1Group0, 1.0f);
 
 		layerSizes.push_back(layer1.layerSize);
 		connMatrices.push_back(layer1.connections);
-		*/
 
-		// in the third layer, we just fully connect everything
+		// in the second layer, we just fully connect everything
 		layerSizes.push_back(BoardSignatureSize);
 		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 

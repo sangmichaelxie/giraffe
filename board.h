@@ -211,6 +211,10 @@ public:
 
 	void ApplyVariation(const std::vector<Move> &moves);
 
+	// get the least valuable attacker
+	// all piece types are white
+	void ComputeLeastValuableAttackers(PieceType attackers[64], uint8_t numAttackers[64], Color side);
+
 private:
 	template <MOVE_TYPES MT> void GenerateAllPseudoLegalMoves_(MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList) const;

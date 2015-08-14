@@ -1745,6 +1745,78 @@ void Board::ApplyVariation(const std::vector<Move> &moves)
 	}
 }
 
+void Board::ComputeLeastValuableAttackers(PieceType attackers[64], uint8_t numAttackers[64], Color side)
+{
+	uint64_t kings = m_boardDescBB[WK | side];
+	uint64_t queens = m_boardDescBB[WQ | side];
+	uint64_t rooks = m_boardDescBB[WR | side];
+	uint64_t bishops = m_boardDescBB[WB | side];
+	uint64_t knights = m_boardDescBB[WN | side];
+	uint64_t pawns = m_boardDescBB[WP | side];
+
+	// initialize everything to empty
+	for (Square sq = 0; sq < 64; ++sq)
+	{
+		attackers[sq] = EMPTY;
+		numAttackers[sq] = 0;
+	}
+
+	auto updateTableFcn = [&attackers, &numAttackers](PieceType pt, uint64_t bb)
+	{
+		while (bb)
+		{
+			Square sq = Extract(bb);
+			attackers[sq] = pt;
+			++numAttackers[sq];
+		}
+	};
+
+	uint64_t occupied = m_boardDescBB[WHITE_OCCUPIED] | m_boardDescBB[BLACK_OCCUPIED];
+
+	// now we start from the most valuable and go to least, and just keep overwriting
+	while (kings)
+	{
+		Square sq = Extract(kings);
+
+		updateTableFcn(WK, KING_ATK[sq]);
+	}
+
+	while (queens)
+	{
+		Square sq = Extract(queens);
+
+		updateTableFcn(WQ, Qmagic(sq, occupied));
+	}
+
+	while (rooks)
+	{
+		Square sq = Extract(rooks);
+
+		updateTableFcn(WR, Rmagic(sq, occupied));
+	}
+
+	while (bishops)
+	{
+		Square sq = Extract(bishops);
+
+		updateTableFcn(WB, Bmagic(sq, occupied));
+	}
+
+	while (knights)
+	{
+		Square sq = Extract(knights);
+
+		updateTableFcn(WN, KNIGHT_ATK[sq]);
+	}
+
+	while (pawns)
+	{
+		Square sq = Extract(pawns);
+
+		updateTableFcn(WP, PAWN_ATK[sq][(side == WHITE) ? 0 : 1]);
+	}
+}
+
 template <Board::MOVE_TYPES MT>
 void Board::GenerateAllPseudoLegalMoves_(MoveList &moveList) const
 {

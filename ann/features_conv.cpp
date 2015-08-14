@@ -1,6 +1,7 @@
 #include "features_conv.h"
 
 #include <functional>
+#include <iomanip>
 
 #include "see.h"
 #include "move.h"
@@ -14,11 +15,48 @@ using namespace FeaturesConv;
 
 typedef FixedVector<std::pair<Move, Score>, 31> MoveSEEList;
 
-struct SEEValMap
+struct AttackMaps
 {
-	// maximum value of pieces white and black can put on each square
-	int64_t whiteMaxVal[64];
-	int64_t blackMaxVal[64];
+	PieceType whiteLeastValuableAttackers[64];
+	PieceType blackLeastValuableAttackers[64];
+
+	uint8_t whiteNumAttackers[64];
+	uint8_t blackNumAttackers[64];
+
+	// normalized maximum value of pieces white and black can put on each square
+	float whiteCtrl[64];
+	float blackCtrl[64];
+
+	// is it safe to move a piece of type pt to sq?
+	bool IsSafe(PieceType pt, Square sq)
+	{
+		// here we are doing a very simple form of SEE
+		// if the opponent has no attacker, the piece is safe
+		// if the opponent has an attacker and it's lower valued, we are not safe
+		// if the opponent has an attacker and it's equal or higher valued, we are
+		// safe as long as we also have an attacker (that's not ourselves)
+
+		// we don't have to worry about winning captures, because qsearch will take care of that
+		// here we are only looking at moving to empty squares
+
+		Color c = GetColor(pt);
+		PieceType opponentAttacker = (c == WHITE) ? blackLeastValuableAttackers[sq] : whiteLeastValuableAttackers[sq];
+		PieceType friendlyAttacker = (c == WHITE) ? whiteLeastValuableAttackers[sq] : blackLeastValuableAttackers[sq];
+		uint8_t numFriendlyAttackers = (c == WHITE) ? whiteNumAttackers[sq] : blackNumAttackers[sq];
+
+		if (opponentAttacker == EMPTY)
+		{
+			return true;
+		}
+		else if (SEE::SEE_MAT[opponentAttacker] < SEE::SEE_MAT[pt])
+		{
+			return false;
+		}
+		else
+		{
+			return friendlyAttacker != EMPTY && (numFriendlyAttackers > 1);
+		}
+	}
 };
 
 float NormalizeCoord(int x)
@@ -128,34 +166,16 @@ template<> void PushPosFloat<FeatureDescription>(std::vector<FeatureDescription>
 }
 
 template <typename T>
-void PushThreat(std::vector<T> &ret, Square sq, Color c, bool exists, SEEValMap &seeMap, int32_t group)
+void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, const Board &board, AttackMaps &atkMaps, int32_t group)
 {
-	if (exists)
-	{
-		if (c == WHITE)
-		{
-			PushGlobalFloat(ret, NormalizeCount(seeMap.whiteMaxVal[sq], SEE::SEE_MAT[WK]), group);
-		}
-		else
-		{
-			PushGlobalFloat(ret, NormalizeCount(seeMap.blackMaxVal[sq], SEE::SEE_MAT[WK]), group);
-		}
-	}
-	else
-	{
-		PushGlobalFloat(ret, 0.0f, group);
-	}
-}
+	int32_t safeMovesCount = 0;
 
-template <typename T>
-void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, const Board &board, int32_t group)
-{
+	int32_t xStart = GetX(sq);
+	int32_t yStart = GetY(sq);
+
 	if (pt == WR || pt == BR || pt == WQ || pt == BQ)
 	{
 		// figure out how far we can go in each direction
-		int32_t xStart = GetX(sq);
-		int32_t yStart = GetY(sq);
-
 		const int32_t DirXOffsets[4] = { 1, -1, 0, 0 };
 		const int32_t DirYOffsets[4] = { 0, 0, 1, -1 };
 
@@ -169,6 +189,12 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 			while (Valid(x) && Valid(y) && exists)
 			{
 				++count;
+
+				if (atkMaps.IsSafe(pt, Sq(x, y)))
+				{
+					++safeMovesCount;
+				}
+
 				if (board.GetPieceAtSquare(Sq(x, y)) != EMPTY)
 				{
 					break;
@@ -185,9 +211,6 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 	if (pt == WB || pt == BB || pt == WQ || pt == BQ)
 	{
 		// figure out how far we can go in each direction
-		int32_t xStart = GetX(sq);
-		int32_t yStart = GetY(sq);
-
 		const int32_t DirXOffsets[4] = { 1, -1, 1, -1 };
 		const int32_t DirYOffsets[4] = { 1, 1, -1, -1 };
 
@@ -201,6 +224,12 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 			while (Valid(x) && Valid(y) && exists)
 			{
 				++count;
+
+				if (atkMaps.IsSafe(pt, Sq(x, y)))
+				{
+					++safeMovesCount;
+				}
+
 				if (board.GetPieceAtSquare(Sq(x, y)) != EMPTY)
 				{
 					break;
@@ -214,65 +243,44 @@ void PushAttacks(std::vector<T> &ret, Square sq, PieceType pt, bool exists, cons
 		}
 	}
 
-	// 16 is the "reasonably maximum", though queens in the centre of an empty board can have up to 27. That's fine.
-	// PushMobility(ret, NormalizeCount(exists ? numUsefulMoves[sq] : 0, 16), group);
-}
-
-template <typename T>
-void PushSquareFeatures(std::vector<T> &ret, const Board &/*board*/, SEEValMap &seeMap, int &group)
-{
-	// we store everything in arrays before actually pushing them, so that features
-	// in the same group will be together (good for performance during eval)
-	/*
-	int64_t whiteMaterial[64] = { 0 };
-	int64_t blackMaterial[64] = { 0 };
-
-	for (Square sq = 0; sq < 64; ++sq)
+	if (pt == WN || pt == BN)
 	{
-		PieceType pt = board.GetPieceAtSquare(sq);
-		PieceType ptNc = StripColor(pt);
-		Color c = GetColor(pt);
+		const int32_t DirXOffsets[8] = { 2, -2, 1, -1, -2, 2, -1, 1 };
+		const int32_t DirYOffsets[8] = { 1, 1, 2, 2, -1, -1, -2, -2 };
 
-		if (pt != EMPTY)
+		for (int i = 0; i < 8; ++i)
 		{
-			switch (ptNc)
+			int32_t x = xStart + DirXOffsets[i];
+			int32_t y = yStart + DirYOffsets[i];
+
+			if (Valid(x) && Valid(y) && exists)
 			{
-			case WK:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WK];
-				break;
-			case WQ:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WQ];
-				break;
-			case WR:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WR];
-				break;
-			case WB:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WB];
-				break;
-			case WN:
-				((c == WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WN];
-				break;
-			case WP:
-				((c	== WHITE) ? whiteMaterial[sq] : blackMaterial[sq]) = SEE::SEE_MAT[WP];
-				break;
+				if (atkMaps.IsSafe(pt, Sq(x, y)))
+				{
+					++safeMovesCount;
+				}
 			}
 		}
 	}
-	*/
 
+	// 16 is the "reasonably maximum", though queens in the centre of an empty board can have up to 27. That's fine.
+	PushMobility(ret, NormalizeCount(exists ? safeMovesCount : 0, 16), group);
+}
+
+template <typename T>
+void PushSquareFeatures(std::vector<T> &ret, const Board &/*board*/, AttackMaps &atkMaps, int &group)
+{
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		PushPosFloat(ret, sq, NormalizeCount(seeMap.blackMaxVal[sq], SEE::SEE_MAT[WK]), group);
-		PushPosFloat(ret, sq, NormalizeCount(seeMap.whiteMaxVal[sq], SEE::SEE_MAT[WK]), group + 1);
-		//PushPosFloat(ret, sq, NormalizeCount(whiteMaterial[sq], SEE::SEE_MAT[WK]), group + 2);
-		//PushPosFloat(ret, sq, NormalizeCount(blackMaterial[sq], SEE::SEE_MAT[WK]), group + 3);
+		PushPosFloat(ret, sq, atkMaps.whiteCtrl[sq], group);
+		PushPosFloat(ret, sq, atkMaps.blackCtrl[sq], group + 1);
 	}
 
 	group += 2;
 }
 
 template <Color color, typename T>
-void PushPawns(std::vector<T> &ret, uint64_t pawns, int32_t &group)
+void PushPawns(std::vector<T> &ret, uint64_t pawns, AttackMaps &atkMaps, int32_t &group)
 {
 	std::tuple<bool, Square> assignments[8];
 
@@ -334,11 +342,31 @@ void PushPawns(std::vector<T> &ret, uint64_t pawns, int32_t &group)
 		bool exists = std::get<0>(assignments[i]);
 		Square sq = std::get<1>(assignments[i]);
 
-		//PushAttackIfValid(ret, sq, 1, (color == WHITE) ? 1 : -1, exists);
-		//PushAttackIfValid(ret, sq, -1, (color == WHITE) ? 1 : -1, exists);
-
 		PushGlobalCoords(ret, exists, sq, group);
-		//++group;
+		PushThreat(ret, sq, color, exists, atkMaps, group);
+	}
+}
+
+template <typename T>
+void PushThreat(
+	std::vector<T> &ret,
+	Square sq,
+	Color /*c*/,
+	bool exists,
+	AttackMaps &atkMaps,
+	int32_t group)
+{
+	if (exists)
+	{
+		// we push both black and white control because one would be defending the piece,
+		// and one attacking
+		PushGlobalFloat(ret, atkMaps.whiteCtrl[sq], group);
+		PushGlobalFloat(ret, atkMaps.blackCtrl[sq], group);
+	}
+	else
+	{
+		PushGlobalFloat(ret, 0.0f, group);
+		PushGlobalFloat(ret, 0.0f, group);
 	}
 }
 
@@ -349,26 +377,22 @@ void PushQueens(
 	PieceType pt,
 	const Board &board,
 	int32_t group,
-	std::function<void(std::vector<T> &, int32_t)> pushFCFeaturesFcn)
+	std::function<void(std::vector<T> &, int32_t)> pushFCFeaturesFcn,
+	AttackMaps &atkMaps)
 {
 	// queens (we only push the first queen for each side)
+	bool exists = false;
+	Square sq = 0;
+
 	if (queens)
 	{
-		uint32_t pos = BitScanForward(queens);
-
-		PushGlobalCoords(ret, true, pos, group);
-		PushAttacks(ret, pos, pt, true, board, group);
-
-		//PushThreat(ret, pos, GetColor(pt), true, seeMap, group);
-	}
-	else
-	{
-		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, 0, pt, false, board, group);
-
-		//PushThreat(ret, 0, WHITE, false, seeMap, group);
+		exists = true;
+		sq = BitScanForward(queens);
 	}
 
+	PushGlobalCoords(ret, exists, sq, group);
+	PushAttacks(ret, sq, pt, exists, board, atkMaps, group);
+	PushThreat(ret, sq, GetColor(pt), exists, atkMaps, group);
 	pushFCFeaturesFcn(ret, group);
 }
 
@@ -379,7 +403,8 @@ void PushPairPieces(
 	PieceType pt,
 	const Board &board,
 	int32_t &group,
-	std::function<void(std::vector<T> &, int32_t)> pushFCFeaturesFcn)
+	std::function<void(std::vector<T> &, int32_t)> pushFCFeaturesFcn,
+	AttackMaps &atkMaps)
 {
 	// this is for rooks, bishops, and knights
 	// for these pieces, we only look at the first 2, so there are
@@ -387,104 +412,74 @@ void PushPairPieces(
 
 	size_t pieceCount = PopCount(pieces);
 
+	bool firstExists = false;
+	bool secondExists = false;
+	Square firstSq = 0;
+	Square secondSq = 0;
+
 	if (pieceCount == 0)
 	{
-		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, 0, pt, false, board, group);
-		//PushThreat(ret, 0, WHITE, false, seeMap, group);
-		pushFCFeaturesFcn(ret, group);
-		++group;
-		PushGlobalCoords(ret, false, 0, group);
-		PushAttacks(ret, 0, pt, false, board, group);
-		//PushThreat(ret, 0, WHITE, false, seeMap, group);
-		pushFCFeaturesFcn(ret, group);
+		firstExists = false;
+		secondExists = false;
 	}
 	else if (pieceCount == 1)
 	{
-		// we only have 1 piece
-		// the slot we use depend on which half of the board it's on
 		Square pos = Extract(pieces);
 		int32_t x = GetX(pos);
 
 		if (x < 4)
 		{
-			// use the first slot
-			PushGlobalCoords(ret, true, pos, group);
-			PushAttacks(ret, pos, pt, true, board, group);
-			//PushThreat(ret, pos, GetColor(pt), true, seeMap, group);
-			pushFCFeaturesFcn(ret, group);
-			++group;
-			PushGlobalCoords(ret, false, 0, group);
-			PushAttacks(ret, pos, pt, false, board, group);
-			//PushThreat(ret, 0, WHITE, false, seeMap, group);
-			pushFCFeaturesFcn(ret, group);
+			firstExists = true;
+			firstSq = pos;
 		}
 		else
 		{
-			// use the second slot
-			PushGlobalCoords(ret, false, 0, group);
-			PushAttacks(ret, pos, pt, false, board, group);
-			//PushThreat(ret, 0, WHITE, false, seeMap, group);
-			pushFCFeaturesFcn(ret, group);
-			++group;
-			PushGlobalCoords(ret, true, pos, group);
-			PushAttacks(ret, pos, pt, true, board, group);
-			//PushThreat(ret, pos, GetColor(pt), true, seeMap, group);
-			pushFCFeaturesFcn(ret, group);
+			secondExists = true;
+			secondSq = pos;
 		}
 	}
 	else
 	{
-		// we have both pieces (or more)
-		// the piece with lower x gets the first slot
-		Square pos1 = Extract(pieces);
-		Square pos2 = Extract(pieces);
+		firstSq = Extract(pieces);
+		secondSq = Extract(pieces);
 
-		if (GetX(pos1) > GetX(pos2))
+		firstExists = true;
+		secondExists = true;
+
+		if (GetX(firstSq) > GetX(secondSq))
 		{
-			std::swap(pos1, pos2);
+			std::swap(firstSq, secondSq);
 		}
-
-		PushGlobalCoords(ret, true, pos1, group);
-		PushAttacks(ret, pos1, pt, true, board, group);
-		//PushThreat(ret, pos1, GetColor(pt), true, seeMap, group);
-		pushFCFeaturesFcn(ret, group);
-		++group;
-		PushGlobalCoords(ret, true, pos2, group);
-		PushAttacks(ret, pos2, pt, true, board, group);
-		//PushThreat(ret, pos2, GetColor(pt), true, seeMap, group);
-		pushFCFeaturesFcn(ret, group);
 	}
+
+	PushGlobalCoords(ret, firstExists, firstSq, group);
+	PushAttacks(ret, firstSq, pt, firstExists, board, atkMaps, group);
+	PushThreat(ret, firstSq, GetColor(pt), firstExists, atkMaps, group);
+	pushFCFeaturesFcn(ret, group);
+	++group;
+	PushGlobalCoords(ret, secondExists, secondSq, group);
+	PushAttacks(ret, secondSq, pt, secondExists, board, atkMaps, group);
+	PushThreat(ret, secondSq, GetColor(pt), secondExists, atkMaps, group);
+	pushFCFeaturesFcn(ret, group);
 }
 
-SEEValMap ComputeSEEMaps(Board &board)
+AttackMaps ComputeAttackMaps(Board &board)
 {
-	SEEValMap ret;
+	AttackMaps ret;
 
+	board.ComputeLeastValuableAttackers(ret.whiteLeastValuableAttackers, ret.whiteNumAttackers, WHITE);
+	board.ComputeLeastValuableAttackers(ret.blackLeastValuableAttackers, ret.blackNumAttackers, BLACK);
+
+	// convert them to control values
 	for (Square sq = 0; sq < 64; ++sq)
 	{
-		if (board.GetSideToMove() == WHITE)
-		{
-			ret.blackMaxVal[sq] = SEE::SEEMap(board, sq);
+		PieceType whitePt = ret.whiteLeastValuableAttackers[sq];
+		PieceType blackPt = ret.blackLeastValuableAttackers[sq];
 
-			if (!board.InCheck())
-			{
-				board.MakeNullMove();
-				ret.whiteMaxVal[sq] = SEE::SEEMap(board, sq);
-				board.UndoMove();
-			}
-		}
-		else
-		{
-			ret.whiteMaxVal[sq] = SEE::SEEMap(board, sq);
-
-			if (!board.InCheck())
-			{
-				board.MakeNullMove();
-				ret.blackMaxVal[sq] = SEE::SEEMap(board, sq);
-				board.UndoMove();
-			}
-		}
+		// if a side doesn't attack the square, control is 0
+		// if a side attacks with a piece, control is higher the lower valued the piece is
+		ret.whiteCtrl[sq] = (whitePt == EMPTY) ? 0.0f : NormalizeCount(SEE::SEE_MAT[WK] + SEE::SEE_MAT[WK] / 2 - SEE::SEE_MAT[whitePt], SEE::SEE_MAT[WK] * 2);
+		ret.blackCtrl[sq] = (blackPt == EMPTY) ? 0.0f : NormalizeCount(SEE::SEE_MAT[WK] + SEE::SEE_MAT[WK] / 2 - SEE::SEE_MAT[blackPt], SEE::SEE_MAT[WK] * 2);
 	}
 
 	return ret;
@@ -566,19 +561,22 @@ void ConvertBoardToNN(Board &board, std::vector<T> &ret)
 
 	float totalMat = NormalizeCount(static_cast<int64_t>(WMatNP + BMatNP + WMatP + BMatP), MaxTotalMatNP * 2 + MaxTotalMatP * 2);
 
+	// this function pushes important features that should go into all groups (currently empty)
+	auto PushFCFeatures = [totalMat](std::vector<T> &/*ret*/, int32_t /*group*/)
+	{
+		//PushGlobalFloat(ret, totalMat, group);
+	};
+
+	AttackMaps atkMaps = ComputeAttackMaps(board);
+
 	// now we can start actually forming the groups
 	int32_t group = 0;
 
-	// this function pushes important features that should go into all groups
-	auto PushFCFeatures = [totalMat](std::vector<T> &ret, int32_t group)
-	{
-		PushGlobalFloat(ret, totalMat, group);
-	};
-
-	// first group contains piece counts and side to move
+	// first group contains piece counts, side to move, and king positions
 	// material (no need for king) -
 	// these can also be calculated from "pieces exist" flags, they are
 	// almost entirely redundant (except for set-up illegal positions, and promotions)
+	// in evaluator, they are passed directly to second layer, because they are very important (game phase information)
 	PushGlobalFloat(ret, NormalizeCount(WQCount, 1.0f), group);
 	PushGlobalFloat(ret, NormalizeCount(WRCount, 2.0f), group);
 	PushGlobalFloat(ret, NormalizeCount(WBCount, 2.0f), group);
@@ -597,53 +595,49 @@ void ConvertBoardToNN(Board &board, std::vector<T> &ret)
 	uint32_t wkPos = board.GetFirstPiecePos(WK);
 	uint32_t bkPos = board.GetFirstPiecePos(BK);
 
-	++group;
 	PushGlobalCoords(ret, true, wkPos, group, true);
 	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
-	PushFCFeatures(ret, group);
 
-	++group;
 	PushGlobalCoords(ret, true, bkPos, group, true);
 	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
-	PushFCFeatures(ret, group);
 
 	// pawns (all pawns are in the same group)
 	++group;
-	PushPawns<WHITE>(ret, board.GetPieceTypeBitboard(WP), group);
-	PushPawns<BLACK>(ret, board.GetPieceTypeBitboard(BP), group);
+	PushPawns<WHITE>(ret, board.GetPieceTypeBitboard(WP), atkMaps, group);
+	PushPawns<BLACK>(ret, board.GetPieceTypeBitboard(BP), atkMaps, group);
 	PushFCFeatures(ret, group);
 
 	// queens
 	++group;
-	PushQueens<T>(ret, board.GetPieceTypeBitboard(WQ), WQ, board, group, PushFCFeatures);
+	PushQueens<T>(ret, board.GetPieceTypeBitboard(WQ), WQ, board, group, PushFCFeatures, atkMaps);
 	++group;
-	PushQueens<T>(ret, board.GetPieceTypeBitboard(BQ), BQ, board, group, PushFCFeatures);
+	PushQueens<T>(ret, board.GetPieceTypeBitboard(BQ), BQ, board, group, PushFCFeatures, atkMaps);
 
 	// rooks
 	++group;
-	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WR), WR, board, group, PushFCFeatures);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WR), WR, board, group, PushFCFeatures, atkMaps);
 	PushGlobalBool(ret, board.HasCastlingRight(W_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(W_LONG_CASTLE), group);
 	++group;
-	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BR), BR, board, group, PushFCFeatures);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BR), BR, board, group, PushFCFeatures, atkMaps);
 	PushGlobalBool(ret, board.HasCastlingRight(B_SHORT_CASTLE), group);
 	PushGlobalBool(ret, board.HasCastlingRight(B_LONG_CASTLE), group);
 
 	// bishops
 	++group;
-	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WB), WB, board, group, PushFCFeatures);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WB), WB, board, group, PushFCFeatures, atkMaps);
 	++group;
-	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BB), BB, board, group, PushFCFeatures);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BB), BB, board, group, PushFCFeatures, atkMaps);
 
 	// knights
 	++group;
-	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WN), WN, board, group, PushFCFeatures);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(WN), WN, board, group, PushFCFeatures, atkMaps);
 	++group;
-	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BN), BN, board, group, PushFCFeatures);
+	PushPairPieces<T>(ret, board.GetPieceTypeBitboard(BN), BN, board, group, PushFCFeatures, atkMaps);
 
-	// PushSquareFeatures(ret, board, group);
+	PushSquareFeatures(ret, board, atkMaps, group);
 }
 
 template void ConvertBoardToNN<float>(Board &board, std::vector<float> &ret);
