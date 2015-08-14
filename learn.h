@@ -23,6 +23,7 @@ const static float LearningRate = 1.0f;
 const static float LearningRateSGD = 1.0f;
 const static int64_t EvaluatorSerializeInterval = 100;
 const static int64_t IterationPrintInterval = 10;
+const static int64_t BoundTrainingEpochs = 10;
 
 void TDL(const std::string &positionsFilename);
 
