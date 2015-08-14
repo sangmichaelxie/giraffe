@@ -75,7 +75,7 @@ private:
 
 		if (entry->hash == hash)
 		{
-			*ret = entry->val;
+			ret = entry->val;
 		}
 
 		return ret;

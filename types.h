@@ -208,8 +208,12 @@ class Optional
 {
 public:
 	Optional() : m_valid(false) {}
+	Optional(T x) : m_val(x), m_valid(true) {}
 	operator bool() const { return m_valid; }
-	T &operator*() { return m_val; }
+
+	// assignments should be done through operator= so m_valid can be updated
+	const T &operator*() { return m_val; }
+
 	Optional &operator=(const T &val) { m_val = val; m_valid = true; return *this; }
 
 private:
