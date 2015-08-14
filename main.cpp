@@ -237,7 +237,7 @@ int main(int argc, char **argv)
 
 		double startTime = CurrentTime();
 
-		static const Search::NodeBudget BenchNodeBudget = 1024*1024;
+		static const Search::NodeBudget BenchNodeBudget = 64*1024*1024;
 
 		Search::SyncSearchNodeLimited(Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
 		Search::SyncSearchNodeLimited(Board("2r2rk1/pp3pp1/b2Pp3/P1Q4p/RPqN2n1/8/2P2PPP/2B1R1K1 w - - 0 1"), BenchNodeBudget, backend.GetEvaluator(), backend.GetMoveEvaluator());
@@ -774,6 +774,43 @@ int main(int argc, char **argv)
 			}
 
 			std::cout << std::endl;
+		}
+		else if (cmd == "atkmaps")
+		{
+			Board b = backend.GetBoard();
+
+			PieceType whiteAttackers[64];
+			PieceType blackAttackers[64];
+
+			uint8_t whiteNumAttackers[64];
+			uint8_t blackNumAttackers[64];
+
+			b.ComputeLeastValuableAttackers(whiteAttackers, whiteNumAttackers, WHITE);
+			b.ComputeLeastValuableAttackers(blackAttackers, blackNumAttackers, BLACK);
+
+			auto printAtkBoardFcn = [](PieceType attackers[64])
+			{
+				for (int y = 7; y >= 0; --y)
+				{
+					std::cout << "   ---------------------------------" << std::endl;
+					std::cout << " " << (y + 1) << " |";
+
+					for (int x = 0; x <= 7; ++x)
+					{
+							std::cout << " " << PieceTypeToChar(attackers[Sq(x, y)]) << " |";
+					}
+
+					std::cout << std::endl;
+				}
+
+				std::cout << "   ---------------------------------" << std::endl;
+			};
+
+			std::cout << "White:" << std::endl;
+			printAtkBoardFcn(whiteAttackers);
+
+			std::cout << "Black:" << std::endl;
+			printAtkBoardFcn(blackAttackers);
 		}
 		else if (backend.IsAMove(cmd))
 		{
