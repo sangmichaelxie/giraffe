@@ -174,6 +174,10 @@ void AsyncSearch::RootSearch_()
 			thinkingOutput.time = CurrentTime() - startTime;
 
 			m_context.thinkingOutputFunc(thinkingOutput);
+
+			std::cout << "# d: " << iteration <<
+						 " node budget: " << nodeBudget <<
+						 " NPS: " << (static_cast<float>(m_context.nodeCount) / thinkingOutput.time) << std::endl;
 		}
 
 		m_context.onePlyDone = true;
@@ -230,11 +234,56 @@ void AsyncSearch::SearchTimer_(double time)
 
 Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, NodeBudget nodeBudget, int32_t ply, bool nullMoveAllowed)
 {
+	bool isPV = (beta - alpha) != 1;
+
 	// switch to QSearch if we are out of nodes
 	// using < 1 guarantees that a root search with nodeBudget 1 will always do a full ply
 	if (nodeBudget < 1 || ply > MaxRecursionDepth)
 	{
-		return QSearch(context, pv, board, alpha, beta, ply);
+		TTEntry *tEntry = ENABLE_TT ? context.transpositionTable->Probe(board.GetHash()) : 0;
+
+		if (tEntry)
+		{
+			// try to get a cutoff from ttable, unless we are in PV (it can shorten PV)
+			// since we are in Q-search, we don't have to check depth
+			if (!isPV)
+			{
+				if (tEntry->entryType == EXACT)
+				{
+					// if we have an exact score, we can always return it
+					return tEntry->score;
+				}
+				else if (tEntry->entryType == UPPERBOUND && tEntry->score <= alpha)
+				{
+					return tEntry->score;
+				}
+				else if (tEntry->entryType == LOWERBOUND &&tEntry->score >= beta)
+				{
+					return tEntry->score;
+				}
+			}
+		}
+
+		// we want to store first ply q-search results
+		Score ret = QSearch(context, pv, board, alpha, beta, ply);
+
+		if (!context.Stopping())
+		{
+			if (ret >= beta)
+			{
+				context.transpositionTable->Store(board.GetHash(), pv.size() > 0 ? pv[0] : 0, ret, 0, LOWERBOUND);
+			}
+			else if (ret <= alpha)
+			{
+				context.transpositionTable->Store(board.GetHash(), 0, ret, 0, UPPERBOUND);
+			}
+			else
+			{
+				context.transpositionTable->Store(board.GetHash(), pv.size() > 0 ? pv[0] : 0, ret, 0, EXACT);
+			}
+		}
+
+		return ret;
 	}
 
 	++context.nodeCount;
@@ -266,8 +315,6 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	NodeBudget originalNodeBudget = nodeBudget;
 
 	--nodeBudget; // for this node
-
-	bool isPV = (beta - alpha) != 1;
 
 	bool isRoot = ply == 0;
 
@@ -373,9 +420,18 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	si.isQS = false;
 	si.ply = ply;
 	si.tt = context.transpositionTable;
+	si.totalNodeBudget = nodeBudget;
 
 	si.lowerBound = alpha;
 	si.upperBound = beta;
+
+	auto searchFunc = [&context](Board &pos, Score lowerBound, Score upperBound, int64_t nodeBudget, int32_t ply) -> Score
+	{
+		std::vector<Move> pv;
+		return Search(context, pv, pos, lowerBound, upperBound, nodeBudget, ply, true);
+	};
+
+	si.searchFunc = searchFunc;
 
 	context.moveEvaluator->GenerateAndEvaluateMoves(board, si, miList);
 
