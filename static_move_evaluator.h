@@ -119,8 +119,10 @@ public:
 
 		for (auto &mi : list)
 		{
-			ClearScore(mi.move);
+			mi.move = ClearScore(mi.move);
 		}
+
+		NormalizeMoveInfoList(list);
 	}
 };
 

@@ -189,6 +189,8 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 
 		Move bestMove = board.ParseMove(bestMoves[posNum]);
 
+		assert(list.GetSize() == ml.GetSize());
+
 		for (size_t i = 0; i < list.GetSize(); ++i)
 		{
 			if (bestMove == list[i].move)
@@ -262,12 +264,12 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 	FeaturesConv::ConvertMovesToNN(board, convInfo, ml, features);
 
 	// copy expected scores over to MoveInfoList for use later
-	/*
 	for (size_t i = 0; i < list.GetSize(); ++i)
 	{
 		list[i].expectedScore = convInfo.evalBefore + convInfo.evalDeltas[i];
 	}
-	*/
+
+	float scoreParent = convInfo.evalBefore;
 
 	NNMatrixRM xNN;
 	FeaturesToXNN(features, xNN);
@@ -278,7 +280,7 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 
 	for (int64_t i = 0; i < results.size(); ++i)
 	{
-		list[i].nodeAllocation = results(i);
+		list[i].nodeAllocation *= std::max(std::min(results(i), 2.0f), 0.5f);
 
 		if (results(i) > maxAllocation)
 		{
@@ -295,6 +297,7 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 	}
 
 	/*
+
 	float upperBoundUnscaled = m_annEval.UnScale(si.upperBound);
 	float lowerBoundUnscaled = m_annEval.UnScale(si.lowerBound);
 
@@ -305,63 +308,42 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		si.killer->GetKillers(killerMoves, si.ply);
 	}
 
-	std::sort(list.begin(), list.end(), [&si, &upperBoundUnscaled, &lowerBoundUnscaled, &killerMoves](const MoveInfo &a, const MoveInfo &b)
+	std::stable_sort(list.begin(), list.end(), [&si, &upperBoundUnscaled, &lowerBoundUnscaled, &killerMoves, &scoreParent](const MoveInfo &a, const MoveInfo &b)
 	{
 		// hash move first
 		if (a.move == si.hashMove)
 		{
 			return true;
 		}
-		else if (b.move == si.hashMove)
+
+		if (b.move == si.hashMove)
 		{
 			return false;
 		}
 
-		bool expectedCutA = (a.expectedScore >= upperBoundUnscaled);
-		bool expectedCutB = (b.expectedScore >= upperBoundUnscaled);
-
-		if (expectedCutA && !expectedCutB)
-		{
-			return true;
-		}
-		else if (!expectedCutA && expectedCutB)
-		{
-			return false;
-		}
-		else if (expectedCutA && expectedCutB)
-		{
-			// if they are both expected cuts, we order by S/P
-			// (size of tree over probability of cutoff)
-			// using distance to upperBound to estimate probability
-
-			// equation for probability =>
-			// P = 1/(1+e^(-50x))
-
-			float pa = 1.0f / (1.0f + exp(-50.0f * (a.expectedScore - upperBoundUnscaled)));
-			float pb = 1.0f / (1.0f + exp(-50.0f * (b.expectedScore - upperBoundUnscaled)));
-
-			return (a.nodeAllocation / pa) < (b.nodeAllocation / pb);
-		}
-		else
-		{
-			// for moves where neither is an expected cut, we test killers if at least one of them is a killer
-			bool isKillerA = killerMoves.Exists(a.move);
-			bool isKillerB = killerMoves.Exists(b.move);
-
-			if (isKillerA && !isKillerB)
-			{
-				return true;
-			}
-			else if (!isKillerA && isKillerB)
-			{
-				return false;
-			}
-			else
-			{
-				return a.expectedScore > b.expectedScore;
-			}
-		}
+		return a.nodeAllocation > b.nodeAllocation;
 	});
+	*/
+
+	// at this point, we have very good move ordering, and can now scale the allocations based on where they are,
+	// and how the node allocations trend
+	// we will not be normalizing afterwards
+	// this is similar to LMR
+
+	/*
+	std::vector<float> scalings(list.GetSize());
+
+	scalings[0] = 1.0f;
+
+	for (size_t i = 1; i < list.GetSize(); ++i)
+	{
+		scalings[i] = scalings[i - 1] * 0.85f * std::min(std::max(list[i].nodeAllocation / list[i - 1].nodeAllocation, 0.8f), 1.0f);
+	}
+
+	for (size_t i = 0; i < list.GetSize(); ++i)
+	{
+		list[i].nodeAllocation *= scalings[i];
+	}
 	*/
 }
 

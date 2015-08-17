@@ -21,7 +21,7 @@ typedef uint32_t MoveNoScore;
 // [15:10] = To
 // [19:16] = Castling flags
 // [23:20] = promotion piecetype
-// [31:24] = score for move sorting (used by search routine)
+// [63:32] = score for move sorting (used by search routine)
 
 namespace MoveConstants
 {
@@ -115,7 +115,7 @@ inline uint32_t GetScore(Move mv)
 inline Score GetScoreBiased(Move mv)
 {
 	int32_t tmp = GetScore(mv);
-	tmp -= 0x8000;
+	tmp -= 1 << 30;
 	return static_cast<Score>(tmp);
 }
 
@@ -125,14 +125,15 @@ inline void SetScore(Move &mv, uint32_t score)
 	assert((score & ~MoveConstants::SCORE_MASK) == 0);
 	assert(GetScore(mv) == 0);
 #endif
+	mv &= ~(static_cast<uint64_t>(MoveConstants::SCORE_MASK) << MoveConstants::SCORE_SHIFT);
 	mv |= static_cast<uint64_t>(score) << MoveConstants::SCORE_SHIFT;
 }
 
-// set the score, biased by 0x8000
+// set the score, biased by 1 << 30
 inline void SetScoreBiased(Move &mv, Score score)
 {
 	int32_t tmp = score;
-	tmp += 0x8000;
+	tmp += 1 << 30;
 	SetScore(mv, static_cast<uint32_t>(tmp));
 }
 

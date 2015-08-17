@@ -66,8 +66,6 @@ public:
 		}
 
 		EvaluateMoves(board, si, list, ml);
-
-		NormalizeMoveInfoList(list);
 	}
 
 	virtual void PrintDiag(Board &b)
@@ -106,7 +104,6 @@ public:
 	}
 
 	// implementations must override this function
-	// the caller will handle normalization, but this function must handle sorting (this is to allow non-node-allocation based search order)
 	// implementation can assume that list is already populated with legal moves of the correct type (QS vs non-QS)
 	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list, MoveList &ml) = 0;
 };
