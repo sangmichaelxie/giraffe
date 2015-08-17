@@ -18,14 +18,10 @@ namespace
 	// estimated minimum branching factor for time allocation
 	// if more than 1/x of the allocated time has been used at the end of an iteration,
 	// a new iteration won't be started
-	const static double ESTIMATED_MIN_BRANCHING_FACTOR = 5.0;
+	const static double ESTIMATED_MIN_BRANCHING_FACTOR = 1.0;
 
 	// how much to increase node budget by in each iteration of ID
-	const static float MinNodeBudgetMultiplier = 2.0f;
-
-	// how much to increase node budget by in each iteration of ID
-	// if this is changed, make sure ID_MAX_NODE_BUDGET is updated as well
-	const static float MaxNodeBudgetMultiplier = 32.0f;
+	const static float NodeBudgetMultiplier = 4.0f;
 
 	// with node count based search we can potentially go very deep, so we
 	// have to call it a day at some point to avoid stack overflow
@@ -87,22 +83,11 @@ void AsyncSearch::RootSearch_()
 	MoveList ml;
 	m_context.startBoard.GenerateAllLegalMoves<Board::ALL>(ml);
 
-	float nodeBudgetMultiplier = ml.GetSize();
-
-	if (nodeBudgetMultiplier > MaxNodeBudgetMultiplier)
-	{
-		nodeBudgetMultiplier = MaxNodeBudgetMultiplier;
-	}
-	else if (nodeBudgetMultiplier < MinNodeBudgetMultiplier)
-	{
-		nodeBudgetMultiplier = MinNodeBudgetMultiplier;
-	}
-
 	for (NodeBudget nodeBudget = 1;
 			(nodeBudget <= m_context.nodeBudget) &&
 			((CurrentTime() < endTime) || (m_context.searchType == SearchType_infinite) || !m_context.onePlyDone) &&
 			(!m_context.Stopping());
-		 nodeBudget *= nodeBudgetMultiplier)
+		 nodeBudget *= NodeBudgetMultiplier)
 	{
 		++iteration;
 
@@ -454,7 +439,8 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 	std::vector<Move> subPv;
 
-	bool alphaRaised = false;
+	// we keep track of bestScore separately to fail soft on alpha
+	Score bestScore = std::numeric_limits<Score>::min();
 
 	for (auto &mi : miList)
 	{
@@ -493,13 +479,17 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 		AdjustIfMateScore(score);
 
-		if (score > alpha)
+		if (score > bestScore)
 		{
-			alpha = score;
-			alphaRaised = true;
+			bestScore = score;
 			pv.clear();
 			pv.push_back(ClearScore(mv));
 			pv.insert(pv.end(), subPv.begin(), subPv.end());
+		}
+
+		if (score > alpha)
+		{
+			alpha = score;
 		}
 
 		if (score >= beta)
@@ -521,12 +511,11 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 	if (!context.Stopping())
 	{
-		if (alphaRaised)
+		if (bestScore > alpha)
 		{
-			// if we have a bestMove, that means we have a PV node
 			if (ENABLE_TT)
 			{
-				context.transpositionTable->Store(board.GetHash(), pv[0], alpha, originalNodeBudget, EXACT);
+				context.transpositionTable->Store(board.GetHash(), pv[0], bestScore, originalNodeBudget, EXACT);
 			}
 
 			if (!board.IsViolent(pv[0]))
@@ -539,12 +528,12 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			// otherwise we failed low
 			if (ENABLE_TT)
 			{
-				context.transpositionTable->Store(board.GetHash(), 0, alpha, originalNodeBudget, UPPERBOUND);
+				context.transpositionTable->Store(board.GetHash(), pv[0], bestScore, originalNodeBudget, UPPERBOUND);
 			}
 		}
 	}
 
-	return alpha;
+	return bestScore;
 }
 
 Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply)
