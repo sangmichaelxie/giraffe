@@ -40,8 +40,8 @@ static const float NullMoveNodeBudgetMultiplier = 0.0003f;
 
 static const bool ENABLE_TT = true;
 
-static const bool ENABLE_IID = false;
-static const NodeBudget MinNodeBudgetForIID = 512;
+static const bool ENABLE_IID = true;
+static const NodeBudget MinNodeBudgetForIID = 1024;
 static const float IIDNodeBudgetMultiplier = 0.1f;
 
 static const bool ENABLE_PVS = true;
@@ -49,12 +49,12 @@ static const NodeBudget MinNodeBudgetForPVS = 16;
 
 static const bool ENABLE_KILLERS = true;
 
-static const Score ASPIRATION_WINDOW_HALF_SIZE = 25;
+static const Score ASPIRATION_WINDOW_HALF_SIZE = 400;
 
 // if we get above this size, just open wide
 // this prevents many researches when a mate score is first discovered
 // this must be less than max value for the type divided by WIDEN_MULTIPLIER, otherwise there is a potential for overflow
-static const Score ASPIRATION_WINDOW_HALF_SIZE_THRESHOLD = 500;
+static const Score ASPIRATION_WINDOW_HALF_SIZE_THRESHOLD = 1600;
 
 static const Score ASPIRATION_WINDOW_WIDEN_MULTIPLIER = 4; // how much to widen the window every time we fail high/low
 
