@@ -213,19 +213,18 @@ int main(int argc, char **argv)
 		MoveList moves;
 		b.GenerateAllLegalMoves<Board::ALL>(moves);
 
-		std::vector<std::vector<float>> ret;
+		NNMatrixRM ret;
 
 		FeaturesConv::ConvertMovesInfo convInfo;
 
 		FeaturesConv::ConvertMovesToNN(b, convInfo, moves, ret);
 
-		for (const auto &entry : ret)
+		for (int64_t row = 0; row < ret.rows(); ++row)
 		{
-			for (const auto &field : entry)
+			for (int64_t col = 0; col < ret.cols(); ++col)
 			{
-				std::cout << field << ' ';
+				std::cout << ret(row, col) << ' ';
 			}
-
 			std::cout << std::endl;
 		}
 

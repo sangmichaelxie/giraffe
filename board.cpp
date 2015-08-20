@@ -1168,6 +1168,8 @@ bool Board::IsZugzwangProbable()
 
 void Board::MakeNullMove()
 {
+	assert(!InCheck());
+
 	UndoListBB &undoListBB = m_undoStackBB.PrePush();
 	UndoListU8 &undoListU8 = m_undoStackU8.PrePush(); // this is empty, but we still need to push
 
@@ -1734,12 +1736,18 @@ template uint64_t Board::GetAttackers<BP>(Square sq) const;
 
 void Board::ApplyVariation(const std::vector<Move> &moves)
 {
+	std::string original = GetFen();
+	std::string mvsApplied;
+
 	for (const auto &move : moves)
 	{
+		mvsApplied += MoveToAlg(move) + ' ';
+
 		bool isLegal = ApplyMove(move);
 
 		if (!isLegal)
 		{
+			std::cout << original << "\n" << mvsApplied << std::endl;
 			throw std::runtime_error(std::string("Illegal move in variation! - ") + MoveToAlg(move) + " FEN: " + GetFen());
 		}
 	}

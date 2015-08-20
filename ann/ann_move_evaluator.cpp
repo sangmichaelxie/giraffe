@@ -1,4 +1,5 @@
 #include "ann_move_evaluator.h"
+#include "ann_move_evaluator.h"
 
 #include "random_device.h"
 #include "search.h"
@@ -46,22 +47,16 @@ void TargetsToYNN(const std::vector<float> &trainingTargets, NNMatrixRM &yNN)
 ANNMoveEvaluator::ANNMoveEvaluator(ANNEvaluator &annEval)
 	: m_annEval(annEval)
 {
-	std::vector<std::vector<float>> ret;
-	Board b;
+	std::vector<FeaturesConv::FeatureDescription> fds;
 
-	MoveList ml;
-	b.GenerateAllLegalMoves<Board::ALL>(ml);
+	FeaturesConv::GetMovesFeatureDescriptions(fds);
 
-	FeaturesConv::ConvertMovesInfo convInfo;
-
-	FeaturesConv::ConvertMovesToNN(b, convInfo, ml, ret);
-
-	m_ann = LearnAnn::BuildMoveEvalNet(ret[0].size(), 1);
+	m_ann = LearnAnn::BuildMoveEvalNet(fds.size(), 1);
 }
 
 void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const std::vector<std::string> &bestMoves)
 {
-	std::vector<std::vector<float>> trainingSet;
+	NNMatrixRM trainingSet;
 	std::vector<float> trainingTarget;
 
 	// training set size is approx 35 * positionsPerBatch
@@ -81,7 +76,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 			std::cout << iter << "/" << NumIterations << std::endl;
 		}
 
-		trainingSet.clear();
+		trainingSet.resize(0, 0);
 		trainingTarget.clear();
 
 		for (size_t positionNum = 0; positionNum < positionsPerBatch; ++positionNum)
@@ -94,7 +89,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 			MoveList ml;
 			pos.GenerateAllLegalMoves<Board::ALL>(ml);
 
-			std::vector<std::vector<float>> trainingSetBatch;
+			NNMatrixRM trainingSetBatch;
 			std::vector<float> trainingTargetBatch;
 
 			FeaturesConv::ConvertMovesInfo convInfo;
@@ -112,7 +107,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 
 			si.searchFunc = searchFunc;
 
-			GenerateMoveConvInfo_(pos, ml, convInfo, m_annEval, si);
+			GenerateMoveConvInfo_(pos, ml, convInfo);
 
 			FeaturesConv::ConvertMovesToNN(pos, convInfo, ml, trainingSetBatch);
 
@@ -128,22 +123,34 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 				}
 			}
 
-			assert(trainingSetBatch.size() == trainingTargetBatch.size());
+			assert(static_cast<size_t>(trainingSetBatch.rows()) == trainingTargetBatch.size());
 
 			#pragma omp critical(trainingSetInsert)
 			{
-				trainingSet.insert(trainingSet.end(), trainingSetBatch.begin(), trainingSetBatch.end());
+				int64_t origNumExamples = trainingSet.rows();
+
+				NNMatrixRM orig = trainingSet;
+
+				trainingSet.resize(trainingSet.rows() + trainingSetBatch.rows(), trainingSetBatch.cols());
+
+				if (origNumExamples != 0)
+				{
+					// we have to copy the original over again because resize invalidates everything
+					trainingSet.block(0, 0, origNumExamples, trainingSet.cols()) = orig;
+				}
+
+				trainingSet.block(origNumExamples, 0, trainingSetBatch.rows(), trainingSet.cols()) = trainingSetBatch;
+
 				trainingTarget.insert(trainingTarget.end(), trainingTargetBatch.begin(), trainingTargetBatch.end());
 			}
 		}
 
-		NNMatrixRM xNN;
-		FeaturesToXNN(trainingSet, xNN);
-
 		NNMatrixRM yNN;
 		TargetsToYNN(trainingTarget, yNN);
 
-		m_ann.TrainGDM(xNN, yNN, 1.0f, 0.0f);
+		assert(trainingSet.rows() == yNN.rows());
+
+		m_ann.TrainGDM(trainingSet, yNN, 1.0f, 0.0f);
 	}
 }
 
@@ -185,8 +192,6 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 
 		NormalizeMoveInfoList(list);
 
-		std::sort(list.begin(), list.end(), [](const MoveInfo &a, const MoveInfo &b) { return a.nodeAllocation > b.nodeAllocation; });
-
 		Move bestMove = board.ParseMove(bestMoves[posNum]);
 
 		assert(list.GetSize() == ml.GetSize());
@@ -224,82 +229,49 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 
 void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list, MoveList &ml)
 {
-	// call static evaluator now
-	// in case of QS or low node budget, we will return right away
-	// otherwise, we still use it for sorting (we will just overwrite the allocations)
-	gStaticMoveEvaluator.EvaluateMoves(board, si, list, ml);
-
 	if (si.isQS || si.totalNodeBudget < MinimumNodeBudget)
 	{
+		// delegate to the static evaluator if it's QS, or if we are close to leaf
+		// since we don't want to spend more time deciding what to search than actually searching them
+		gStaticMoveEvaluator.EvaluateMoves(board, si, list, ml);
 		return;
 	}
 
-	if (ml.GetSize() == 0)
+	if (ml.GetSize() <= 1)
 	{
 		return;
 	}
-
-	// only do crazy stuff if we have a PV node
-	if ((si.upperBound - si.lowerBound) <= 1)
-	{
-		return;
-	}
-
-	//Score expectedScore = si.searchFunc(board, si.lowerBound, si.upperBound, si.totalNodeBudget / 10000, si.ply);
-
-	// since static evaluator only sorts the MoveInfoList, now we have to copy it back to ml
-	assert(list.GetSize() == ml.GetSize());
-
-	for (size_t i = 0; i < list.GetSize(); ++i)
-	{
-		ml[i] = list[i].move;
-	}
-
-	std::vector<std::vector<float>> features;
 
 	FeaturesConv::ConvertMovesInfo convInfo;
 
-	GenerateMoveConvInfo_(board, ml, convInfo, m_annEval, si);
-
-	FeaturesConv::ConvertMovesToNN(board, convInfo, ml, features);
-
-	// copy expected scores over to MoveInfoList for use later
-	for (size_t i = 0; i < list.GetSize(); ++i)
-	{
-		list[i].expectedScore = convInfo.evalBefore + convInfo.evalDeltas[i];
-	}
-
-	float scoreParent = convInfo.evalBefore;
+	GenerateMoveConvInfo_(board, ml, convInfo);
 
 	NNMatrixRM xNN;
-	FeaturesToXNN(features, xNN);
+
+	FeaturesConv::ConvertMovesToNN(board, convInfo, ml, xNN);
 
 	NNMatrixRM results = m_ann.ForwardPropagateFast(xNN);
 
 	float maxAllocation = 0.0f;
 
-	for (int64_t i = 0; i < results.size(); ++i)
+	float maxAllocationNp = 0.0f; // max allocation for moves with SEE <= 0
+
+	for (int64_t i = 0; i < results.rows(); ++i)
 	{
-		list[i].nodeAllocation *= std::max(std::min(results(i), 2.0f), 0.5f);
+		list[i].nodeAllocation = results(i);
+
+		list[i].seeScore = SEE::StaticExchangeEvaluation(board, list[i].move);
 
 		if (results(i) > maxAllocation)
 		{
 			maxAllocation = results(i);
 		}
+
+		if (list[i].seeScore <= 0 && results(i) > maxAllocationNp)
+		{
+			maxAllocationNp = results(i);
+		}
 	}
-
-	NormalizeMoveInfoList(list);
-
-	// apply minimum
-	for (size_t i = 0; i < list.GetSize(); ++i)
-	{
-		list[i].nodeAllocation = std::max(0.01f, list[i].nodeAllocation);
-	}
-
-	/*
-
-	float upperBoundUnscaled = m_annEval.UnScale(si.upperBound);
-	float lowerBoundUnscaled = m_annEval.UnScale(si.lowerBound);
 
 	KillerMoveList killerMoves;
 
@@ -308,43 +280,55 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		si.killer->GetKillers(killerMoves, si.ply);
 	}
 
-	std::stable_sort(list.begin(), list.end(), [&si, &upperBoundUnscaled, &lowerBoundUnscaled, &killerMoves, &scoreParent](const MoveInfo &a, const MoveInfo &b)
-	{
-		// hash move first
-		if (a.move == si.hashMove)
-		{
-			return true;
-		}
-
-		if (b.move == si.hashMove)
-		{
-			return false;
-		}
-
-		return a.nodeAllocation > b.nodeAllocation;
-	});
-	*/
-
-	// at this point, we have very good move ordering, and can now scale the allocations based on where they are,
-	// and how the node allocations trend
-	// we will not be normalizing afterwards
-	// this is similar to LMR
-
-	/*
-	std::vector<float> scalings(list.GetSize());
-
-	scalings[0] = 1.0f;
-
-	for (size_t i = 1; i < list.GetSize(); ++i)
-	{
-		scalings[i] = scalings[i - 1] * 0.85f * std::min(std::max(list[i].nodeAllocation / list[i - 1].nodeAllocation, 0.8f), 1.0f);
-	}
-
+	// now we go through the list again, and apply knowledge from search context (hash move and killers)
 	for (size_t i = 0; i < list.GetSize(); ++i)
 	{
-		list[i].nodeAllocation *= scalings[i];
+		if (list[i].move == si.hashMove)
+		{
+			// bring the hash move to front
+			list[i].nodeAllocation = 1.5f * maxAllocation;
+		}
+		else if (killerMoves.Exists(list[i].move) && !board.IsViolent(list[i].move))
+		{
+			// bring them to probably somewhere between winning captures and all other moves
+			for (size_t slot = 0; slot < killerMoves.GetSize(); ++slot)
+			{
+				if (killerMoves[slot] == list[i].move)
+				{
+					// for killer moves, score is based on which slot we are in (lower = better)
+					list[i].nodeAllocation = maxAllocationNp * (1.01f - 0.0001f * slot);
+
+					break;
+				}
+			}
+		}
 	}
-	*/
+
+	NormalizeMoveInfoList(list);
+
+	std::stable_sort(list.begin(), list.end(), [&si, &board](const MoveInfo &a, const MoveInfo &b)
+		{
+			if (a.move == si.hashMove)
+			{
+				return true;
+			}
+			else if (b.move == si.hashMove)
+			{
+				return false;
+			}
+
+			if (a.seeScore >= 0 && board.IsViolent(a.move) && (b.seeScore < 0 || !board.IsViolent(b.move)))
+			{
+				return true;
+			}
+			else if (b.seeScore >= 0 && board.IsViolent(b.move) && (a.seeScore < 0 || !board.IsViolent(a.move)))
+			{
+				return false;
+			}
+
+			return a.nodeAllocation > b.nodeAllocation;
+		}
+	);
 }
 
 void ANNMoveEvaluator::PrintDiag(Board &b)
@@ -383,22 +367,12 @@ void ANNMoveEvaluator::Deserialize(std::istream &is)
 	DeserializeNet(m_ann, is);
 }
 
-void ANNMoveEvaluator::GenerateMoveConvInfo_(Board &board, MoveList &ml, FeaturesConv::ConvertMovesInfo &convInfo, ANNEvaluator &evaluator, SearchInfo &si)
+void ANNMoveEvaluator::GenerateMoveConvInfo_(Board &board, MoveList &ml, FeaturesConv::ConvertMovesInfo &convInfo)
 {
-	auto evalFunc = [&evaluator, &si](Board &board, Score lowerBound, Score upperBound, int64_t nodeBudget, int32_t ply) -> float
-	{
-		return evaluator.UnScale(si.searchFunc(board, lowerBound, upperBound, nodeBudget, ply));
-	};
-
-	//convInfo.evalBefore = evaluator.UnScale(evaluator.EvaluateForSTMGEE(board));
-	convInfo.evalBefore = evalFunc(board, si.lowerBound, si.upperBound, si.totalNodeBudget / 10000, si.ply);
+	convInfo.see.resize(ml.GetSize());
 
 	for (size_t i = 0; i < ml.GetSize(); ++i)
 	{
-		board.ApplyMove(ml[i]);
-		//float newScore = -evaluator.UnScale(evaluator.EvaluateForSTMGEE(board));
-		float newScore = -evalFunc(board, -si.upperBound, -si.lowerBound, si.totalNodeBudget / 100000, si.ply + 1);
-		convInfo.evalDeltas.push_back(newScore - convInfo.evalBefore);
-		board.UndoMove();
+		convInfo.see[i] = SEE::StaticExchangeEvaluation(board, ml[i]);
 	}
 }

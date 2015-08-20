@@ -45,8 +45,9 @@ struct FeatureDescription
 			ret << group << ' ';
 			break;
 		case FeatureType_pos:
-			ret << "POS_GN";
+			ret << "POS_GN ";
 			ret << sq;
+			break;
 		default:
 			assert(false);
 		}
@@ -64,12 +65,21 @@ void ConvertBoardToNN(Board &board, std::vector<T> &ret);
 // additional info for conversion
 struct ConvertMovesInfo
 {
-	// evals from the perspective of moving side (not white!)
-	float evalBefore = 0.0f;
-	std::vector<float> evalDeltas;
+	std::vector<Score> see;
 };
 
-void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, std::vector<std::vector<float>> &ret);
+// convert a list of moves to NN input format
+void ConvertMovesToNN(
+	Board &board,
+	ConvertMovesInfo &convInfo,
+	MoveList &ml,
+	NNMatrixRM &ret,
+	bool ordered = false);
+
+// because of the way we convert a move list at a time, it's not possible to do the same thing with
+// ConvertBoardToNN (using templatized functions to perform feature description extraction)
+// so we need a separate function
+void GetMovesFeatureDescriptions(std::vector<FeaturesConv::FeatureDescription> &fds);
 
 }
 

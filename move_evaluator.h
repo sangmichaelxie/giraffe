@@ -20,8 +20,7 @@ public:
 		Move move;
 		float nodeAllocation;
 
-		// used internally by ANN move evaluator
-		float expectedScore;
+		Score seeScore;
 	};
 
 	// this struct stores things that may be useful for move ordering

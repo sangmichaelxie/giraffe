@@ -643,131 +643,31 @@ void ConvertBoardToNN(Board &board, std::vector<T> &ret)
 template void ConvertBoardToNN<float>(Board &board, std::vector<float> &ret);
 template void ConvertBoardToNN<FeatureDescription>(Board &board, std::vector<FeatureDescription> &ret);
 
-void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, std::vector<std::vector<float>> &ret)
+void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, NNMatrixRM &ret, bool ordered)
 {
-	convInfo.evalDeltas.resize(ml.GetSize());
+	// first we generate the eval features to be shared between all moves
+	// these features have to go to the end for performance, because all our new features will be group 0
+	std::vector<float> sharedFeaturesBoard;
+	ConvertBoardToNN(board, sharedFeaturesBoard);
 
-	// first we generate the features shared between all moves
-	std::vector<float> sharedFeatures;
+	// shared features not specific to the board
+	std::vector<float> sharedFeaturesOthers;
 
-	size_t numLegalMoves = ml.GetSize();
-	sharedFeatures.push_back(NormalizeCount(numLegalMoves, 40));
+	// number of legal moves
+	sharedFeaturesOthers.push_back(NormalizeCount(ml.GetSize(), 40));
+
+	sharedFeaturesOthers.push_back(board.InCheck() ? 1.0f : 0.0f);
+
+	std::vector<float> moveFeatures;
+
+	// don't crash if the caller doesn't set SEE values
+	convInfo.see.resize(ml.GetSize(), 0);
 
 	Color stm = board.GetSideToMove();
-	sharedFeatures.push_back(stm == WHITE ? 1.0f : 0.0f);
-
-	bool inCheck = board.InCheck();
-	sharedFeatures.push_back(inCheck ? 1.0f : 0.0f);
-
-	if (stm == WHITE)
-	{
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WQ), 1.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WR), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WB), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WN), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WP), 8.0f));
-
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BQ), 1.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BR), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BB), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BN), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BP), 8.0f));
-	}
-	else
-	{
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BQ), 1.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BR), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BB), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BN), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(BP), 8.0f));
-
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WQ), 1.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WR), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WB), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WN), 2.0f));
-		sharedFeatures.push_back(NormalizeCount(board.GetPieceCount(WP), 8.0f));
-	}
-
-	sharedFeatures.push_back(convInfo.evalBefore);
-
-	std::vector<float> seeList(ml.GetSize());
-
-	// expected material loss if we don't move this piece
-	std::vector<float> nmSeeList(ml.GetSize());
-
-	// we first compute things like SEE values, so we can do ranking, etc
-	for (size_t moveNum = 0; moveNum < ml.GetSize(); ++moveNum)
-	{
-		Move mv = ml[moveNum];
-
-		Square from = GetFromSquare(mv);
-
-		PieceType pt = GetPieceType(mv);
-
-		Score see = SEE::StaticExchangeEvaluation(board, mv);
-		seeList[moveNum] = NormalizeCount(see, SEE::SEE_MAT[WK]);
-
-		// see if we will lose the piece if we didn't move it
-		Score nmSee = 0; // value of the largest piece we can have on the square
-		if (!board.InCheck())
-		{
-			board.MakeNullMove();
-			nmSee = std::max<int64_t>(SEE::SEE_MAT[pt] - SEE::SEEMap(board, from), 0);
-			board.UndoMove();
-		}
-		else
-		{
-			// if we are in check, we can't do a null move
-			// TODO: find a better value to set this to
-			nmSee = 0;
-		}
-
-		nmSeeList[moveNum] = NormalizeCount(nmSee, SEE::SEE_MAT[WK]);
-	}
-
-	assert(!seeList.empty());
-	assert(!nmSeeList.empty());
-
-	float minSee = *(std::min_element(seeList.begin(), seeList.end()));
-	float maxSee = *(std::max_element(seeList.begin(), seeList.end()));
-
-	float minNmSee = *(std::min_element(nmSeeList.begin(), nmSeeList.end()));
-	float maxNmSee = *(std::max_element(nmSeeList.begin(), nmSeeList.end()));
-
-	sharedFeatures.push_back(minSee);
-	sharedFeatures.push_back(maxSee);
-
-	sharedFeatures.push_back(minNmSee);
-	sharedFeatures.push_back(maxNmSee);
-
-	// eval deltas of non-violent moves
-	// indices for this vector are not the same as for everything else!
-	std::vector<float> nvEvalDelta;
 
 	for (size_t moveNum = 0; moveNum < ml.GetSize(); ++moveNum)
 	{
-		if (!board.IsViolent(ml[moveNum]))
-		{
-			nvEvalDelta.push_back(convInfo.evalDeltas[moveNum]);
-		}
-	}
-
-	if (!nvEvalDelta.empty())
-	{
-		sharedFeatures.push_back(*(std::max_element(nvEvalDelta.begin(), nvEvalDelta.end())));
-		sharedFeatures.push_back(*(std::min_element(nvEvalDelta.begin(), nvEvalDelta.end())));
-	}
-	else
-	{
-		sharedFeatures.push_back(0.0f);
-		sharedFeatures.push_back(0.0f);
-	}
-
-	ret.resize(ml.GetSize());
-
-	for (size_t moveNum = 0; moveNum < ml.GetSize(); ++moveNum)
-	{
-		std::vector<float> moveFeatures = sharedFeatures;
+		moveFeatures.clear();
 
 		Move mv = ml[moveNum];
 
@@ -778,6 +678,25 @@ void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, st
 		moveFeatures.push_back(NormalizeCoord(GetEqY(from, stm)));
 		moveFeatures.push_back(NormalizeCoord(GetX(to)));
 		moveFeatures.push_back(NormalizeCoord(GetEqY(to, stm)));
+
+		moveFeatures.push_back(board.IsViolent(mv) ? 1.0f : 0.0f);
+
+		moveFeatures.push_back(convInfo.see[moveNum] >= 0 ? 1.0f : 0.0f);
+
+		// rank
+		if (ordered)
+		{
+			// relative order
+			moveFeatures.push_back(NormalizeCount(moveNum, ml.GetSize()));
+
+			// absolute order with saturation
+			moveFeatures.push_back(NormalizeCount(std::min<int>(moveNum, 20), 20));
+		}
+		else
+		{
+			moveFeatures.push_back(0.0f);
+			moveFeatures.push_back(0.0f);
+		}
 
 		PieceType pt = GetPieceType(mv);
 
@@ -792,26 +711,52 @@ void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, st
 			moveFeatures.push_back(isPT[i] ? 1.0f : 0.0f);
 		}
 
-		moveFeatures.push_back(maxSee - seeList[moveNum]);
-		PushRelativePlace(moveFeatures, seeList, seeList[moveNum]);
+		moveFeatures.insert(moveFeatures.end(), sharedFeaturesOthers.begin(), sharedFeaturesOthers.end());
+		moveFeatures.insert(moveFeatures.end(), sharedFeaturesBoard.begin(), sharedFeaturesBoard.end());
 
-		moveFeatures.push_back(maxNmSee - nmSeeList[moveNum]);
-		PushRelativePlace(moveFeatures, nmSeeList, nmSeeList[moveNum]);
-
-		moveFeatures.push_back(convInfo.evalDeltas[moveNum]);
-
-		if (board.IsViolent(mv))
+		if (static_cast<size_t>(ret.cols()) != moveFeatures.size() || static_cast<size_t>(ret.rows()) != ml.GetSize())
 		{
-			PushRelativePlace(moveFeatures, convInfo.evalDeltas, convInfo.evalDeltas[moveNum]);
-		}
-		else
-		{
-			// nvEvalDelta cannot possibly be empty, because we have a non-violent move here!
-			PushRelativePlace(moveFeatures, nvEvalDelta, convInfo.evalDeltas[moveNum]);
+			ret.resize(ml.GetSize(), moveFeatures.size());
 		}
 
-		ret[moveNum] = std::move(moveFeatures);
+		for (size_t i = 0; i < moveFeatures.size(); ++i)
+		{
+			ret(moveNum, i) = moveFeatures[i];
+		}
 	}
+}
+
+void GetMovesFeatureDescriptions(std::vector<FeaturesConv::FeatureDescription> &fds)
+{
+	ConvertMovesInfo convInfo;
+	Board b;
+
+	MoveList ml;
+	b.GenerateAllLegalMoves<Board::ALL>(ml);
+
+	NNMatrixRM x;
+
+	ConvertMovesToNN(b, convInfo, ml, x);
+
+	// this is the subset of features from ConvertBoardToNN
+	std::vector<FeaturesConv::FeatureDescription> boardDescriptions;
+	ConvertBoardToNN(b, boardDescriptions);
+
+	int64_t numTotalFeatures = x.cols();
+	int64_t numExtraFeatures = numTotalFeatures - boardDescriptions.size();
+
+	// first we add the extra features (they are all group 0 global)
+	for (int64_t featureNum = 0; featureNum < numExtraFeatures; ++featureNum)
+	{
+		FeaturesConv::FeatureDescription fd;
+		fd.featureType = FeatureDescription::FeatureType_global;
+		fd.group = 0;
+
+		fds.push_back(fd);
+	}
+
+	// now we add the features shared with ConvertBoardToNN
+	fds.insert(fds.end(), boardDescriptions.begin(), boardDescriptions.end());
 }
 
 } // namespace FeaturesConv

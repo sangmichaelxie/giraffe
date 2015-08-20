@@ -221,6 +221,8 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 {
 	bool isPV = (beta - alpha) != 1;
 
+	pv.clear();
+
 	// switch to QSearch if we are out of nodes
 	// using < 1 guarantees that a root search with nodeBudget 1 will always do a full ply
 	if (nodeBudget < 1 || ply > MaxRecursionDepth)
@@ -278,8 +280,6 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		// if global stop request is set, we just return any value since it won't be used anyways
 		return 0;
 	}
-
-	pv.clear();
 
 	// we have to check for draws before probing the transposition table, because the ttable
 	// can potentially hide repetitions
@@ -539,6 +539,8 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply)
 {
 	++context.nodeCount;
+
+	pv.clear();
 
 	if (context.Stopping())
 	{

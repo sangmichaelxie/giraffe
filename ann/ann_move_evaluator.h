@@ -35,7 +35,7 @@ public:
 	void Deserialize(std::istream &is);
 
 private:
-	void GenerateMoveConvInfo_(Board &board, MoveList &ml, FeaturesConv::ConvertMovesInfo &convInfo, ANNEvaluator &evaluator, SearchInfo &si);
+	void GenerateMoveConvInfo_(Board &board, MoveList &ml, FeaturesConv::ConvertMovesInfo &convInfo);
 
 	MoveEvalNet m_ann;
 

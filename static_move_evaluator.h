@@ -53,21 +53,19 @@ public:
 			bool isQueenPromo = (promoType == WQ || promoType == BQ);
 			bool isUnderPromo = (isPromo && !isQueenPromo);
 
-			Score seeScore = SEE::StaticExchangeEvaluation(board, mv);
-
-			SetScoreBiased(mi.move, seeScore);
+			mi.seeScore = SEE::StaticExchangeEvaluation(board, mv);
 
 			if (mv == si.hashMove)
 			{
 				// hash move
 				mi.nodeAllocation = 3.0009f;
 			}
-			else if (isQueenPromo && seeScore >= 0)
+			else if (isQueenPromo && mi.seeScore >= 0)
 			{
 				// queen promos that aren't losing
 				mi.nodeAllocation = 2.0008f;
 			}
-			else if (isViolent && seeScore >= 0 && !isUnderPromo)
+			else if (isViolent && mi.seeScore >= 0 && !isUnderPromo)
 			{
 				// winning captures (excluding underpromoting captures)
 				mi.nodeAllocation = 2.0007f;
@@ -87,14 +85,16 @@ public:
 					if (killerMoves[slot] == mv)
 					{
 						// for killer moves, score is based on which slot we are in (lower = better)
-						SetScoreBiased(mi.move, -static_cast<Score>(slot));
+						mi.nodeAllocation = 1.100f - 0.0001f * slot;
+
+						break;
 					}
 				}
 			}
-			else if (seeScore >= 0 && !isUnderPromo)
+			else if (mi.seeScore >= 0 && !isUnderPromo)
 			{
 				// other non-losing moves (excluding underpomotions)
-				mi.nodeAllocation = 1.0005f;
+				mi.nodeAllocation = 1.0000f;
 			}
 			else
 			{
@@ -112,15 +112,10 @@ public:
 				else
 				{
 					// sort based on SEE (or another source of score)
-					return GetScoreBiased(a.move) > GetScoreBiased(b.move);
+					return a.seeScore > b.seeScore;
 				}
 			}
 		);
-
-		for (auto &mi : list)
-		{
-			mi.move = ClearScore(mi.move);
-		}
 
 		NormalizeMoveInfoList(list);
 	}
