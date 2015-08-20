@@ -14,24 +14,6 @@
 namespace
 {
 
-void FeaturesToXNN(const std::vector<std::vector<float> >&features, NNMatrixRM &xNN)
-{
-	int64_t rows = features.size();
-	int64_t cols = features[0].size();
-
-	xNN.resize(rows, cols);
-
-	for (int64_t row = 0; row < rows; ++row)
-	{
-		assert(static_cast<int64_t>(features[row].size()) == cols);
-
-		for (int64_t col = 0; col < cols; ++col)
-		{
-			xNN(row, col) = features[row][col];
-		}
-	}
-}
-
 void TargetsToYNN(const std::vector<float> &trainingTargets, NNMatrixRM &yNN)
 {
 	yNN.resize(trainingTargets.size(), 1);
