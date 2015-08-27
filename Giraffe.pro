@@ -31,7 +31,8 @@ SOURCES += main.cpp \
 	gtb.cpp \
 	ann/ann_evaluator.cpp \
 	static_move_evaluator.cpp \
-	ann/ann_move_evaluator.cpp
+	ann/ann_move_evaluator.cpp \
+    countermove.cpp
 
 HEADERS += \
 	board_consts.h \
@@ -67,4 +68,5 @@ HEADERS += \
 	move_evaluator.h \
 	static_move_evaluator.h \
 	ann/ann_move_evaluator.h \
-	consts.h
+	consts.h \
+    countermove.h
