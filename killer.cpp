@@ -15,43 +15,29 @@ void Killer::Notify(int32_t ply, MoveNoScore move)
 
 		for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 		{
-			m_killerMoves[ply].moves[i].first = 0;
-			m_killerMoves[ply].moves[i].second = 0;
+			m_killerMoves[ply].moves[i] = 0;
+			m_killerMoves[ply].moves[i] = 0;
 		}
 	}
 
-	// if the move is already in the table, just increment count
-	for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
+	// if the move is already in the table, we don't need to do anything
+	if (m_killerMoves[ply].moves[0] == move)
 	{
-		if (m_killerMoves[ply].moves[i].first == move)
-		{
-			++m_killerMoves[ply].moves[i].second;
-			return;
-		}
+		return;
 	}
 
-	// otherwise we replace the lowest slot
-	int32_t lowestSlot = 0;
-	int32_t lowestCount = std::numeric_limits<int32_t>::max();
-
-	for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
+	// otherwise, push everything down one slot
+	for (int64_t i = (NUM_KILLER_MOVES_PER_PLY - 1); i >= 0; --i)
 	{
-		if (m_killerMoves[ply].moves[i].second < lowestCount)
+		if (i == 0)
 		{
-			lowestCount = m_killerMoves[ply].moves[i].second;
-			lowestSlot = i;
+			m_killerMoves[ply].moves[i] = move;
+		}
+		else
+		{
+			m_killerMoves[ply].moves[i] = m_killerMoves[ply].moves[i - 1];
 		}
 	}
-
-	m_killerMoves[ply].moves[lowestSlot].first = move;
-	m_killerMoves[ply].moves[lowestSlot].second = 1;
-
-	std::sort(m_killerMoves[ply].moves, m_killerMoves[ply].moves + NUM_KILLER_MOVES_PER_PLY,
-			  [](const std::pair<MoveNoScore, int32_t> &a, const std::pair<MoveNoScore, int32_t> &b)
-					{
-						return a.second > b.second;
-					}
-			  );
 }
 
 void Killer::GetKillers(KillerMoveList &moveList, int32_t ply)
@@ -66,7 +52,7 @@ void Killer::GetKillers(KillerMoveList &moveList, int32_t ply)
 	// moves from the current ply
 	for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 	{
-		moveList.PushBack(m_killerMoves[ply].moves[i].first);
+		moveList.PushBack(m_killerMoves[ply].moves[i]);
 	}
 
 	// moves from the ply-2
@@ -74,7 +60,7 @@ void Killer::GetKillers(KillerMoveList &moveList, int32_t ply)
 	{
 		for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 		{
-			moveList.PushBack(m_killerMoves[ply - 2].moves[i].first);
+			moveList.PushBack(m_killerMoves[ply - 2].moves[i]);
 		}
 	}
 
@@ -83,24 +69,17 @@ void Killer::GetKillers(KillerMoveList &moveList, int32_t ply)
 	{
 		for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
 		{
-			moveList.PushBack(m_killerMoves[ply + 2].moves[i].first);
+			moveList.PushBack(m_killerMoves[ply + 2].moves[i]);
 		}
 	}
 }
 
 void Killer::MoveMade()
 {
-	// if a move is made, we have to do 2 things here -
-	// 1. decrement all plies
-	// 2. half all counts (so old killers will be replaced)
+	// if a move is made, we decrement all plies
 
 	for (size_t ply = 1; ply < m_killerMoves.size(); ++ply)
 	{
 		m_killerMoves[ply - 1] = m_killerMoves[ply];
-
-		for (size_t i = 0; i < NUM_KILLER_MOVES_PER_PLY; ++i)
-		{
-			m_killerMoves[ply - 1].moves[i].second /= 2;
-		}
 	}
 }

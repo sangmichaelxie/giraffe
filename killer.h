@@ -14,8 +14,7 @@ typedef FixedVector<Move, NUM_KILLER_MOVES> KillerMoveList;
 
 struct KillerSlot
 {
-	// these are always sorted by count
-	std::pair<MoveNoScore, int32_t> moves[NUM_KILLER_MOVES_PER_PLY];
+	Move moves[NUM_KILLER_MOVES_PER_PLY];
 };
 
 class Killer
