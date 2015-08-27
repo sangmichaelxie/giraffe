@@ -20,6 +20,7 @@
 #include "search.h"
 #include "ttable.h"
 #include "killer.h"
+#include "countermove.h"
 #include "random_device.h"
 #include "ann/ann_evaluator.h"
 #include "move_evaluator.h"
@@ -74,6 +75,7 @@ void TDL(const std::string &positionsFilename)
 	while (std::getline(positionsFile, fen))
 	{
 		rootPositions.push_back(fen);
+		assert(fen != "");
 	}
 
 	std::cout << "Positions read: " << rootPositions.size() << std::endl;
@@ -153,9 +155,10 @@ void TDL(const std::string &positionsFilename)
 
 			#pragma omp parallel
 			{
-				// each thread has her own ttable and killers, to save on page faults and allocations/deallocations
+				// each thread has her own ttable, killers, and counter, to save on page faults and allocations/deallocations
 				Killer thread_killer;
 				TTable thread_ttable(1*MB); // we want the ttable to fit in L3
+				CounterMove thread_counter;
 
 				// we are being paranoid here - it's possible tha the memory we get happens to be where a TTable used to be,
 				// in which case we will have many valid entries with wrong scores (since evaluator changed)
@@ -199,7 +202,7 @@ void TDL(const std::string &positionsFilename)
 						}
 					}
 
-					Search::SearchResult rootResult = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable);
+					Search::SearchResult rootResult = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable, &thread_counter);
 
 					Board leafPos = rootPos;
 					leafPos.ApplyVariation(rootResult.pv);
@@ -226,7 +229,7 @@ void TDL(const std::string &positionsFilename)
 
 						for (int64_t m = 0; m < HalfMovesToMake; ++m)
 						{
-							Search::SearchResult result = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable);
+							Search::SearchResult result = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable, &thread_counter);
 
 							float scoreWhiteUnscaled = thread_annEvaluator.UnScale(result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f)) * absoluteDiscount;
 
