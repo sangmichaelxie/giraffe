@@ -27,6 +27,8 @@ public:
 
 	void Test(const std::vector<std::string> &positions, const std::vector<std::string> &bestMoves);
 
+	virtual void NotifyBestMove(Board &board, SearchInfo &si, MoveInfoList &list, Move bestMove, size_t movesSearched) override;
+
 	virtual void EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list, MoveList &ml);
 
 	virtual void PrintDiag(Board &b) override;

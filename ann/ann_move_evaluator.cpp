@@ -44,7 +44,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 	// training set size is approx 35 * positionsPerBatch
 	size_t positionsPerBatch = std::min<size_t>(positions.size(), 16);
 
-	const static size_t NumIterations = 10000;
+	const static size_t NumIterations = 100000;
 	const static size_t IterationsPerPrint = 100;
 
 	auto rng = gRd.MakeMT();
@@ -64,8 +64,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 		for (size_t positionNum = 0; positionNum < positionsPerBatch; ++positionNum)
 		{
 			size_t idx = positionDrawFunc();
-
-			Board pos(positions[idx]);
+			Board pos = Board(positions[idx]);
 			Move bestMove = pos.ParseMove(bestMoves[idx]);
 
 			MoveList ml;
@@ -143,13 +142,23 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 
 	float averageConfidence = 0.0f;
 
+	size_t totalPositions = 0;
+
 	for (size_t posNum = 0; posNum < positions.size(); ++posNum)
 	{
+		Board board(positions[posNum]);
+		Move bestMove = board.ParseMove(bestMoves[posNum]);
+
+		// don't use positions where the best move is a winning capture
+		if (SEE::StaticExchangeEvaluation(board, bestMove) > 0)
+		{
+			continue;
+		}
+
 		SearchInfo si;
 		MoveInfoList list;
 		MoveList ml;
 
-		Board board(positions[posNum]);
 		board.GenerateAllLegalMoves<Board::ALL>(ml);
 
 		for (size_t i = 0; i < ml.GetSize(); ++i)
@@ -174,8 +183,6 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 
 		NormalizeMoveInfoList(list);
 
-		Move bestMove = board.ParseMove(bestMoves[posNum]);
-
 		assert(list.GetSize() == ml.GetSize());
 
 		for (size_t i = 0; i < list.GetSize(); ++i)
@@ -190,9 +197,11 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 				averageConfidence += list[i].nodeAllocation;
 			}
 		}
+
+		++totalPositions;
 	}
 
-	averageConfidence /= positions.size();
+	averageConfidence /= totalPositions;
 
 	std::cout << "Ordering position: " << std::endl;
 
@@ -202,11 +211,60 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 	{
 		cCount += orderPosCount[i];
 
-		std::cout << i << ": " << (static_cast<float>(orderPosCount[i]) / positions.size() * 100.0f) << "%" <<
-			" (" << (static_cast<float>(cCount) / positions.size() * 100.0f) << ")" << std::endl;
+		std::cout << i << ": " << (static_cast<float>(orderPosCount[i]) / totalPositions * 100.0f) << "%" <<
+			" (" << (static_cast<float>(cCount) / totalPositions * 100.0f) << ")" << std::endl;
 	}
 
 	std::cout << "Average Confidence: " << averageConfidence << std::endl;
+}
+
+void ANNMoveEvaluator::NotifyBestMove(Board &board, SearchInfo &si, MoveInfoList &list, Move bestMove, size_t movesSearched)
+{
+	return;
+
+	// don't bother if we wouldn't have used the ANN evaluator to allocate anyways, or for QS
+	if (si.isQS || si.totalNodeBudget < MinimumNodeBudget)
+	{
+		return;
+	}
+
+	// also don't bother if this is the first move already
+	if (movesSearched <= 1)
+	{
+		return;
+	}
+
+	// convert list to a MoveList (but only for moves searched)
+	MoveList ml;
+
+	for (size_t i = 0; i < movesSearched; ++i)
+	{
+		ml.PushBack(list[i].move);
+	}
+
+	FeaturesConv::ConvertMovesInfo convInfo;
+
+	GenerateMoveConvInfo_(board, ml, convInfo);
+
+	NNMatrixRM xNN;
+
+	FeaturesConv::ConvertMovesToNN(board, convInfo, ml, xNN);
+
+	NNMatrixRM yNN(xNN.rows(), 1);
+
+	for (int64_t i = 0; i < xNN.rows(); ++i)
+	{
+		if (ml[i] == bestMove)
+		{
+			yNN(i, 0) = 1.0f;
+		}
+		else
+		{
+			yNN(i, 0) = 0.0f;
+		}
+	}
+
+	m_ann.TrainGDM(xNN, yNN, 1.0f, 0.0f);
 }
 
 void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList &list, MoveList &ml)
@@ -219,40 +277,40 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		return;
 	}
 
-	if (ml.GetSize() <= 1)
+	if (ml.GetSize() == 0)
 	{
 		return;
 	}
 
 	FeaturesConv::ConvertMovesInfo convInfo;
 
+	// we need this even if it's a cache hit, because this is where we compute SEE scores
 	GenerateMoveConvInfo_(board, ml, convInfo);
 
-	NNMatrixRM xNN;
+	// we can only cache NN prop results because killers, etc, can change
+	using NNCacheEntry = std::pair<uint64_t, NNMatrixRM>;
 
-	FeaturesConv::ConvertMovesToNN(board, convInfo, ml, xNN);
+	static const size_t MevalCacheSize = 65536;
+	static std::vector<NNCacheEntry> cache(MevalCacheSize);
 
-	NNMatrixRM results = m_ann.ForwardPropagateFast(xNN);
+	static NNCacheEntry &entry = cache[board.GetHash() % MevalCacheSize];
 
-	float maxAllocation = 0.0f;
-
-	float maxAllocationNp = 0.0f; // max allocation for moves with SEE <= 0
-
-	for (int64_t i = 0; i < results.rows(); ++i)
+	if (entry.first != board.GetHash())
 	{
-		list[i].nodeAllocation = results(i);
+		NNMatrixRM xNN;
 
-		list[i].seeScore = SEE::StaticExchangeEvaluation(board, list[i].move);
+		FeaturesConv::ConvertMovesToNN(board, convInfo, ml, xNN);
 
-		if (results(i) > maxAllocation)
-		{
-			maxAllocation = results(i);
-		}
+		entry.first = board.GetHash();
+		entry.second = m_ann.ForwardPropagateFast(xNN);
+	}
 
-		if (list[i].seeScore <= 0 && results(i) > maxAllocationNp)
-		{
-			maxAllocationNp = results(i);
-		}
+	NNMatrixRM &results = entry.second;
+
+	for (size_t i = 0; i < list.GetSize(); ++i)
+	{
+		list[i].seeScore = convInfo.see[i];
+		list[i].nmSeeScore = convInfo.nmSee[i];
 	}
 
 	KillerMoveList killerMoves;
@@ -262,55 +320,130 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		si.killer->GetKillers(killerMoves, si.ply);
 	}
 
-	// now we go through the list again, and apply knowledge from search context (hash move and killers)
+	Move counterMove = 0;
+
+	if (si.counter)
+	{
+		counterMove = si.counter->GetCounterMove(board);
+	}
+
+	// whether we should reallocate each move (not interesting moves)
+	// using uint8_t to avoid bool specialization
+	std::vector<uint8_t> notInteresting(list.GetSize());
+
 	for (size_t i = 0; i < list.GetSize(); ++i)
 	{
-		if (list[i].move == si.hashMove)
+		notInteresting[i] = false;
+
+		Move mv = list[i].move;
+
+		PieceType promoType = GetPromoType(mv);
+
+		bool isViolent = board.IsViolent(mv);
+
+		bool isPromo = IsPromotion(mv);
+		bool isQueenPromo = (promoType == WQ || promoType == BQ);
+		bool isUnderPromo = (isPromo && !isQueenPromo);
+
+		if (mv == si.hashMove)
 		{
-			// bring the hash move to front
-			list[i].nodeAllocation = 1.5f * maxAllocation;
+			list[i].nodeAllocation = 3.0f;
 		}
-		else if (killerMoves.Exists(list[i].move) && !board.IsViolent(list[i].move))
+		else if (isQueenPromo && list[i].seeScore >= 0)
 		{
-			// bring them to probably somewhere between winning captures and all other moves
+			list[i].nodeAllocation = 2.0001f;
+		}
+		else if (isViolent && list[i].seeScore == 0 && !isUnderPromo)
+		{
+			list[i].nodeAllocation = 2.0f;
+		}
+		/*
+		else if (killerMoves.Exists(mv) && !isViolent)
+		{
 			for (size_t slot = 0; slot < killerMoves.GetSize(); ++slot)
 			{
-				if (killerMoves[slot] == list[i].move)
+				if (killerMoves[slot] == mv)
 				{
 					// for killer moves, score is based on which slot we are in (lower = better)
-					list[i].nodeAllocation = maxAllocationNp * (1.01f - 0.0001f * slot);
+					list[i].nodeAllocation = 1.100f - 0.0001f * slot;
 
 					break;
 				}
 			}
 		}
+		*/
+		else if (mv == counterMove)
+		{
+			list[i].nodeAllocation = 1.05f;
+		}
+		else if (list[i].seeScore >= 0 && !isUnderPromo)
+		{
+			notInteresting[i] = true;
+			list[i].nodeAllocation = 1.0f; // this will be overwritten later
+		}
+		else
+		{
+			notInteresting[i] = true;
+			list[i].nodeAllocation = 0.01f;
+		}
 	}
 
-	NormalizeMoveInfoList(list);
-
-	std::stable_sort(list.begin(), list.end(), [&si, &board](const MoveInfo &a, const MoveInfo &b)
+	// now we have to figure out the maximum allocation for non-interesting nodes (after normalization)
+	float maxNonInterestingNNWeight = 0.0f;
+	for (size_t i = 0; i < list.GetSize(); ++i)
+	{
+		if (notInteresting[i])
 		{
-			if (a.move == si.hashMove)
+			maxNonInterestingNNWeight = std::max<float>(maxNonInterestingNNWeight, results(i, 0));
+		}
+	}
+
+	float nonInterestingScale = 1.0f / maxNonInterestingNNWeight;
+
+	// killer multipliers based on slots
+	const float KillerMultipliers[6] = { 2.0f, 1.5f, 1.2f, 1.2f, 1.2f, 1.2f };
+
+	for (size_t i = 0; i < list.GetSize(); ++i)
+	{
+		if (notInteresting[i])
+		{
+			list[i].nodeAllocation = results(i, 0) * nonInterestingScale;
+
+			if (killerMoves.Exists(list[i].move))
 			{
-				return true;
-			}
-			else if (b.move == si.hashMove)
-			{
-				return false;
+				for (size_t slot = 0; slot < killerMoves.GetSize(); ++slot)
+				{
+					if (killerMoves[slot] == list[i].move)
+					{
+						// for killer moves, score is based on which slot we are in (lower = better)
+						list[i].nodeAllocation *= 1.5f * KillerMultipliers[slot];
+
+						break;
+					}
+				}
 			}
 
-			if (a.seeScore >= 0 && board.IsViolent(a.move) && (b.seeScore < 0 || !board.IsViolent(b.move)))
+			list[i].nodeAllocation = std::min(list[i].nodeAllocation, 1.0f);
+		}
+	}
+
+	std::stable_sort(list.begin(), list.end(), [&si, &board, &killerMoves](const MoveInfo &a, const MoveInfo &b)
+		{
+			if (a.nodeAllocation != b.nodeAllocation)
 			{
-				return true;
+				return a.nodeAllocation > b.nodeAllocation;
 			}
-			else if (b.seeScore >= 0 && board.IsViolent(b.move) && (a.seeScore < 0 || !board.IsViolent(a.move)))
+			else
 			{
-				return false;
+				// sort based on SEE (or another source of score)
+				return a.seeScore > b.seeScore;
 			}
 
-			return a.nodeAllocation > b.nodeAllocation;
+			//return a.nodeAllocation > b.nodeAllocation;
 		}
 	);
+
+	NormalizeMoveInfoList(list);
 }
 
 void ANNMoveEvaluator::PrintDiag(Board &b)
@@ -352,9 +485,12 @@ void ANNMoveEvaluator::Deserialize(std::istream &is)
 void ANNMoveEvaluator::GenerateMoveConvInfo_(Board &board, MoveList &ml, FeaturesConv::ConvertMovesInfo &convInfo)
 {
 	convInfo.see.resize(ml.GetSize());
+	convInfo.nmSee.resize(ml.GetSize());
 
 	for (size_t i = 0; i < ml.GetSize(); ++i)
 	{
 		convInfo.see[i] = SEE::StaticExchangeEvaluation(board, ml[i]);
+
+		convInfo.nmSee[i] = SEE::NMStaticExchangeEvaluation(board, ml[i]);
 	}
 }
