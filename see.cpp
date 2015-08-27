@@ -89,6 +89,25 @@ Score StaticExchangeEvaluationSq(Board &board, Square sq, bool forced)
 	return ret;
 }
 
+Score NMStaticExchangeEvaluation(Board &board, Move mv)
+{
+	Score ret = 0;
+
+	if (!board.InCheck())
+	{
+		board.MakeNullMove();
+
+		board.ResetSee();
+
+		// positive value means we should move this piece (opponent can win it otherwise)
+		ret = StaticExchangeEvaluationSq(board, GetFromSquare(mv));
+
+		board.UndoMove();
+	}
+
+	return ret;
+}
+
 Score GlobalExchangeEvaluation(Board &board, std::vector<Move> &pv, Score currentEval, Score lowerBound, Score upperBound)
 {
 	assert(pv.empty());

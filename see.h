@@ -37,6 +37,9 @@ Score SEEMap(Board &board, Square sq);
 
 Score StaticExchangeEvaluationSq(Board &board, Square sq, bool forced = false);
 
+// returns whether this move is an escape, and the value of the escape (how much the opponent can gain through SEE if we didn't move)
+Score NMStaticExchangeEvaluation(Board &board, Move mv);
+
 // this is essentially QSearch, but using SEE evaluation instead of the actual eval function
 // the goal is to discover a reasonable PV quickly
 // scores are biased to 0 at the start position of the search
