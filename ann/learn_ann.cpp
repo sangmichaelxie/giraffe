@@ -393,10 +393,10 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		Group layer0SquareGroup;
 
 		// first we add the mixed global group
-		AddSingleNodesGroup(layer0, globalGroup, layer0GlobalGroup, 0.25f);
+		AddSingleNodesGroup(layer0, globalGroup, layer0GlobalGroup, 0.125f);
 
 		// mixed square group
-		AddSingleNodesGroup(layer0, squareGroup, layer0SquareGroup, 0.25f);
+		AddSingleNodesGroup(layer0, squareGroup, layer0SquareGroup, 0.125f);
 
 		// pass through group 0 (this contains game phase information)
 		AddSingleNodesGroup(layer0, group0, layer0Group0, 1.0f);
@@ -404,6 +404,7 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		layerSizes.push_back(layer0.layerSize);
 		connMatrices.push_back(layer0.connections);
 
+		/*
 		LayerDescription layer1;
 
 		Group layer1Group0;
@@ -421,6 +422,7 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 
 		layerSizes.push_back(layer1.layerSize);
 		connMatrices.push_back(layer1.connections);
+		*/
 
 		// in the second layer, we just fully connect everything
 		layerSizes.push_back(BoardSignatureSize);
@@ -431,8 +433,26 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 	}
 	else
 	{
-		// we are building a small net for bound checking only
-		layerSizes.push_back(64);
+		LayerDescription layer0;
+
+		Group layer0Group0;
+		Group layer0GlobalGroup;
+		Group layer0SquareGroup;
+
+		// first we add the mixed global group
+		AddSingleNodesGroup(layer0, globalGroup, layer0GlobalGroup, 0.1f);
+
+		// mixed square group
+		AddSingleNodesGroup(layer0, squareGroup, layer0SquareGroup, 0.1f);
+
+		// pass through group 0 (this contains game phase information)
+		AddSingleNodesGroup(layer0, group0, layer0Group0, 1.0f);
+
+		layerSizes.push_back(layer0.layerSize);
+		connMatrices.push_back(layer0.connections);
+
+		// in the second layer, we just fully connect everything
+		layerSizes.push_back(BoardSignatureSize);
 		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
 
 		// fully connected output layer
