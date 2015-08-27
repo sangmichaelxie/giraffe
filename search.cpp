@@ -12,6 +12,7 @@
 #include "eval/eval.h"
 #include "see.h"
 #include "gtb.h"
+#include "countermove.h"
 
 namespace
 {
@@ -251,9 +252,9 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			}
 		}
 
-		// we want to store first ply q-search results
-		Score ret = QSearch(context, pv, board, alpha, beta, ply);
+		Score ret = QSearch(context, pv, board, alpha, beta, ply, 0);
 
+		// we want to store first ply q-search results
 		if (!context.Stopping())
 		{
 			if (ret >= beta)
@@ -402,6 +403,11 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		si.killer = context.killer;
 	}
 
+	if (ENABLE_COUNTERMOVES)
+	{
+		si.counter = context.counter;
+	}
+
 	si.isQS = false;
 	si.ply = ply;
 	si.tt = context.transpositionTable;
@@ -450,24 +456,32 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 
 		++numMovesSearched;
 
+		NodeBudget childNodeBudget = nodeBudget * mi.nodeAllocation;
+
 		Score score = 0;
+
+		// don't go into QS directly if in check (meaning the move we are searching is a checking move)
+		if (board.InCheck())
+		{
+			childNodeBudget = std::max<NodeBudget>(childNodeBudget, 1);
+		}
 
 		// only search the first move with full window, since everything else is expected to fail low
 		// if this is a null window search anyways, don't bother
 		if (ENABLE_PVS && numMovesSearched != 0 && ((beta - alpha) != 1) && nodeBudget > MinNodeBudgetForPVS)
 		{
-			score = -Search(context, subPv, board, -alpha - 1, -alpha, nodeBudget * mi.nodeAllocation, ply + 1);
+			score = -Search(context, subPv, board, -alpha - 1, -alpha, childNodeBudget, ply + 1);
 
 			if (score > alpha && score < beta)
 			{
 				// if the move didn't actually fail low, this is now the PV, and we have to search with
 				// full window
-				score = -Search(context, subPv, board, -beta, -alpha, nodeBudget * mi.nodeAllocation, ply + 1);
+				score = -Search(context, subPv, board, -beta, -alpha, childNodeBudget, ply + 1);
 			}
 		}
 		else
 		{
-			score = -Search(context, subPv, board, -beta, -alpha, nodeBudget * mi.nodeAllocation, ply + 1);
+			score = -Search(context, subPv, board, -beta, -alpha, childNodeBudget, ply + 1);
 		}
 
 		board.UndoMove();
@@ -499,10 +513,20 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 				context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, originalNodeBudget, LOWERBOUND);
 			}
 
+			context.moveEvaluator->NotifyBestMove(board, si, miList, mv, numMovesSearched + 1);
+
 			// we don't want to store captures because those are searched before killers anyways
 			if (!board.IsViolent(mv))
 			{
-				context.killer->Notify(ply, ClearScore(mv));
+				if (ENABLE_KILLERS)
+				{
+					context.killer->Notify(ply, ClearScore(mv));
+				}
+
+				if (ENABLE_COUNTERMOVES)
+				{
+					context.counter->Notify(board, ClearScore(mv));
+				}
 			}
 
 			return score;
@@ -518,10 +542,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 				context.transpositionTable->Store(board.GetHash(), pv[0], bestScore, originalNodeBudget, EXACT);
 			}
 
-			if (!board.IsViolent(pv[0]))
-			{
-				context.killer->Notify(ply, pv[0]);
-			}
+			context.moveEvaluator->NotifyBestMove(board, si, miList, pv[0], miList.GetSize());
 		}
 		else
 		{
@@ -536,7 +557,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	return bestScore;
 }
 
-Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply)
+Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply, int32_t qsPly)
 {
 	++context.nodeCount;
 
@@ -547,8 +568,6 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 		// if global stop request is set, we just return any value since it won't be used anyways
 		return 0;
 	}
-
-	pv.clear();
 
 	// in QSearch we are only worried about insufficient material
 	if (board.HasInsufficientMaterial())
@@ -561,6 +580,14 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	if (gtbResult)
 	{
 		return *gtbResult;
+	}
+
+	// if we are in check, and this is not the first ply in QS, switch back to normal search
+	// we have to make sure it's not the first ply because otherwise if a leaf is in check, we can
+	// get an explosion
+	if (board.InCheck() && qsPly > 0)
+	{
+		return Search(context, pv, board, alpha, beta, 1, ply, true);
 	}
 
 	// we first see if we can stand-pat
@@ -625,6 +652,11 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 		si.killer = context.killer;
 	}
 
+	if (ENABLE_COUNTERMOVES)
+	{
+		si.counter = context.counter;
+	}
+
 	si.isQS = true;
 	si.ply = ply;
 
@@ -652,7 +684,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 		Score score = 0;
 
-		score = -QSearch(context, subPv, board, -beta, -alpha, ply + 1);
+		score = -QSearch(context, subPv, board, -beta, -alpha, ply + 1, qsPly + 1);
 
 		board.UndoMove();
 
@@ -678,7 +710,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	return alpha;
 }
 
-SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer, TTable *ttable)
+SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer, TTable *ttable, CounterMove *counter)
 {
 	SearchResult ret;
 	RootSearchContext context;
@@ -687,6 +719,7 @@ SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, Evalua
 
 	std::unique_ptr<Killer> killer_u;
 	std::unique_ptr<TTable> ttable_u;
+	std::unique_ptr<CounterMove> counter_u;
 
 	if (killer == nullptr)
 	{
@@ -708,6 +741,16 @@ SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, Evalua
 		context.transpositionTable = ttable;
 	}
 
+	if (counter == nullptr)
+	{
+		counter_u.reset(new CounterMove);
+		context.counter = counter_u.get();
+	}
+	else
+	{
+		context.counter = counter;
+	}
+
 	context.evaluator = evaluator;
 	context.moveEvaluator = moveEvaluator;
 
@@ -721,5 +764,7 @@ SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, Evalua
 
 	return ret;
 }
+
+bool trace = false;
 
 }

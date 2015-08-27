@@ -41,6 +41,13 @@ public:
 			si.killer->GetKillers(killerMoves, si.ply);
 		}
 
+		Move counterMove = 0;
+
+		if (si.counter)
+		{
+			counterMove = si.counter->GetCounterMove(board);
+		}
+
 		for (auto &mi : list)
 		{
 			Move mv = mi.move;
@@ -54,6 +61,7 @@ public:
 			bool isUnderPromo = (isPromo && !isQueenPromo);
 
 			mi.seeScore = SEE::StaticExchangeEvaluation(board, mv);
+			mi.nmSeeScore = SEE::NMStaticExchangeEvaluation(board, mv);
 
 			if (mv == si.hashMove)
 			{
@@ -77,19 +85,26 @@ public:
 			}
 			else if (killerMoves.Exists(mv) && !isViolent)
 			{
-				// killer
-				mi.nodeAllocation = 1.0006f;
+				bool found = false;
 
+				// killer
 				for (size_t slot = 0; slot < killerMoves.GetSize(); ++slot)
 				{
 					if (killerMoves[slot] == mv)
 					{
 						// for killer moves, score is based on which slot we are in (lower = better)
 						mi.nodeAllocation = 1.100f - 0.0001f * slot;
+						found = true;
 
 						break;
 					}
 				}
+
+				assert(found);
+			}
+			else if (mv == counterMove)
+			{
+				mi.nodeAllocation = 1.05f;
 			}
 			else if (mi.seeScore >= 0 && !isUnderPromo)
 			{

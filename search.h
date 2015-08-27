@@ -13,6 +13,7 @@
 
 #include "types.h"
 #include "board.h"
+#include "countermove.h"
 #include "ttable.h"
 #include "eval/eval.h"
 #include "killer.h"
@@ -48,6 +49,8 @@ static const bool ENABLE_PVS = true;
 static const NodeBudget MinNodeBudgetForPVS = 16;
 
 static const bool ENABLE_KILLERS = true;
+
+static const bool ENABLE_COUNTERMOVES = false;
 
 static const Score ASPIRATION_WINDOW_HALF_SIZE = 400;
 
@@ -109,6 +112,7 @@ struct RootSearchContext
 
 	TTable *transpositionTable;
 	Killer *killer;
+	CounterMove *counter;
 
 	EvaluatorIface *evaluator;
 	MoveEvaluatorIface *moveEvaluator;
@@ -158,11 +162,14 @@ private:
 
 Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, NodeBudget nodeBudget, int32_t ply, bool nullMoveAllowed = true);
 
-Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply);
+Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, Score alpha, Score beta, int32_t ply, int32_t qsPly);
 
 // perform a synchronous search (no thread creation)
 // this is used in training only, where we don't want to do a typical root search, and don't want all the overhead
-SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer = nullptr, TTable *ttable = nullptr);
+SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer = nullptr, TTable *ttable = nullptr, CounterMove *counter = nullptr);
+
+// print search trees for debugging
+extern bool trace;
 
 }
 

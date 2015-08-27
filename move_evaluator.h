@@ -6,6 +6,7 @@
 #include <iostream>
 #include <limits>
 
+#include "countermove.h"
 #include "move.h"
 #include "types.h"
 #include "killer.h"
@@ -21,6 +22,7 @@ public:
 		float nodeAllocation;
 
 		Score seeScore;
+		Score nmSeeScore;
 	};
 
 	// this struct stores things that may be useful for move ordering
@@ -28,6 +30,7 @@ public:
 	{
 		Killer *killer = nullptr;
 		TTable *tt = nullptr;
+		CounterMove *counter = nullptr;
 		int32_t ply = 0;
 		Move hashMove = 0;
 		bool isQS = false;
@@ -101,6 +104,9 @@ public:
 			}
 		}
 	}
+
+	// this is for search to notify the move evaluator what the actual best move turned out to be
+	virtual void NotifyBestMove(Board &/*board*/, SearchInfo &/*si*/, MoveInfoList &/*list*/, Move /*bestMove*/, size_t /*movesSearched*/) {}
 
 	// implementations must override this function
 	// implementation can assume that list is already populated with legal moves of the correct type (QS vs non-QS)
