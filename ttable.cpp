@@ -16,8 +16,19 @@ void TTable::Store(uint64_t hash, MoveNoScore bestMove, Score score, int64_t nod
 {
 	TTEntry *slot = &m_data[hash % m_data.size()];
 
-	// always replace for now
-	bool replace = true;
+	bool replace = false;
+
+	if (hash != slot->hash)
+	{
+		replace = true;
+	}
+	else
+	{
+		if (nodeBudget > slot->nodeBudget)
+		{
+			replace = true;
+		}
+	}
 
 	if (replace)
 	{
