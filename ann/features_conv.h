@@ -66,6 +66,7 @@ void ConvertBoardToNN(Board &board, std::vector<T> &ret);
 struct ConvertMovesInfo
 {
 	std::vector<Score> see;
+	std::vector<Score> nmSee; // SEE of the source square
 };
 
 // convert a list of moves to NN input format

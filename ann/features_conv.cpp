@@ -662,6 +662,7 @@ void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, NN
 
 	// don't crash if the caller doesn't set SEE values
 	convInfo.see.resize(ml.GetSize(), 0);
+	convInfo.nmSee.resize(ml.GetSize(), 0);
 
 	Color stm = board.GetSideToMove();
 
@@ -682,6 +683,9 @@ void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, NN
 		moveFeatures.push_back(board.IsViolent(mv) ? 1.0f : 0.0f);
 
 		moveFeatures.push_back(convInfo.see[moveNum] >= 0 ? 1.0f : 0.0f);
+
+		// positive value means we should move this, otherwise opponent can win it
+		moveFeatures.push_back(convInfo.nmSee[moveNum] > 0 ? 1.0f : 0.0f);
 
 		// rank
 		if (ordered)
