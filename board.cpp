@@ -843,6 +843,8 @@ bool Board::ApplyMove(Move mv)
 
 	UpdateInCheck_(); // this is for the new side
 
+	m_moveStack.Push(mv);
+
 	return true;
 
 #undef MOVE_PIECE
@@ -1011,6 +1013,8 @@ void Board::UndoMove()
 
 	m_undoStackBB.Pop();
 	m_undoStackU8.Pop();
+
+	m_moveStack.Pop();
 }
 
 std::string Board::MoveToAlg(Move mv) const
@@ -1177,6 +1181,8 @@ void Board::MakeNullMove()
 	undoListU8.Clear();
 
 	m_hashStack.Push(m_boardDescBB[HASH]);
+
+	m_moveStack.Push(0);
 
 	// this doesn't need to be stored in the undo stack
 	m_boardDescU8[SIDE_TO_MOVE] ^= COLOR_MASK;
@@ -1823,6 +1829,18 @@ void Board::ComputeLeastValuableAttackers(PieceType attackers[64], uint8_t numAt
 
 		updateTableFcn(WP, PAWN_ATK[sq][(side == WHITE) ? 0 : 1]);
 	}
+}
+
+Optional<Move> Board::GetMoveFromLast(int32_t n)
+{
+	Optional<Move> ret;
+
+	if (n < static_cast<int32_t>(m_moveStack.GetSize()))
+	{
+		ret = m_moveStack[m_moveStack.GetSize() - 1 - n];
+	}
+
+	return ret;
 }
 
 template <Board::MOVE_TYPES MT>

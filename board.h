@@ -215,6 +215,9 @@ public:
 	// all piece types are white
 	void ComputeLeastValuableAttackers(PieceType attackers[64], uint8_t numAttackers[64], Color side);
 
+	// 0 = last move, 1 = last move - 1, etc
+	Optional<Move> GetMoveFromLast(int32_t n);
+
 private:
 	template <MOVE_TYPES MT> void GenerateAllPseudoLegalMoves_(MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList) const;
@@ -244,6 +247,8 @@ private:
 
 	// stack of hashes, for detecting repetition
 	GrowableStack<uint64_t> m_hashStack;
+
+	GrowableStack<Move> m_moveStack;
 
 	// both these fields are stored as white piece types
 	void UpdateseeLastPT_(PieceType lastPT) { if (m_boardDescU8[SIDE_TO_MOVE] == WHITE) m_seeLastWhitePT = lastPT; else m_seeLastBlackPT = lastPT; }
