@@ -11,6 +11,7 @@
 #include "killer.h"
 #include "move_evaluator.h"
 #include "static_move_evaluator.h"
+#include "countermove.h"
 
 class Backend
 {
@@ -108,6 +109,7 @@ private:
 
 	TTable m_tTable;
 	Killer m_killer;
+	CounterMove m_counter;
 
 	EvaluatorIface *m_evaluator;
 	MoveEvaluatorIface *m_moveEvaluator;
