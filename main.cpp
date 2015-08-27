@@ -308,6 +308,67 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+	else if (argc >= 2 && std::string(argv[1]) == "train_bounds")
+	{
+		InitializeSlowBlocking(evaluator, mevaluator);
+
+		if (argc < 4)
+		{
+			std::cout << "Usage: " << argv[0] << " train_bounds <EPD/FEN file> <output net file>" << std::endl;
+			return 0;
+		}
+
+		std::ifstream infile(argv[2]);
+
+		if (!infile)
+		{
+			std::cerr << "Failed to open " << argv[2] << " for reading" << std::endl;
+			return 1;
+		}
+
+		std::vector<FeaturesConv::FeatureDescription> featureDescriptions;
+		Board dummyBoard;
+		FeaturesConv::ConvertBoardToNN(dummyBoard, featureDescriptions);
+
+		std::string line;
+		std::vector<std::string> fens;
+		while (std::getline(infile, line))
+		{
+			fens.push_back(line);
+		}
+
+		const size_t BlockSize = 256;
+		const size_t PrintInterval = BlockSize * 100;
+
+		for (size_t i = 0; i < (fens.size() - BlockSize); i += BlockSize)
+		{
+			if (i % PrintInterval == 0)
+			{
+				std::cout << i << "/" << fens.size() << std::endl;
+			}
+
+			std::vector<std::string> positions;
+
+			for (size_t j = 0; j < BlockSize; ++j)
+			{
+				positions.push_back(fens[i + j]);
+			}
+
+			evaluator.TrainBounds(positions, featureDescriptions, 1.0f);
+		}
+
+		std::ofstream outfile(argv[3]);
+
+		if (!outfile)
+		{
+			std::cerr << "Failed to open " << argv[3] << " for writing" << std::endl;
+			return 1;
+		}
+
+		evaluator.Serialize(outfile);
+
+		return 0;
+	}
 	else if (argc >= 2 && std::string(argv[1]) == "sample_internal")
 	{
 		// MUST UNCOMMENT "#define SAMPLING" in static move evaluator

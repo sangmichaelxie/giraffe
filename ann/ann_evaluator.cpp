@@ -116,9 +116,9 @@ void ANNEvaluator::TrainBounds(const std::vector<std::string> &positions, const 
 	InvalidateCache();
 }
 
-Score ANNEvaluator::EvaluateForWhiteImpl(Board &b, Score /*lowerBound*/, Score /*upperBound*/)
+Score ANNEvaluator::EvaluateForWhiteImpl(Board &b, Score lowerBound, Score upperBound)
 {
-	auto hashResult = HashProbe_(b);
+	auto hashResult = HashProbe_(b, lowerBound, upperBound);
 
 	if (hashResult)
 	{
@@ -130,16 +130,34 @@ Score ANNEvaluator::EvaluateForWhiteImpl(Board &b, Score /*lowerBound*/, Score /
 	// we have to map every time because the vector's buffer could have moved
 	Eigen::Map<NNVector> mappedVec(&m_convTmp[0], 1, m_convTmp.size());
 
+#ifdef LAZY_EVAL
+	Score ub = (m_ubAnn.ForwardPropagateSingle(mappedVec) + BoundEvalShift) * EvalFullScale;
+
+	if (ub <= lowerBound)
+	{
+		HashStore_(b, ub, EvalHashEntry::EntryType::UPPERBOUND);
+		return ub;
+	}
+
+	Score lb = (m_lbAnn.ForwardPropagateSingle(mappedVec) - BoundEvalShift) * EvalFullScale;
+
+	if (lb >= upperBound)
+	{
+		HashStore_(b, lb, EvalHashEntry::EntryType::LOWERBOUND);
+		return lb;
+	}
+#endif
+
 	float annOut = m_mainAnn.ForwardPropagateSingle(mappedVec);
 
 	Score nnRet = annOut * EvalFullScale;
 
-	HashStore_(b, nnRet);
+	HashStore_(b, nnRet, EvalHashEntry::EntryType::EXACT);
 
 	return nnRet;
 }
 
-void ANNEvaluator::BatchEvaluateForWhiteImpl(std::vector<Board> &positions, std::vector<Score> &results, Score /*lowerBound*/, Score /*upperBound*/)
+void ANNEvaluator::BatchEvaluateForWhiteImpl(std::vector<Board> &positions, std::vector<Score> &results, Score lowerBound, Score upperBound)
 {
 	// some entries may already be in cache
 	// these are the ones we need to evaluate
@@ -149,7 +167,7 @@ void ANNEvaluator::BatchEvaluateForWhiteImpl(std::vector<Board> &positions, std:
 
 	for (size_t i = 0; i < positions.size(); ++i)
 	{
-		auto hashResult = HashProbe_(positions[i]);
+		auto hashResult = HashProbe_(positions[i], lowerBound, upperBound);
 
 		if (hashResult)
 		{
@@ -187,7 +205,7 @@ void ANNEvaluator::BatchEvaluateForWhiteImpl(std::vector<Board> &positions, std:
 
 		results[toEvaluate[idx]] = result;
 
-		HashStore_(positions[toEvaluate[idx]], result);
+		HashStore_(positions[toEvaluate[idx]], result, EvalHashEntry::EntryType::EXACT);
 	}
 }
 
@@ -217,10 +235,18 @@ bool ANNEvaluator::CheckBounds(Board &board, float &windowSize)
 	Eigen::Map<NNVector> mappedVec(&m_convTmp[0], 1, m_convTmp.size());
 
 	auto exact = m_mainAnn.ForwardPropagateSingle(mappedVec);
-	auto ub = m_ubAnn.ForwardPropagateSingle(mappedVec);
-	auto lb = m_lbAnn.ForwardPropagateSingle(mappedVec);
+	auto ub = m_ubAnn.ForwardPropagateSingle(mappedVec) + BoundEvalShift;
+	auto lb = m_lbAnn.ForwardPropagateSingle(mappedVec) - BoundEvalShift;
 
 	windowSize = fabs(ub - lb);
+
+	if (!((exact <= ub) && (exact >= lb)))
+	{
+/*
+#pragma omp critical
+		std::cout << exact << " " << ub << " " << lb << std::endl;
+*/
+	}
 
 	return (exact <= ub) && (exact >= lb);
 }
