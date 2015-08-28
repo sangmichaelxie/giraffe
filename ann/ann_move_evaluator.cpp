@@ -44,7 +44,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 	// training set size is approx 35 * positionsPerBatch
 	size_t positionsPerBatch = std::min<size_t>(positions.size(), 16);
 
-	const static size_t NumIterations = 100000;
+	const static size_t NumIterations = 20000;
 	const static size_t IterationsPerPrint = 100;
 
 	auto rng = gRd.MakeMT();
@@ -84,7 +84,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 				return result.score;
 			};
 
-			si.totalNodeBudget = 10000;
+			si.totalNodeBudget = 1000000000;
 
 			si.searchFunc = searchFunc;
 
@@ -168,7 +168,7 @@ void ANNMoveEvaluator::Test(const std::vector<std::string> &positions, const std
 			list.PushBack(mi);
 		}
 
-		si.totalNodeBudget = 10000;
+		si.totalNodeBudget = 1000000000;
 
 		auto searchFunc = [this](Board &pos, Score /*lowerBound*/, Score /*upperBound*/, int64_t nodeBudget, int32_t /*ply*/) -> Score
 		{
@@ -303,6 +303,9 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 
 		entry.first = board.GetHash();
 		entry.second = m_ann.ForwardPropagateFast(xNN);
+
+		// scale to max 1 (NOT normalize)
+		entry.second /= entry.second.maxCoeff();
 	}
 
 	NNMatrixRM &results = entry.second;
@@ -372,10 +375,12 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 			}
 		}
 		*/
+		/*
 		else if (mv == counterMove)
 		{
 			list[i].nodeAllocation = 1.05f;
 		}
+		*/
 		else if (list[i].seeScore >= 0 && !isUnderPromo)
 		{
 			notInteresting[i] = true;
@@ -384,7 +389,7 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		else
 		{
 			notInteresting[i] = true;
-			list[i].nodeAllocation = 0.01f;
+			list[i].nodeAllocation = 0.01f; // this will be overwritten as well
 		}
 	}
 
@@ -401,7 +406,7 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 	float nonInterestingScale = 1.0f / maxNonInterestingNNWeight;
 
 	// killer multipliers based on slots
-	const float KillerMultipliers[6] = { 2.0f, 1.5f, 1.2f, 1.2f, 1.2f, 1.2f };
+	const float KillerMultipliers[6] = { 3.0f, 1.5f, 1.2f, 1.2f, 1.2f, 1.2f };
 
 	for (size_t i = 0; i < list.GetSize(); ++i)
 	{
@@ -416,7 +421,7 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 					if (killerMoves[slot] == list[i].move)
 					{
 						// for killer moves, score is based on which slot we are in (lower = better)
-						list[i].nodeAllocation *= 1.5f * KillerMultipliers[slot];
+						list[i].nodeAllocation *= KillerMultipliers[slot];
 
 						break;
 					}
