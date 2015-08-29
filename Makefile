@@ -5,9 +5,12 @@ CC=gcc-4.9
 
 HGVERSION:= $(shell hg parents --template '{node|short}')
 
-CXXFLAGS = \
+CXXFLAGS_BASE = \
 	-Wall -Wextra -Wno-unused-function -std=gnu++11 -mtune=native -Wa,-q -ffast-math \
 	-pthread -fopenmp -DHGVERSION="\"${HGVERSION}\""
+
+# we will then extend this one with optimization flags
+CXXFLAGS:= $(CXXFLAGS_BASE)
 	
 CXXFLAGS_DEP = \
 	-std=gnu++11
@@ -87,10 +90,10 @@ clean:
 	
 windows:
 	$(Q) cd gtb && make windows_clean && make CFLAGS=-m32
-	g++ $(CXXFLAGS) -m32 -mtune=native -static $(INCLUDES) -O3 -static $(CXXFILES) -o giraffe_w32.exe -Lgtb -lgtb
+	g++ $(CXXFLAGS_BASE) -m32 $(INCLUDES) -O3 -static $(CXXFILES) -o giraffe_w32.exe -Lgtb -lgtb
 	strip -g -s giraffe_w32.exe
 	$(Q) cd gtb && make windows_clean && make CFLAGS=-m64
-	g++ $(CXXFLAGS) -m64 -mtune=native -static $(INCLUDES) -O3 -static $(CXXFILES) -o giraffe_w64.exe -Lgtb -lgtb
+	g++ $(CXXFLAGS_BASE) -m64 $(INCLUDES) -O3 -static $(CXXFILES) -o giraffe_w64.exe -Lgtb -lgtb
 	strip -g -s giraffe_w64.exe
 
 ifneq ($(MAKECMDGOALS),clean)
