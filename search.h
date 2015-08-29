@@ -14,6 +14,7 @@
 #include "types.h"
 #include "board.h"
 #include "countermove.h"
+#include "history.h"
 #include "ttable.h"
 #include "eval/eval.h"
 #include "killer.h"
@@ -25,9 +26,6 @@ namespace Search
 
 typedef int32_t Depth;
 
-// we use int64_t here because 61 bits is more than enough, and this way we don't have to deal with underflows
-typedef int64_t NodeBudget;
-
 // this function is for converting CEPT/UCI depth settings to some estimate of node budget
 inline NodeBudget DepthToNodeBudget(Depth d)
 {
@@ -36,7 +34,7 @@ inline NodeBudget DepthToNodeBudget(Depth d)
 
 static const bool ENABLE_NULL_MOVE_HEURISTICS = true;
 
-static const NodeBudget MinNodeBudgetForNullMove = 0;
+static const NodeBudget MinNodeBudgetForNullMove = 1;
 static const float NullMoveNodeBudgetMultiplier = 0.0003f;
 
 static const bool ENABLE_TT = true;
@@ -52,6 +50,8 @@ static const bool ENABLE_KILLERS = true;
 
 static const bool ENABLE_COUNTERMOVES = false;
 
+static const bool ENABLE_HISTORY = true;
+
 static const Score ASPIRATION_WINDOW_HALF_SIZE = 400;
 
 // if we get above this size, just open wide
@@ -62,7 +62,7 @@ static const Score ASPIRATION_WINDOW_HALF_SIZE_THRESHOLD = 1600;
 static const Score ASPIRATION_WINDOW_WIDEN_MULTIPLIER = 4; // how much to widen the window every time we fail high/low
 
 static const Score DRAW_SCORE = 0;
-static const size_t NUM_MOVES_TO_LOOK_FOR_DRAW = 8; // how many moves past to look for draws (we are only looking for 2-fold)
+static const size_t NUM_MOVES_TO_LOOK_FOR_DRAW = 16; // how many moves past to look for draws (we are only looking for 2-fold)
 
 struct ThinkingOutput
 {
@@ -113,6 +113,7 @@ struct RootSearchContext
 	TTable *transpositionTable;
 	Killer *killer;
 	CounterMove *counter;
+	History *history;
 
 	EvaluatorIface *evaluator;
 	MoveEvaluatorIface *moveEvaluator;
@@ -166,7 +167,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 
 // perform a synchronous search (no thread creation)
 // this is used in training only, where we don't want to do a typical root search, and don't want all the overhead
-SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer = nullptr, TTable *ttable = nullptr, CounterMove *counter = nullptr);
+SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer = nullptr, TTable *ttable = nullptr, CounterMove *counter = nullptr, History *history = nullptr);
 
 // print search trees for debugging
 extern bool trace;

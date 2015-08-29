@@ -7,6 +7,7 @@
 #include "board.h"
 #include "search.h"
 #include "chessclock.h"
+#include "history.h"
 #include "ttable.h"
 #include "killer.h"
 #include "move_evaluator.h"
@@ -110,6 +111,7 @@ private:
 	TTable m_tTable;
 	Killer m_killer;
 	CounterMove m_counter;
+	History m_history;
 
 	EvaluatorIface *m_evaluator;
 	MoveEvaluatorIface *m_moveEvaluator;

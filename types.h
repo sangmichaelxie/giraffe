@@ -221,4 +221,6 @@ private:
 	bool m_valid;
 };
 
+typedef uint64_t NodeBudget;
+
 #endif // TYPES_H

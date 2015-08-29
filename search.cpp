@@ -7,6 +7,7 @@
 
 #include <cstdint>
 
+#include "history.h"
 #include "types.h"
 #include "util.h"
 #include "eval/eval.h"
@@ -408,6 +409,11 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		si.counter = context.counter;
 	}
 
+	if (ENABLE_HISTORY)
+	{
+		si.history = context.history;
+	}
+
 	si.isQS = false;
 	si.ply = ply;
 	si.tt = context.transpositionTable;
@@ -448,13 +454,22 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	// we keep track of bestScore separately to fail soft on alpha
 	Score bestScore = std::numeric_limits<Score>::min();
 
+	// Late-move prunning
+	int numMovesToSearch = std::pow(log(nodeBudget), 1.7f) + 4;
+
 	for (auto &mi : miList)
-	{
+	{		
 		Move mv = mi.move;
 
-		board.ApplyMove(mv);
-
 		++numMovesSearched;
+
+		// this means move evaluator wants to prune this move
+		if (mi.nodeAllocation == 0.0f)
+		{
+			continue;
+		}
+
+		board.ApplyMove(mv);
 
 		NodeBudget childNodeBudget = nodeBudget * mi.nodeAllocation;
 
@@ -527,10 +542,30 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 				{
 					context.counter->Notify(board, ClearScore(mv));
 				}
+
+				if (ENABLE_HISTORY)
+				{
+					context.history->NotifyCutoff(ClearScore(mv), originalNodeBudget);
+				}
 			}
 
 			return score;
 		}
+		else
+		{
+			if (ENABLE_HISTORY)
+			{
+				assert(context.history);
+				context.history->NotifyNoCutoff(ClearScore(mv), originalNodeBudget);
+			}
+		}
+
+		/*
+		if (numMovesSearched >= numMovesToSearch && !board.InCheck() && !isPV)
+		{
+			break;
+		}
+		*/
 	}
 
 	if (!context.Stopping())
@@ -546,10 +581,10 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		}
 		else
 		{
-			// otherwise we failed low
+			// otherwise we failed low (and may have prunned all nodes)
 			if (ENABLE_TT)
 			{
-				context.transpositionTable->Store(board.GetHash(), pv[0], bestScore, originalNodeBudget, UPPERBOUND);
+				context.transpositionTable->Store(board.GetHash(), pv.size() > 0 ? pv[0] : 0, bestScore, originalNodeBudget, UPPERBOUND);
 			}
 		}
 	}
@@ -657,6 +692,11 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 		si.counter = context.counter;
 	}
 
+	if (ENABLE_HISTORY)
+	{
+		si.history = context.history;
+	}
+
 	si.isQS = true;
 	si.ply = ply;
 
@@ -710,7 +750,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 	return alpha;
 }
 
-SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer, TTable *ttable, CounterMove *counter)
+SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, EvaluatorIface *evaluator, MoveEvaluatorIface *moveEvaluator, Killer *killer, TTable *ttable, CounterMove *counter, History *history)
 {
 	SearchResult ret;
 	RootSearchContext context;
@@ -720,6 +760,7 @@ SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, Evalua
 	std::unique_ptr<Killer> killer_u;
 	std::unique_ptr<TTable> ttable_u;
 	std::unique_ptr<CounterMove> counter_u;
+	std::unique_ptr<History> history_u;
 
 	if (killer == nullptr)
 	{
@@ -749,6 +790,16 @@ SearchResult SyncSearchNodeLimited(const Board &b, NodeBudget nodeBudget, Evalua
 	else
 	{
 		context.counter = counter;
+	}
+
+	if (history == nullptr)
+	{
+		history_u.reset(new History);
+		context.history = history_u.get();
+	}
+	else
+	{
+		context.history = history;
 	}
 
 	context.evaluator = evaluator;

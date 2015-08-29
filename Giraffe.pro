@@ -32,7 +32,8 @@ SOURCES += main.cpp \
 	ann/ann_evaluator.cpp \
 	static_move_evaluator.cpp \
 	ann/ann_move_evaluator.cpp \
-    countermove.cpp
+    countermove.cpp \
+    history.cpp
 
 HEADERS += \
 	board_consts.h \
@@ -69,4 +70,5 @@ HEADERS += \
 	static_move_evaluator.h \
 	ann/ann_move_evaluator.h \
 	consts.h \
-    countermove.h
+    countermove.h \
+    history.h

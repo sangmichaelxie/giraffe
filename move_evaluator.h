@@ -7,6 +7,7 @@
 #include <limits>
 
 #include "countermove.h"
+#include "history.h"
 #include "move.h"
 #include "types.h"
 #include "killer.h"
@@ -31,6 +32,7 @@ public:
 		Killer *killer = nullptr;
 		TTable *tt = nullptr;
 		CounterMove *counter = nullptr;
+		History *history = nullptr;
 		int32_t ply = 0;
 		Move hashMove = 0;
 		bool isQS = false;

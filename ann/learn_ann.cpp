@@ -393,10 +393,10 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		Group layer0SquareGroup;
 
 		// first we add the mixed global group
-		AddSingleNodesGroup(layer0, globalGroup, layer0GlobalGroup, 0.125f);
+		AddSingleNodesGroup(layer0, globalGroup, layer0GlobalGroup, 0.25f);
 
 		// mixed square group
-		AddSingleNodesGroup(layer0, squareGroup, layer0SquareGroup, 0.125f);
+		AddSingleNodesGroup(layer0, squareGroup, layer0SquareGroup, 0.25f);
 
 		// pass through group 0 (this contains game phase information)
 		AddSingleNodesGroup(layer0, group0, layer0Group0, 1.0f);

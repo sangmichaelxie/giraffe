@@ -310,10 +310,14 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 
 	NNMatrixRM &results = entry.second;
 
+	Score maxSee = std::numeric_limits<Score>::min();
+
 	for (size_t i = 0; i < list.GetSize(); ++i)
 	{
 		list[i].seeScore = convInfo.see[i];
 		list[i].nmSeeScore = convInfo.nmSee[i];
+
+		maxSee = std::max<Score>(maxSee, convInfo.see[i]);
 	}
 
 	KillerMoveList killerMoves;
@@ -356,7 +360,7 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		{
 			list[i].nodeAllocation = 2.0001f;
 		}
-		else if (isViolent && list[i].seeScore == 0 && !isUnderPromo)
+		else if (isViolent && list[i].seeScore >= 0 && !isUnderPromo)
 		{
 			list[i].nodeAllocation = 2.0f;
 		}
@@ -384,11 +388,13 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		else if (list[i].seeScore >= 0 && !isUnderPromo)
 		{
 			notInteresting[i] = true;
+
 			list[i].nodeAllocation = 1.0f; // this will be overwritten later
 		}
 		else
 		{
 			notInteresting[i] = true;
+
 			list[i].nodeAllocation = 0.01f; // this will be overwritten as well
 		}
 	}

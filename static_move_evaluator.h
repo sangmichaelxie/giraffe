@@ -109,7 +109,7 @@ public:
 			else if (mi.seeScore >= 0 && !isUnderPromo)
 			{
 				// other non-losing moves (excluding underpomotions)
-				mi.nodeAllocation = 1.0000f;
+				mi.nodeAllocation = 1.0000f + si.history->GetHistoryScore(mv) * 0.01f;
 			}
 			else
 			{

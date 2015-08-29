@@ -28,7 +28,7 @@ struct TTEntry
 	int32_t birthday;
 
 	Score score;
-	int64_t nodeBudget;
+	NodeBudget nodeBudget;
 	TTEntryType entryType;
 };
 
@@ -61,7 +61,7 @@ public:
 		__builtin_prefetch(&m_data[hash % m_data.size()]);
 	}
 
-	void Store(uint64_t hash, MoveNoScore bestMove, Score score, int64_t nodeBudget, TTEntryType entryType);
+	void Store(uint64_t hash, MoveNoScore bestMove, Score score, NodeBudget nodeBudget, TTEntryType entryType);
 
 	void AgeTable() { ++m_currentGeneration; }
 

@@ -20,7 +20,7 @@ LDFLAGS=-L. -Lgtb -lm -ltcmalloc -lgtb
 ifeq ($(PG), 1)
 	CXXFLAGS += -g -O2 -pg
 else ifeq ($(DEBUG),1)
-	CXXFLAGS += -g -Os
+	CXXFLAGS += -g -O0
 else
 	CXXFLAGS += -O3 -flto
 endif

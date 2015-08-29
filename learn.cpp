@@ -17,6 +17,7 @@
 #include "ann/learn_ann.h"
 #include "omp_scoped_thread_limiter.h"
 #include "eval/eval.h"
+#include "history.h"
 #include "search.h"
 #include "ttable.h"
 #include "killer.h"
@@ -159,6 +160,7 @@ void TDL(const std::string &positionsFilename)
 				Killer thread_killer;
 				TTable thread_ttable(1*MB); // we want the ttable to fit in L3
 				CounterMove thread_counter;
+				History thread_history;
 
 				// we are being paranoid here - it's possible tha the memory we get happens to be where a TTable used to be,
 				// in which case we will have many valid entries with wrong scores (since evaluator changed)
@@ -202,7 +204,7 @@ void TDL(const std::string &positionsFilename)
 						}
 					}
 
-					Search::SearchResult rootResult = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable, &thread_counter);
+					Search::SearchResult rootResult = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable, &thread_counter, &thread_history);
 
 					Board leafPos = rootPos;
 					leafPos.ApplyVariation(rootResult.pv);
@@ -220,6 +222,7 @@ void TDL(const std::string &positionsFilename)
 						rootPos.ApplyMove(rootResult.pv[0]);
 						thread_killer.MoveMade();
 						thread_ttable.AgeTable();
+						thread_history.NotifyMoveMade();
 
 						// now we compute the error by making a few moves
 						float accumulatedError = 0.0f;
@@ -229,7 +232,7 @@ void TDL(const std::string &positionsFilename)
 
 						for (int64_t m = 0; m < HalfMovesToMake; ++m)
 						{
-							Search::SearchResult result = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable, &thread_counter);
+							Search::SearchResult result = Search::SyncSearchNodeLimited(rootPos, SearchNodeBudget, &thread_annEvaluator, &gStaticMoveEvaluator, &thread_killer, &thread_ttable, &thread_counter, &thread_history);
 
 							float scoreWhiteUnscaled = thread_annEvaluator.UnScale(result.score * (rootPos.GetSideToMove() == WHITE ? 1.0f : -1.0f)) * absoluteDiscount;
 
@@ -251,6 +254,7 @@ void TDL(const std::string &positionsFilename)
 							rootPos.ApplyMove(result.pv[0]);
 							thread_killer.MoveMade();
 							thread_ttable.AgeTable();
+							thread_history.NotifyMoveMade();
 						}
 
 						float absError = fabs(accumulatedError);
