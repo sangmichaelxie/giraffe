@@ -96,8 +96,15 @@ windows:
 	g++ $(CXXFLAGS_BASE) -m64 $(INCLUDES) -O3 -static $(CXXFILES) -o giraffe_w64.exe -Lgtb -lgtb
 	strip -g -s giraffe_w64.exe
 
+no_deps = 
 ifneq ($(MAKECMDGOALS),clean)
-	ifneq($(MAKECMDGOALS),windows)
-		-include $(DEPS)
-	endif
+	no_deps = yes
+endif
+
+ifneq ($(MAKECMDGOALS),windows)
+	no_deps = yes
+endif
+	
+ifndef no_deps
+	-include $(DEPS)
 endif
