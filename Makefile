@@ -97,5 +97,7 @@ windows:
 	strip -g -s giraffe_w64.exe
 
 ifneq ($(MAKECMDGOALS),clean)
-    -include $(DEPS)
+	ifneq($(MAKECMDGOALS),windows)
+		-include $(DEPS)
+	endif
 endif
