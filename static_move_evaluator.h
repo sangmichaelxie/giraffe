@@ -111,9 +111,14 @@ public:
 				// other non-losing moves (excluding underpomotions)
 				mi.nodeAllocation = 1.0000f + si.history->GetHistoryScore(mv) * 0.01f;
 			}
+			else if (isViolent && !isUnderPromo)
+			{
+				// losing captures
+				mi.nodeAllocation = 0.1f;
+			}
 			else
 			{
-				// losing moves and captures, and underpromos
+				// losing quiet moves and underpromos
 				mi.nodeAllocation = 0.01f;
 			}
 		}
