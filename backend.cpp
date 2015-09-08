@@ -347,9 +347,11 @@ void Backend::StartSearch_(Search::SearchType searchType)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 
+		const float OutputScoreScale = 0.1f;
+
 		if (m_showThinking)
 		{
-			std::cout << to.ply << " " << to.score << " " << static_cast<int64_t>(to.time * 100.0) <<
+			std::cout << to.ply << " " << static_cast<int64_t>(OutputScoreScale * to.score) << " " << static_cast<int64_t>(to.time * 100.0) <<
 						 " " << to.nodeCount << " " << to.pv << std::endl;
 		}
 	};
