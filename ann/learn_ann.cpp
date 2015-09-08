@@ -60,74 +60,7 @@ const size_t MaxIterationsPerCheck = 500000 / MaxBatchSize;
 
 const float ExclusionFactor = 0.99f; // when computing test performance, ignore 1% of outliers
 
-class MMappedMatrix
-{
-public:
-	MMappedMatrix(const std::string &filename)
-	{
-#ifndef _WIN32
-		m_fd = open(filename.c_str(), O_RDONLY);
-
-		if (m_fd == -1)
-		{
-			throw std::runtime_error(std::string("Failed to open ") + filename + " for reading");
-		}
-
-		// we first map the first 8 bytes to read the size of the matrix, before doing the actual mapping
-		m_mappedAddress = mmap(0, 8, PROT_READ, MAP_SHARED, m_fd, 0);
-
-		if (m_mappedAddress == MAP_FAILED)
-		{
-			throw std::runtime_error("Failed to map file for reading matrix size");
-		}
-
-		// read the size of the matrix
-		m_rows = *(reinterpret_cast<uint32_t *>(m_mappedAddress));
-		m_cols = *(reinterpret_cast<uint32_t *>(m_mappedAddress) + 1);
-
-		munmap(m_mappedAddress, 8);
-
-		m_mapSize = static_cast<size_t>(m_rows) * m_cols * sizeof(float) + 8;
-
-		// map again using the actual size (we can't use the offset here because it
-		// must be a multiple of page size)
-		m_mappedAddress = mmap(0, m_mapSize, PROT_READ, MAP_SHARED, m_fd, 0);
-
-		if (m_mappedAddress == MAP_FAILED)
-		{
-			throw std::runtime_error("Failed to map file for reading");
-		}
-
-		madvise(m_mappedAddress, m_mapSize, MADV_SEQUENTIAL);
-
-		m_matrixStartAddress = reinterpret_cast<float*>(reinterpret_cast<char*>(m_mappedAddress) + 8);
-#else
-		assert(false && "MMappedMatrix not implemented on Windows!");
-#endif
-	}
-
-	Eigen::Map<NNMatrixRM> GetMap() { return Eigen::Map<NNMatrixRM>(m_matrixStartAddress, m_rows, m_cols); }
-
-	MMappedMatrix(const MMappedMatrix &) = delete;
-	MMappedMatrix &operator=(const MMappedMatrix &) = delete;
-
-	~MMappedMatrix()
-	{
-#ifndef _WIN32
-		munmap(m_mappedAddress, m_mapSize);
-#endif
-	}
-
-private:
-	int m_fd;
-	void *m_mappedAddress;
-	float *m_matrixStartAddress;
-
-	size_t m_mapSize;
-
-	uint32_t m_rows;
-	uint32_t m_cols;
-};
+typedef std::vector<int32_t> Group;
 
 struct Rows
 {
@@ -137,8 +70,6 @@ struct Rows
 	int64_t begin;
 	int64_t num;
 };
-
-typedef std::vector<int32_t> Group;
 
 template <typename Derived1>
 void SplitDataset(
@@ -421,26 +352,6 @@ EvalNet BuildEvalNet(int64_t inputDims, int64_t outputDims, bool smallNet)
 		layerSizes.push_back(layer0.layerSize);
 		connMatrices.push_back(layer0.connections);
 
-		/*
-		LayerDescription layer1;
-
-		Group layer1Group0;
-		Group layer1GlobalGroup;
-		Group layer1SquareGroup;
-
-		// first we add the mixed global group
-		AddSingleNodesGroup(layer1, layer0GlobalGroup, layer1GlobalGroup, 0.25f);
-
-		// mixed square group
-		AddSingleNodesGroup(layer1, layer0SquareGroup, layer1SquareGroup, 0.25f);
-
-		// pass through group 0 (this contains game phase information)
-		AddSingleNodesGroup(layer1, layer0Group0, layer1Group0, 1.0f);
-
-		layerSizes.push_back(layer1.layerSize);
-		connMatrices.push_back(layer1.connections);
-		*/
-
 		// in the second layer, we just fully connect everything
 		layerSizes.push_back(BoardSignatureSize);
 		connMatrices.push_back(std::vector<Eigen::Triplet<float> >());
@@ -514,26 +425,6 @@ MoveEvalNet BuildMoveEvalNet(int64_t inputDims, int64_t outputDims)
 
 	layerSizes.push_back(layer0.layerSize);
 	connMatrices.push_back(layer0.connections);
-
-	/*
-	LayerDescription layer1;
-
-	Group layer1Group0;
-	Group layer1GlobalGroup;
-	Group layer1SquareGroup;
-
-	// first we add the mixed global group
-	AddSingleNodesGroup(layer1, layer0GlobalGroup, layer1GlobalGroup, 0.25f);
-
-	// mixed square group
-	AddSingleNodesGroup(layer1, layer0SquareGroup, layer1SquareGroup, 0.25f);
-
-	// pass through group 0 (this contains game phase information)
-	AddSingleNodesGroup(layer1, layer0Group0, layer1Group0, 1.0f);
-
-	layerSizes.push_back(layer1.layerSize);
-	connMatrices.push_back(layer1.connections);
-	*/
 
 	// in the second layer, we just fully connect everything
 	layerSizes.push_back(BoardSignatureSize);

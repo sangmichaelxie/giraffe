@@ -344,13 +344,6 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		si.killer->GetKillers(killerMoves, si.ply);
 	}
 
-	Move counterMove = 0;
-
-	if (si.counter)
-	{
-		counterMove = si.counter->GetCounterMove(board);
-	}
-
 	// whether we should reallocate each move (not interesting moves)
 	// using uint8_t to avoid bool specialization
 	std::vector<uint8_t> notInteresting(list.GetSize());
@@ -368,7 +361,6 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		bool isUnderPromo = (isPromo && !isQueenPromo);
 
 		bool isViolent = board.IsViolent(mv);
-
 
 		if (mv == si.hashMove)
 		{

@@ -471,9 +471,6 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 	// we keep track of bestScore separately to fail soft on alpha
 	Score bestScore = std::numeric_limits<Score>::min();
 
-	// Late-move prunning
-	int numMovesToSearch = std::pow(log(nodeBudget), 1.7f) + 4;
-
 	for (auto &mi : miList)
 	{		
 		Move mv = mi.move;
