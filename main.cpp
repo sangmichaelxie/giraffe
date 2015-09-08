@@ -472,13 +472,16 @@ int main(int argc, char **argv)
 			{
 				Board b(fens[i]);
 
-				Search::SearchResult result = Search::SyncSearchNodeLimited(b, 10000, &evaluatorCopy, &gStaticMoveEvaluator, nullptr, nullptr);
+				Search::SearchResult result = Search::SyncSearchNodeLimited(b, 100000, &evaluatorCopy, &gStaticMoveEvaluator, nullptr, nullptr);
 
 				bm[i] = b.MoveToAlg(result.pv[0]);
 
-				#pragma omp critical(numPositionsDoneUpdate)
+				#pragma omp critical(numPositionsAndOutputFileUpdate)
 				{
 					++numPositionsDone;
+
+					outfile << fens[i] << std::endl;
+					outfile << bm[i] << std::endl;
 
 					if (omp_get_thread_num() == 0)
 					{
@@ -495,12 +498,6 @@ int main(int argc, char **argv)
 					}
 				}
 			}
-		}
-
-		for (size_t i = 0; i < fens.size(); ++i)
-		{
-			outfile << fens[i] << std::endl;
-			outfile << bm[i] << std::endl;
 		}
 
 		return 0;
