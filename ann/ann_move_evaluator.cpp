@@ -44,7 +44,7 @@ void ANNMoveEvaluator::Train(const std::vector<std::string> &positions, const st
 	// training set size is approx 35 * positionsPerBatch
 	size_t positionsPerBatch = std::min<size_t>(positions.size(), 16);
 
-	const static size_t NumIterations = 20000;
+	const static size_t NumIterations = 100000;
 	const static size_t IterationsPerPrint = 100;
 
 	auto rng = gRd.MakeMT();
@@ -346,11 +346,12 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 
 		PieceType promoType = GetPromoType(mv);
 
-		bool isViolent = board.IsViolent(mv);
-
 		bool isPromo = IsPromotion(mv);
 		bool isQueenPromo = (promoType == WQ || promoType == BQ);
 		bool isUnderPromo = (isPromo && !isQueenPromo);
+
+		bool isViolent = board.IsViolent(mv);
+
 
 		if (mv == si.hashMove)
 		{
@@ -364,27 +365,6 @@ void ANNMoveEvaluator::EvaluateMoves(Board &board, SearchInfo &si, MoveInfoList 
 		{
 			list[i].nodeAllocation = 2.0f;
 		}
-		/*
-		else if (killerMoves.Exists(mv) && !isViolent)
-		{
-			for (size_t slot = 0; slot < killerMoves.GetSize(); ++slot)
-			{
-				if (killerMoves[slot] == mv)
-				{
-					// for killer moves, score is based on which slot we are in (lower = better)
-					list[i].nodeAllocation = 1.100f - 0.0001f * slot;
-
-					break;
-				}
-			}
-		}
-		*/
-		/*
-		else if (mv == counterMove)
-		{
-			list[i].nodeAllocation = 1.05f;
-		}
-		*/
 		else if (list[i].seeScore >= 0 && !isUnderPromo)
 		{
 			notInteresting[i] = true;
