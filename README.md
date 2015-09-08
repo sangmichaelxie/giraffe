@@ -16,3 +16,7 @@ If you decide to compile Giraffe yourself, please grab the neural network defini
 To use Gaviota tablebases, set the path through the GaviotaTbPath option.
 
 To use Gaviota tablebases with the Wb2Uci adapter, set "GaviotaTbPath=..." in Wb2Uci.eng.
+
+## Build ##
+* The Makefile contains -ltcmalloc. libtcmalloc replaces malloc/free with another implementation with thread-local caching. It is optional and doesn't really matter for playing. It can be safely removed.
+* The Makefile contains -march=native. If you want to do a compile that also runs on older CPUs, change it to something else.
