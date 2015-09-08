@@ -643,7 +643,7 @@ void ConvertBoardToNN(Board &board, std::vector<T> &ret)
 template void ConvertBoardToNN<float>(Board &board, std::vector<float> &ret);
 template void ConvertBoardToNN<FeatureDescription>(Board &board, std::vector<FeatureDescription> &ret);
 
-void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, NNMatrixRM &ret, bool ordered)
+void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, NNMatrixRM &ret)
 {
 	// first we generate the eval features to be shared between all moves
 	// these features have to go to the end for performance, because all our new features will be group 0
@@ -682,25 +682,13 @@ void ConvertMovesToNN(Board &board, ConvertMovesInfo &convInfo, MoveList &ml, NN
 
 		moveFeatures.push_back(board.IsViolent(mv) ? 1.0f : 0.0f);
 
-		moveFeatures.push_back(convInfo.see[moveNum] >= 0 ? 1.0f : 0.0f);
+		moveFeatures.push_back(board.IsChecking(mv) ? 1.0f : 0.0f);
+
+		moveFeatures.push_back(convInfo.see[moveNum] > 0 ? 1.0f : 0.0f);
+		moveFeatures.push_back(convInfo.see[moveNum] < 0 ? 1.0f : 0.0f);
 
 		// positive value means we should move this, otherwise opponent can win it
 		moveFeatures.push_back(convInfo.nmSee[moveNum] > 0 ? 1.0f : 0.0f);
-
-		// rank
-		if (ordered)
-		{
-			// relative order
-			moveFeatures.push_back(NormalizeCount(moveNum, ml.GetSize()));
-
-			// absolute order with saturation
-			moveFeatures.push_back(NormalizeCount(std::min<int>(moveNum, 20), 20));
-		}
-		else
-		{
-			moveFeatures.push_back(0.0f);
-			moveFeatures.push_back(0.0f);
-		}
 
 		PieceType pt = GetPieceType(mv);
 
