@@ -14,3 +14,5 @@ If you decide to compile Giraffe yourself, please grab the neural network defini
 
 ## Gaviota Tablebases ##
 To use Gaviota tablebases, set the path through the GaviotaTbPath option.
+
+To use Gaviota tablebases with the Wb2Uci adapter, set "GaviotaTbPath=..." in Wb2Uci.eng.
