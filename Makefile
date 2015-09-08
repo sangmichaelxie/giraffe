@@ -38,7 +38,7 @@ CXXFILES := \
 	$(wildcard ann/*.cpp) \
 	$(wildcard eval/*.cpp)
 
-INCLUDES=-I. -IEigen_dev
+INCLUDES=-I.
 
 EXE=giraffe
 
