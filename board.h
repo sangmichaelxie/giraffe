@@ -218,6 +218,16 @@ public:
 	// 0 = last move, 1 = last move - 1, etc
 	Optional<Move> GetMoveFromLast(int32_t n);
 
+	bool IsChecking(Move mv)
+	{
+		// TODO: re-implement more efficiently if this becomes a bottleneck
+		ApplyMove(mv);
+		bool ret = InCheck();
+		UndoMove();
+
+		return ret;
+	}
+
 private:
 	template <MOVE_TYPES MT> void GenerateAllPseudoLegalMoves_(MoveList &moveList) const;
 	template <MOVE_TYPES MT> void GenerateKingMoves_(Color color, MoveList &moveList) const;
