@@ -37,7 +37,7 @@ enum TTEntryType
 struct TTEntry
 {
 	uint64_t hash;
-	MoveNoScore bestMove;
+	Move bestMove;
 
 	// this is set to the table's m_currentGeneration when set
 	// and is used to determine how old an entry is
@@ -78,7 +78,7 @@ public:
 		__builtin_prefetch(&m_data[hash % m_data.size()]);
 	}
 
-	void Store(uint64_t hash, MoveNoScore bestMove, Score score, NodeBudget nodeBudget, TTEntryType entryType);
+	void Store(uint64_t hash, Move bestMove, Score score, NodeBudget nodeBudget, TTEntryType entryType);
 
 	void AgeTable() { ++m_currentGeneration; }
 

@@ -29,7 +29,7 @@ void TTable::Resize(size_t newSize)
 	m_data.resize(newSize);
 }
 
-void TTable::Store(uint64_t hash, MoveNoScore bestMove, Score score, NodeBudget nodeBudget, TTEntryType entryType)
+void TTable::Store(uint64_t hash, Move bestMove, Score score, NodeBudget nodeBudget, TTEntryType entryType)
 {
 	TTEntry *slot = &m_data[hash % m_data.size()];
 

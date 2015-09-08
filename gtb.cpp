@@ -137,21 +137,27 @@ namespace GTB
 static bool initialized = false;
 static const char **paths;
 
-std::string Init()
+std::string Init(std::string path)
 {
-	const char *envRet = getenv("GTBPath");
+	if (path == "")
+	{
+		const char *envRet = getenv("GTBPath");
 
-	if (envRet == nullptr)
+		if (envRet != nullptr)
+		{
+			path = envRet;
+		}
+	}
+
+	if (path == "")
 	{
 		std::cout << "# GTBPath not set" << std::endl;
 		return std::string();
 	}
 
-	std::string pathFromEnv = envRet;
-
 	paths = tbpaths_init();
 
-	paths = tbpaths_add(paths, pathFromEnv.c_str());
+	paths = tbpaths_add(paths, path.c_str());
 
 	char *initInfo = tb_init(1, tb_CP4, paths);
 

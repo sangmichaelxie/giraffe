@@ -526,7 +526,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		{
 			bestScore = score;
 			pv.clear();
-			pv.push_back(ClearScore(mv));
+			pv.push_back(mv);
 			pv.insert(pv.end(), subPv.begin(), subPv.end());
 		}
 
@@ -539,7 +539,7 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 		{
 			if (ENABLE_TT)
 			{
-				context.transpositionTable->Store(board.GetHash(), ClearScore(mv), score, originalNodeBudget, LOWERBOUND);
+				context.transpositionTable->Store(board.GetHash(), mv, score, originalNodeBudget, LOWERBOUND);
 			}
 
 			context.moveEvaluator->NotifyBestMove(board, si, miList, mv, numMovesSearched + 1);
@@ -549,17 +549,17 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			{
 				if (ENABLE_KILLERS)
 				{
-					context.killer->Notify(ply, ClearScore(mv));
+					context.killer->Notify(ply, mv);
 				}
 
 				if (ENABLE_COUNTERMOVES)
 				{
-					context.counter->Notify(board, ClearScore(mv));
+					context.counter->Notify(board, mv);
 				}
 
 				if (ENABLE_HISTORY)
 				{
-					context.history->NotifyCutoff(ClearScore(mv), originalNodeBudget);
+					context.history->NotifyCutoff(mv, originalNodeBudget);
 				}
 			}
 
@@ -570,16 +570,9 @@ Score Search(RootSearchContext &context, std::vector<Move> &pv, Board &board, Sc
 			if (ENABLE_HISTORY)
 			{
 				assert(context.history);
-				context.history->NotifyNoCutoff(ClearScore(mv), originalNodeBudget);
+				context.history->NotifyNoCutoff(mv, originalNodeBudget);
 			}
 		}
-
-		/*
-		if (numMovesSearched >= numMovesToSearch && !board.InCheck() && !isPV)
-		{
-			break;
-		}
-		*/
 	}
 
 	if (!context.Stopping())
@@ -751,7 +744,7 @@ Score QSearch(RootSearchContext &context, std::vector<Move> &pv, Board &board, S
 		{
 			alpha = score;
 			pv.clear();
-			pv.push_back(ClearScore(mv));
+			pv.push_back(mv);
 			pv.insert(pv.end(), subPv.begin(), subPv.end());
 		}
 

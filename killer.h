@@ -39,7 +39,7 @@ class Killer
 public:
 	Killer();
 
-	void Notify(int32_t ply, MoveNoScore move);
+	void Notify(int32_t ply, Move move);
 
 	void GetKillers(KillerMoveList &moveList, int32_t ply);
 

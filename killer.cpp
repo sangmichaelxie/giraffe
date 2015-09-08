@@ -24,7 +24,7 @@ Killer::Killer()
 {
 }
 
-void Killer::Notify(int32_t ply, MoveNoScore move)
+void Killer::Notify(int32_t ply, Move move)
 {
 	if (m_killerMoves.size() < (static_cast<size_t>(ply) + 1))
 	{

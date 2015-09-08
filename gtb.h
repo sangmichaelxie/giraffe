@@ -37,7 +37,7 @@ static const size_t MaxPieces = 5;
 
 typedef Optional<Score> ProbeResult;
 
-std::string Init();
+std::string Init(std::string path = "");
 
 ProbeResult Probe(const Board &b);
 

@@ -27,10 +27,7 @@
 // 216 seems to be a popular number
 static const size_t MAX_LEGAL_MOVES = 256;
 
-typedef uint64_t Move;
-
-// alternate move type with no score (used to store in ttable)
-typedef uint32_t MoveNoScore;
+typedef uint32_t Move;
 
 // fields
 // [3:0] = PieceType
@@ -38,7 +35,6 @@ typedef uint32_t MoveNoScore;
 // [15:10] = To
 // [19:16] = Castling flags
 // [23:20] = promotion piecetype
-// [63:32] = score for move sorting (used by search routine)
 
 namespace MoveConstants
 {
@@ -50,8 +46,6 @@ namespace MoveConstants
 	const static uint32_t TO_MASK = 0x3F;
 	const static uint32_t PROMO_SHIFT = 20;
 	const static uint32_t PROMO_MASK = 0xF;
-	const static uint32_t SCORE_SHIFT = 32;
-	const static uint32_t SCORE_MASK = 0xFFFFFFFF;
 
 	// castling flags are NOT shifted!
 	const static uint32_t CASTLE_WHITE_LONG = 1 << 19;
@@ -123,37 +117,6 @@ inline void SetPromoType(Move &mv, PieceType pt)
 	mv |= pt << MoveConstants::PROMO_SHIFT;
 }
 
-// 0 means no promotion (0 is the piece type for white king)
-inline uint32_t GetScore(Move mv)
-{
-	return (mv >> MoveConstants::SCORE_SHIFT) & MoveConstants::SCORE_MASK;
-}
-
-inline Score GetScoreBiased(Move mv)
-{
-	int32_t tmp = GetScore(mv);
-	tmp -= 1 << 30;
-	return static_cast<Score>(tmp);
-}
-
-inline void SetScore(Move &mv, uint32_t score)
-{
-#ifdef DEBUG
-	assert((score & ~MoveConstants::SCORE_MASK) == 0);
-	assert(GetScore(mv) == 0);
-#endif
-	mv &= ~(static_cast<uint64_t>(MoveConstants::SCORE_MASK) << MoveConstants::SCORE_SHIFT);
-	mv |= static_cast<uint64_t>(score) << MoveConstants::SCORE_SHIFT;
-}
-
-// set the score, biased by 1 << 30
-inline void SetScoreBiased(Move &mv, Score score)
-{
-	int32_t tmp = score;
-	tmp += 1 << 30;
-	SetScore(mv, static_cast<uint32_t>(tmp));
-}
-
 inline bool IsCastling(Move mv)
 {
 	return mv & MoveConstants::CASTLE_MASK;
@@ -176,11 +139,6 @@ inline void SetCastlingType(Move &mv, uint32_t type)
 	assert(!IsCastling(mv));
 #endif
 	mv |= type;
-}
-
-inline MoveNoScore ClearScore(Move mv)
-{
-	return static_cast<MoveNoScore>(mv & 0xFFFFFFFF);
 }
 
 typedef FixedVector<Move, MAX_LEGAL_MOVES> MoveList;
