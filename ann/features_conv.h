@@ -74,8 +74,7 @@ void ConvertMovesToNN(
 	Board &board,
 	ConvertMovesInfo &convInfo,
 	MoveList &ml,
-	NNMatrixRM &ret,
-	bool ordered = false);
+	NNMatrixRM &ret);
 
 // because of the way we convert a move list at a time, it's not possible to do the same thing with
 // ConvertBoardToNN (using templatized functions to perform feature description extraction)
