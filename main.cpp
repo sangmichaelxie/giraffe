@@ -654,7 +654,11 @@ int main(int argc, char **argv)
 
 				std::cout << "feature ping=1 setboard=1 playother=0 san=0 usermove=1 time=1 draw=0 sigint=0 sigterm=0 "
 							 "reuse=1 analyze=1 myname=\"" << name << "\" variants=normal colors=0 ics=0 name=0 pause=0 nps=0 "
-							 "debug=1 memory=0 smp=0 done=1" << std::endl;
+							 "debug=1 memory=0 smp=0 done=0" << std::endl;
+
+				std::cout << "feature option=\"GaviotaTbPath -path .\"" << std::endl;
+
+				std::cout << "feature done=1" << std::endl;
 			}
 		}
 		else if (cmd == "accepted") {}
@@ -885,6 +889,42 @@ int main(int argc, char **argv)
 
 			std::cout << "Black:" << std::endl;
 			printAtkBoardFcn(blackAttackers);
+		}
+		else if (cmd == "option")
+		{
+			std::string lineStr;
+
+			std::getline(line, lineStr);
+
+			if (lineStr.find('=') != std::string::npos)
+			{
+				std::string optionName = lineStr.substr(0, lineStr.find_first_of('='));
+				std::string optionValue = lineStr.substr(lineStr.find_first_of('=') + 1, lineStr.size());
+
+				// remove leading and trailing whitespaces
+				optionName = std::regex_replace(optionName, std::regex("^ +"), "");
+				optionName = std::regex_replace(optionName, std::regex(" +$"), "");
+
+				optionValue = std::regex_replace(optionValue, std::regex("^ +"), "");
+				optionValue = std::regex_replace(optionValue, std::regex(" +$"), "");
+
+				// for value, we additionally want to remove quotes
+				optionValue = std::regex_replace(optionValue, std::regex("^\"+"), "");
+				optionValue = std::regex_replace(optionValue, std::regex("\"+$"), "");
+
+				if (optionName == "GaviotaTbPath")
+				{
+					std::cout << GTB::Init(optionValue) << std::endl;
+				}
+				else
+				{
+					std::cout << "Error: Unknown option - " << optionName << std::endl;
+				}
+			}
+			else
+			{
+				std::cout << "Error: option requires value" << std::endl;
+			}
 		}
 		else if (backend.IsAMove(cmd))
 		{
