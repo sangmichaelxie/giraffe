@@ -4,7 +4,7 @@ Giraffe is an experimental chess engine based on temporal-difference reinforceme
 
 For more information, see: http://arxiv.org/abs/1509.01549
 
-Only GCC 4.8 or later is supported for now. Intel C/C++ Compiler and Clang can be easily supported by just changing compiler options. MSVC is not supported due to use of GCC intrinsics. Patches welcomed to provide alternate code path for MSVC.
+Only GCC 4.8 or later is supported for now. Intel C/C++ Compiler can be easily supported by just changing compiler options. MSVC is not supported due to use of GCC intrinsics. Patches welcomed to provide alternate code path for MSVC. Clang is not supported due to lack of OpenMP.
 
 Tested on Linux (GCC 4.9), OS X (GCC 4.9), Windows (MinGW-W64 GCC 5.1). GCC versions earlier than 4.8 are definitely NOT supported, due to broken regex implementation in libstdc++.
 
