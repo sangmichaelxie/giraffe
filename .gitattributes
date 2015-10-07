@@ -1,0 +1,2 @@
+*.epd filter=lfs diff=lfs merge=lfs -text
+labeled_bm.epd filter=lfs diff=lfs merge=lfs -text
