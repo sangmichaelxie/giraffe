@@ -30,6 +30,11 @@ ANNEvaluator::ANNEvaluator()
 	InvalidateCache();
 }
 
+void ANNEvaluator::ReinitializeMainANN(int64_t inputDims)
+{
+	m_mainAnn = LearnAnn::BuildEvalNet(inputDims, 1, false);
+}
+
 ANNEvaluator::ANNEvaluator(const std::string &filename)
 	: m_evalHash(EvalHashSize)
 {

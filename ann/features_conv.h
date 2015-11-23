@@ -71,6 +71,24 @@ struct FeatureDescription
 
 		return ret.str();
 	}
+
+    std::string XieToString() const
+    {
+        std:: stringstream ret;
+		switch (featureType)
+		{
+		case FeatureType_global:
+			ret << group;
+			break;
+		case FeatureType_pos:
+			ret << sq;
+			break;
+		default:
+			assert(false);
+		}
+
+        return ret.str();
+    }
 };
 
 // convert to NN input format

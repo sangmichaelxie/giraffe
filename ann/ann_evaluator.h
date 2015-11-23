@@ -67,6 +67,8 @@ public:
 	void Serialize(std::ostream &os);
 
 	void Deserialize(std::istream &is);
+    
+    void ReinitializeMainANN(int64_t inputDims);
 
 	void Train(const std::vector<std::string> &positions, const NNMatrixRM &y, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions, float learningRate);
 
@@ -84,9 +86,9 @@ public:
 	void InvalidateCache();
 
 	bool CheckBounds(Board &board, float &windowSize);
+	NNMatrixRM BoardsToFeatureRepresentation_(const std::vector<std::string> &positions, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions);
 
 private:
-	NNMatrixRM BoardsToFeatureRepresentation_(const std::vector<std::string> &positions, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions);
 
 	NNMatrixRM ComputeErrorDerivatives_(
 		const NNMatrixRM &predictions,

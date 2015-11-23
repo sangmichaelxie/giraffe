@@ -33,3 +33,6 @@ engine_log.txt
 send.sh
 gtb/libgtb.a
 *.exe
+gene/
+tests/
+*.out

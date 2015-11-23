@@ -208,6 +208,142 @@ int main(int argc, char **argv)
 
 		return 0;
 	}
+    else if(argc >= 2 && std::string(argv[1]) == "train_eval")
+    {
+        // ./giraffe train_eval <list filename> <epd_data_path> <epd_label_path> <epochs> 
+
+        InitializeSlowBlocking(evaluator, mevaluator);
+        std::ifstream epd_file_list(argv[2]);
+        std::string epd_data_path = argv[3];
+        std::string epd_label_path = argv[4];
+        std::string epd_filename;
+        std::vector<std::string> filenames;
+        while(std::getline(epd_file_list, epd_filename)){
+            filenames.push_back(epd_filename);
+        }
+        int epochs = std::stoi(argv[5]);
+        
+        for(int i = 0; i < epochs*filenames.size(); i++){
+            std::string epd_path_full = epd_data_path + "/" + filenames[i % filenames.size()];
+            std::string label_path_full = epd_label_path + "/" + filenames[i % filenames.size()] + ".xie";
+            std::cout << label_path_full << std::endl;
+            std::ifstream epd_file(epd_path_full);
+            std::ifstream label_file(label_path_full);
+            std::string fen;
+            std::vector<std::string> fens;
+            //std::cout << "Reading FENS" << std::endl;
+            while(std::getline(epd_file, fen))
+            {
+                fens.push_back(fen);
+            } 
+            //std::cout << "Reading labels" << std::endl;
+            
+            std::string label;
+            NNMatrixRM mat_labels = NNMatrixRM(fens.size(), 1);
+            //std::vector<int> labels; 
+            int idx = 0;
+            while(std::getline(label_file, label)){
+                //labels.push_back(stoi(label));
+                mat_labels(idx, 0) = std::stoi(label);
+                idx++; 
+            }
+            //std::cout << "Getting feature descriptions" << std::endl;
+            Board dummy;
+            std::vector<FeaturesConv::FeatureDescription> ret;
+            FeaturesConv::ConvertBoardToNN(dummy, ret);
+
+            //std::cout << "Starting Training" << std::endl;
+            
+            std::ofstream outNet(argv[6]);
+            //evaluator.Serialize(outNet);
+            evaluator.TrainLoop(fens, mat_labels, 10, ret);
+            evaluator.Serialize(outNet);
+        }
+/*
+        std::ifstream epd_file(argv[2]);
+        std::ifstream label_file(argv[3]);
+        std::string fen;
+        std::vector<std::string> fens;
+        std::cout << "Reading FENS" << std::endl;
+        while(std::getline(epd_file, fen))
+        {
+            fens.push_back(fen);
+        } 
+        std::cout << "Reading labels" << std::endl;
+        
+        std::string label;
+        NNMatrixRM mat_labels = NNMatrixRM(fens.size(), 1);
+        //std::vector<int> labels; 
+        int idx = 0;
+        while(std::getline(label_file, label)){
+            //labels.push_back(stoi(label));
+            mat_labels(idx, 0) = std::stoi(label);
+            idx++; 
+        }
+        std::cout << "Getting feature descriptions" << std::endl;
+        int epochs = std::stoi(argv[4]);
+        Board dummy;
+		std::vector<FeaturesConv::FeatureDescription> ret;
+		FeaturesConv::ConvertBoardToNN(dummy, ret);
+
+        std::cout << "Starting Training" << std::endl;
+        
+        std::ofstream outNet(argv[5]);
+        evaluator.Serialize(outNet);
+        evaluator.TrainLoop(fens, mat_labels, epochs, ret);
+        evaluator.Serialize(outNet);
+  */      
+        return 0;
+    }
+    else if (argc >= 2 && std::string(argv[1]) == "conv_file")
+    {
+        InitializeSlowBlocking(evaluator, mevaluator);
+        
+        std::ifstream inFile(argv[2]);
+        std::ofstream outFile(argv[3]);
+
+        std::string fen;
+        std::vector<std::string> fens;
+        while(std::getline(inFile, fen))
+        {
+            fens.push_back(fen);
+            std::cout << fen << std::endl;
+            /*
+            Board b(fen);
+		    std::vector<FeaturesConv::FeatureDescription> ret;
+		    FeaturesConv::ConvertBoardToNN(b, ret);
+            std::stringstream ss;
+            for (int i = 0; i < ret.size()-1; i++)
+            {
+                ss << ret[i].XieToString() << " ";
+
+            }
+            ss << ret[ret.size() - 1].XieToString();
+            outFile << ss.str() << std::endl;
+            std::cout << ss.str() << std::endl;
+            std::cout << "****" << std::endl;
+            */
+        }
+
+        std::vector<FeaturesConv::FeatureDescription> dummy(363);
+
+        NNMatrixRM ret = evaluator.BoardsToFeatureRepresentation_(fens, dummy);
+        for(int64_t row = 0; row < ret.rows(); ++row)
+        {
+            for(int64_t col = 0; col < ret.cols(); ++ col)
+            {
+                outFile << ret(row,col) << ' '; 
+            }
+            outFile << '\n';
+        }
+
+
+        inFile.close();
+        outFile.close();
+
+        return 0;
+
+    }
 	else if (argc >= 2 && std::string(argv[1]) == "mconv")
 	{
 		InitializeSlowBlocking(evaluator, mevaluator);
