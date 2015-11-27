@@ -179,9 +179,11 @@ int main(int argc, char **argv)
 			std::cout << "Usage: " << argv[0] << " tdl positions" << std::endl;
 			return 0;
 		}
-
-		Learn::TDL(argv[2]);
-
+        //try 
+        //{
+	    Learn::TDL(argv[2]);
+        //}
+        //catch(...){}
 		return 0;
 	}
 	else if (argc >= 2 && std::string(argv[1]) == "conv")
@@ -560,6 +562,7 @@ int main(int argc, char **argv)
 			#pragma omp for
 			for (size_t i = 0; i < fens.size(); ++i)
 			{
+                std::cout << i << std::endl;
 				Board b(fens[i]);
 
 				Search::SyncSearchNodeLimited(b, 1000, &evaluatorCopy, &gStaticMoveEvaluator, nullptr, nullptr);
@@ -633,8 +636,8 @@ int main(int argc, char **argv)
 				{
 					++numPositionsDone;
 
-					outfile << fens[i] << std::endl;
-					outfile << bm[i] << std::endl;
+					outfile << fens[i] << '\n';
+					outfile << bm[i] << '\n';
 
 					if (omp_get_thread_num() == 0)
 					{

@@ -67,6 +67,7 @@ void ANNEvaluator::Deserialize(std::istream &is)
 
 void ANNEvaluator::Train(const std::vector<std::string> &positions, const NNMatrixRM &y, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions, float learningRate)
 {
+    //std::cout << "3" << std::endl;
 	auto x = BoardsToFeatureRepresentation_(positions, featureDescriptions);
 
 	NNMatrixRM predictions;
@@ -85,8 +86,11 @@ void ANNEvaluator::Train(const std::vector<std::string> &positions, const NNMatr
 	m_mainAnn.BackwardPropagateComputeGrad(errorsDerivative, act, grad);
 
 	m_mainAnn.ApplyWeightUpdates(grad, learningRate, 0.0f);
+    //std::cout << "4" << std::endl;
 
 	InvalidateCache();
+    //std::cout << "5" << std::endl;
+
 }
 
 void ANNEvaluator::TrainLoop(const std::vector<std::string> &positions, const NNMatrixRM &y, int64_t epochs, const std::vector<FeaturesConv::FeatureDescription> &featureDescriptions)

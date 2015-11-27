@@ -166,7 +166,8 @@ void TDL(const std::string &positionsFilename)
 		}
 		else
 		{
-			size_t positionsProcessed = 0;
+            //`std::cout << "1" << std::endl;
+            size_t positionsProcessed = 0;
 
 			trainingPositions.resize(PositionsPerBatch);
 			trainingTargets.resize(trainingPositions.size(), 1);
@@ -181,8 +182,9 @@ void TDL(const std::string &positionsFilename)
 
 				// we are being paranoid here - it's possible tha the memory we get happens to be where a TTable used to be,
 				// in which case we will have many valid entries with wrong scores (since evaluator changed)
-				thread_ttable.InvalidateAllEntries();
-
+				//std::cout << "invalidate" << std::endl;
+                thread_ttable.InvalidateAllEntries();
+                //std::cout << "invalidated" << std::endl;
 				// each thread makes a copy of the evaluator to reduce sharing
 				ANNEvaluator thread_annEvaluator = annEvaluator;
 
@@ -190,10 +192,12 @@ void TDL(const std::string &positionsFilename)
 				auto positionDist = std::uniform_int_distribution<size_t>(0, rootPositions.size() - 1);
 				auto positionDrawFunc = std::bind(positionDist, rng);
 
-				#pragma omp for schedule(dynamic, 1)
-				for (size_t i = 0; i < PositionsPerBatch; ++i)
+				//#pragma omp for schedule(dynamic, 1)
+				//std::cout << "for loop" << std::endl;
+                #pragma omp parallel for 
+                for (size_t i = 0; i < PositionsPerBatch; ++i)
 				{
-					thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
+                    thread_ttable.ClearTable(); // this is a cheap clear that simply ages the table a bunch so all new positions have higher priority
 
 					Board rootPos(rootPositions[positionDrawFunc()]);
 
@@ -297,6 +301,7 @@ void TDL(const std::string &positionsFilename)
 				}
 			}
 		}
+        //std::cout << "2" << std::endl;
 
 		if (iter == 0)
 		{
